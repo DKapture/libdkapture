@@ -53,7 +53,7 @@ $(GTEST_LIBS): $(GTEST_HDRS)
 	cmake ../ -DBUILD_SHARED_LIBS=ON && make -j4
 
 $(GTEST_HDRS): 
-	cd $(PROJ_ROOT) && git submodule update --init --recursive
+	cd $(PROJ_ROOT) && git submodule update --init --recursive --depth 1
 
 clean:
 	rm -f *.o *.d $(TARGET)
