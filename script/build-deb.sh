@@ -232,7 +232,7 @@ Package: ${PROJECT_NAME}
 Version: ${VERSION}
 Architecture: ${ARCH}
 Maintainer: DKapture Team <dkapture@example.com>
-Depends: libbpf-dev, libuuid1
+Depends: libbpf1, libuuid1
 Priority: optional
 Section: utils
 Description: Deepin Kernel Capture - eBPF-based system observation tools
