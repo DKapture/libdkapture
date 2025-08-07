@@ -9,31 +9,35 @@ def read_stat_file(stat_path):
             content = f.read().strip()
             if not content:
                 return None
-                
-            # 处理包含空格的进程名
-            if content.startswith('('):
-                first_paren = content.find('(')
-                last_paren = content.rfind(')')
-                if first_paren != -1 and last_paren != -1 and last_paren > first_paren:
-                    # PID在第一个括号之前
-                    pid_part = content[:first_paren].strip()
-                    # 进程名在括号内
-                    comm = content[first_paren+1:last_paren]
-                    # 剩余字段在第二个括号之后
-                    remaining = content[last_paren+2:].strip()
-                    
-                    if pid_part and remaining:
-                        fields = remaining.split()
-                        # 在开头插入PID和进程名
-                        fields.insert(0, comm)  # COMM
-                        fields.insert(0, pid_part)  # PID
-                        return fields
-            else:
-                # 简单情况：没有括号包围的进程名
-                return content.split()
+
+        # 格式：PID (COMM) STATE PPID ...
+        first_space = content.find(' ')
+        if first_space == -1:
+            raise ValueError("Invalid stat format")
+
+        pid = content[:first_space]
+
+        # 找到 COMM 的起始和结束括号
+        first_paren = content.find('(')
+        last_paren = content.rfind(')')
+
+        if first_paren == -1 or last_paren == -1 or last_paren <= first_paren:
+            raise ValueError("Invalid stat format for COMM")
+
+        comm = content[first_paren + 1:last_paren]
+        remaining = content[last_paren + 2:].strip()
+
+        fields = remaining.split()
+
+        # 插入 PID 和 COMM 到字段列表的前面
+        fields.insert(0, comm)
+        fields.insert(0, pid)
+
+        return fields
+
     except Exception as e:
+        # 可选：记录日志
         return None
-    return None
 
 def main():
     print(f"{'PID':>8} {'TGID':>8} {'UTIME':>10} {'STIME':>10} {'COMMAND'}")
@@ -50,7 +54,7 @@ def main():
         if not entry.isdigit():
             continue
             
-        pid = int(entry)
+        tgid = int(entry)
         task_dir = os.path.join(proc_dir, entry, 'task')
         
         if not os.path.exists(task_dir):
@@ -61,7 +65,8 @@ def main():
             for task_entry in os.listdir(task_dir):
                 if not task_entry.isdigit():
                     continue
-                    
+                
+                pid = int(task_entry)
                 task_stat_path = os.path.join(task_dir, task_entry, 'stat')
                 
                 if not os.path.exists(task_stat_path):
@@ -78,14 +83,14 @@ def main():
                 
                 if stat_fields and len(stat_fields) >= 17:
                     try:
-                        task_pid = stat_fields[0]           # PID
+                        task_pid = pid
                         task_name = stat_fields[1]          # COMM
                         task_utime = stat_fields[13]        # UTIME
                         task_stime = stat_fields[14]        # STIME
                         
                         # 对于task目录下的stat文件，TGID应该是线程组的PID
                         # 但在某些情况下，我们需要从进程目录获取正确的TGID
-                        task_tgid = pid  # 默认使用进程PID作为TGID
+                        task_tgid = tgid
                         
                         print(f"{task_pid:>8} {task_tgid:>8} {task_utime:>10} {task_stime:>10} {task_name}")
                         
