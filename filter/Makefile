@@ -26,6 +26,7 @@ all: $(TARGETs)
 net-filter: net-filter.o
 rm-forbid: rm-forbid.o
 signal-filter: signal-filter.o
+tc-cgroup: tc-cgroup.o 
 
 $(TARGETs): log.o
 	$(CXX) $(LDFLAGS) $^ -o $@
