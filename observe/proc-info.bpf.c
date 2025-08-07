@@ -226,8 +226,14 @@ static int dump_proc_schedstat(struct task_struct *task)
 }
 
 static void cputime_adjust(struct task_cputime *curr, struct prev_cputime *prev,
-            u64 *ut, u64 *st)
+                           u64 *ut, u64 *st)
 {
+    if (CONFIG_VIRT_CPU_ACCOUNTING_NATIVE)
+    {
+        *ut = curr->utime;
+        *st = curr->stime;
+        return;
+    }
     u64 rtime, stime, utime;
 
     rtime = curr->sum_exec_runtime;
@@ -241,12 +247,14 @@ static void cputime_adjust(struct task_cputime *curr, struct prev_cputime *prev,
     stime = curr->stime;
     utime = curr->utime;
 
-    if (stime == 0) {
+    if (stime == 0)
+    {
         utime = rtime;
         goto update;
     }
 
-    if (utime == 0) {
+    if (utime == 0)
+    {
         stime = rtime;
         goto update;
     }
@@ -259,7 +267,7 @@ update:
     if (stime < prev->stime)
         stime = prev->stime;
     utime = rtime - stime;
-    if (utime < prev->utime) 
+    if (utime < prev->utime)
     {
         utime = prev->utime;
         stime = rtime - utime;
@@ -270,23 +278,102 @@ out:
     *st = stime;
 }
 
-static void task_cputime_adjusted(struct task_struct *p, u64 *ut, u64 *st)
-{
-    struct task_cputime cputime = {
-        .utime = p->utime,
-        .stime = p->stime,
-        .sum_exec_runtime = p->se.sum_exec_runtime,
-    };
+#define CONTEXT_TRACKING_KEY "context_tracking_key"
+static struct static_key_false *context_tracking_key = NULL;
 
-    if (CONFIG_VIRT_CPU_ACCOUNTING_NATIVE)
+static __always_inline bool context_tracking_enabled(void)
+{
+    if (CONFIG_CONTEXT_TRACKING_USER)
     {
-        *ut = p->utime;
-        *st = p->stime;
+        if (!context_tracking_key)
+            return false;
+        return !!BPF_CORE_READ(context_tracking_key, key.enabled.counter);
     }
     else
     {
-        cputime_adjust(&cputime, &p->prev_cputime, ut, st);
+        return false;
     }
+}
+
+static inline bool vtime_accounting_enabled(void)
+{
+    return context_tracking_enabled();
+}
+#ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
+static u64 vtime_delta(struct vtime *vtime)
+{
+    unsigned long long clock;
+
+    clock = bpf_ktime_get_boot_ns();
+    if (clock < vtime->starttime)
+        return 0;
+
+    return clock - vtime->starttime;
+}
+/*
+ * Fetch cputime raw values from fields of task_struct and
+ * add up the pending nohz execution time since the last
+ * cputime snapshot.
+ */
+static bool task_cputime(struct task_struct *t, u64 *utime, u64 *stime)
+{
+    struct vtime *vtime = &t->vtime;
+    u64 delta;
+
+    if (!vtime_accounting_enabled())
+    {
+        *utime = t->utime;
+        *stime = t->stime;
+        return false;
+    }
+
+    *utime = t->utime;
+    *stime = t->stime;
+
+    /* Task is sleeping or idle, nothing to add */
+    if (vtime->state < VTIME_SYS)
+        return false;
+
+    delta = vtime_delta(vtime);
+
+    /*
+     * Task runs either in user (including guest) or kernel space,
+     * add pending nohz time to the right place.
+     */
+    if (vtime->state == VTIME_SYS)
+        *stime += vtime->stime + delta;
+    else
+        *utime += vtime->utime + delta;
+
+    return true;
+}
+#else
+static inline bool task_cputime(struct task_struct *t,
+                                u64 *utime, u64 *stime)
+{
+    *utime = t->utime;
+    *stime = t->stime;
+    return false;
+}
+
+static inline u64 task_gtime(struct task_struct *t)
+{
+    return t->gtime;
+}
+#endif
+
+static void task_cputime_adjusted(struct task_struct *p, u64 *ut, u64 *st)
+{
+    struct task_cputime cputime = {
+        .sum_exec_runtime = p->se.sum_exec_runtime,
+    };
+
+    if (task_cputime(p, &cputime.utime, &cputime.stime))
+    {
+        bpf_warn("time code not implemented");
+    }
+
+    cputime_adjust(&cputime, &p->prev_cputime, ut, st);
 }
 
 static int dump_proc_stat(struct task_struct *task)
@@ -725,4 +812,28 @@ int BPF_PROG(fr_sock_recvmsg,
              int ret)
 {
     return traffic_stat(ret, TRAFFIC_IN);
+}
+
+SEC("syscall")
+int proc_info_init(void *ctx)
+{
+    if (!context_tracking_key)
+    {
+        long ret;
+        ret = bpf_kallsyms_lookup_name(
+            CONTEXT_TRACKING_KEY,
+            sizeof(CONTEXT_TRACKING_KEY),
+            0, (u64 *)&context_tracking_key);
+        if (ret || !context_tracking_key)
+        {
+            bpf_warn("bpf_kallsyms_lookup_name failed: %d", ret);
+        }
+    }
+    if (context_tracking_key)
+    {
+        bpf_info(CONTEXT_TRACKING_KEY ": %p-%d", 
+                 context_tracking_key, 
+                 BPF_CORE_READ(context_tracking_key, key.enabled.counter));
+    }
+    return 0;
 }
