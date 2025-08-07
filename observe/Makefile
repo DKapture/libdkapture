@@ -31,6 +31,7 @@ CXX = g++
 
 all: $(TARGETs)
 
+arp-observe: arp-observe.o
 bio-stat: bio-stat.o
 file-occupation: file-occupation.o
 hrtimer: hrtimer.o
