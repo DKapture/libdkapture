@@ -1,22 +1,34 @@
 PROJ_ROOT ?= ..
-
-CXX_FLAGS = -g -MMD
+MODULE := $(notdir $(CURDIR))
+BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
+TARGET = $(BUILD_DIR)/demo
+CXX_FLAGS = -g -MMD -I$(PROJ_ROOT)/include/ -I$(PROJ_ROOT)/build/include/
 LD_FLAGS = -L$(PROJ_ROOT)/so/ -ldkapture -luuid
 ifeq ($(DEBUG), 1)
 	LD_FLAGS += -Wl,-rpath=$(PROJ_ROOT)/so/
 endif
 
-demo: demo.cpp $(PROJ_ROOT)/so/libdkapture.so
-	g++ $(CXX_FLAGS) $< -I$(PROJ_ROOT)/include/ -o demo $(LD_FLAGS)
+all: $(TARGET)
 
-demo.cpp: $(PROJ_ROOT)/include/dkapture.h
+$(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(BUILD_DIR)/so/libdkapture.so | $(BUILD_DIR)
+	g++ $(CXX_FLAGS) $< -I$(PROJ_ROOT)/include/ -o $@ $(LD_FLAGS)
 
-$(PROJ_ROOT)/so/libdkapture.so:
+$(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
+	g++ $(CXX_FLAGS) -c $< -o $@
+
+$(BUILD_DIR)/so/libdkapture.so: | $(BUILD_DIR)
 	make -C $(PROJ_ROOT) so
+	
+$(BUILD_DIR):
+	@mkdir -p $@
 
-.PHONY: $(PROJ_ROOT)/so/libdkapture.so clean
+.PHONY: all clean distclean
+.SECONDARY:
 
 clean:
-	rm -rf *.o *.d demo tmp dkapture-demo.tgz
+	rm -rf $(BUILD_DIR)/*.o $(BUILD_DIR)/*.d $(TARGET)
 
--include $(wildcard *.d)
+distclean:
+	rm -rf $(BUILD_DIR)
+
+-include $(wildcard $(BUILD_DIR)/*.d)
