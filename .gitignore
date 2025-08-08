@@ -1,6 +1,3 @@
-*.skel.h
-*/vmlinux.h
-include/kconfig.h
 build/
 .vscode/
 *.cmd
@@ -12,5 +9,5 @@ build/
 *.d
 *.so
 *.deb
-demo/demo
 .cache
+compile_commands.json
