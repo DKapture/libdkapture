@@ -2,7 +2,8 @@
 
 """
 Script to generate kconfig.h from /proc/config.gz
-Usage: python3 gen_kconfig.py
+Usage: python3 gen_kconfig.py [output_file]
+       If output_file is not specified, output to stdout
 """
 
 import os
@@ -11,15 +12,25 @@ import re
 import sys
 
 def main():
-    OUTPUT_FILE = os.path.join(os.getcwd(), "kconfig.h")
+    # Parse command line arguments
+    if len(sys.argv) > 1:
+        OUTPUT_FILE = sys.argv[1]
+        output_to_stdout = False
+    else:
+        OUTPUT_FILE = None
+        output_to_stdout = True
+    
     CONFIG_SOURCE = "/proc/config.gz"
     
-    print(f"Generating kconfig.h from {CONFIG_SOURCE}...")
+    if output_to_stdout:
+        print(f"Generating kconfig.h from {CONFIG_SOURCE} to stdout...", file=sys.stderr)
+    else:
+        print(f"Generating kconfig.h from {CONFIG_SOURCE} to {OUTPUT_FILE}...")
     
     # Check if config.gz exists
     if not os.path.exists(CONFIG_SOURCE):
-        print(f"Error: {CONFIG_SOURCE} not found!")
-        print("Make sure you have CONFIG_IKCONFIG_PROC enabled in your kernel.")
+        print(f"Error: {CONFIG_SOURCE} not found!", file=sys.stderr)
+        print("Make sure you have CONFIG_IKCONFIG_PROC enabled in your kernel.", file=sys.stderr)
         sys.exit(1)
     
     # Write header
@@ -36,10 +47,14 @@ def main():
 /* Kernel configuration options */
 '''
 
-    with open(OUTPUT_FILE, 'w') as f:
-        f.write(header_content)
+    if output_to_stdout:
+        print(header_content, end='')
+    else:
+        with open(OUTPUT_FILE, 'w') as f:
+            f.write(header_content)
 
-    print("Processing kernel configuration...")
+    if not output_to_stdout:
+        print("Processing kernel configuration...")
 
     # Process config.gz and generate definitions
     try:
@@ -83,15 +98,20 @@ def main():
                     # Other string value
                     definition = f'#define {config_name} "{config_value}"'
 
-                # Append to file
-                with open(OUTPUT_FILE, 'a') as f:
-                    f.write(definition + '\n')
+                # Output definition
+                if output_to_stdout:
+                    print(definition)
+                else:
+                    # Append to file
+                    with open(OUTPUT_FILE, 'a') as f:
+                        f.write(definition + '\n')
 
     except Exception as e:
-        print(f"Error processing {CONFIG_SOURCE}: {e}")
+        print(f"Error processing {CONFIG_SOURCE}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"kconfig.h generated in {OUTPUT_FILE}")
+    if not output_to_stdout:
+        print(f"kconfig.h generated in {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main() 
