@@ -3,20 +3,20 @@ MODULE := $(notdir $(CURDIR))
 BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
 TARGET = $(BUILD_DIR)/demo
 CXX_FLAGS = -g -MMD -I$(PROJ_ROOT)/include/ -I$(PROJ_ROOT)/build/include/
-LD_FLAGS = -L$(PROJ_ROOT)/so/ -ldkapture -luuid
+LD_FLAGS = -L$(PROJ_ROOT)/build/so/ -ldkapture -luuid
 ifeq ($(DEBUG), 1)
 	LD_FLAGS += -Wl,-rpath=$(PROJ_ROOT)/so/
 endif
 
 all: $(TARGET)
 
-$(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(BUILD_DIR)/so/libdkapture.so | $(BUILD_DIR)
+$(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(PROJ_ROOT)/build/so/libdkapture.so | $(BUILD_DIR)
 	g++ $(CXX_FLAGS) $< -I$(PROJ_ROOT)/include/ -o $@ $(LD_FLAGS)
 
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
 	g++ $(CXX_FLAGS) -c $< -o $@
 
-$(BUILD_DIR)/so/libdkapture.so: | $(BUILD_DIR)
+$(PROJ_ROOT)/build/so/libdkapture.so: | $(BUILD_DIR)
 	make -C $(PROJ_ROOT) so
 	
 $(BUILD_DIR):
