@@ -2,13 +2,13 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include "Ktask.h"
+#include "Kcom.h"
 #include "Kmem.h"
 #include "Kstr-utils.h"
 #include <errno.h>
 #include "jhash.h"
-#include "Kcom.h"
 
-#define __DEBUG 0
+#define DEBUG_OUTPUT 0
 
 char _license[] SEC("license") = "GPL";
 
@@ -18,438 +18,439 @@ typedef u32 Action;
 #define FMODE_WRITE ((fmode_t)0x2)
 #define FMODE_EXEC ((fmode_t)0x20)
 
-struct Rule
-{
-    union
-    {
-        struct
-        {
-            u32 not_pid;
-            pid_t pid;
-        };
-        char process[4096];
-    };
-    Action act;
-    char target[4096];
+struct Target {
+	uuid_t uuid;
+	ino_t ino;
 };
 
-struct BpfData
-{
-    Action act;
-    pid_t pid;
-    char process[];
+struct Rule {
+	union {
+		struct {
+			u32 not_pid;
+			pid_t pid;
+		};
+		char process[4096];
+	};
+	Action act;
+	struct Target target;
 };
 
-struct
-{
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u32);           // Key type
-    __type(value, struct Rule); // Value type
-    __uint(max_entries, 1000);  // Maximum entries
+struct BpfData {
+	Action act;
+	pid_t pid;
+	char process[];
+};
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, u32); // Key type
+	__type(value, struct Rule); // Value type
+	__uint(max_entries, 1000); // Maximum entries
 } filter SEC(".maps");
 
-struct
-{
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __type(key, pid_t);
-    __type(value, char [4096]);
-    __uint(max_entries, 1024);
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__type(key, pid_t);
+	__type(value, char[4096]);
+	__uint(max_entries, 1024);
 } pid2path SEC(".maps");
 
-struct
-{
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 1024 * 1024); // 1 MB
+struct {
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries, 1024 * 1024); // 1 MB
 } logs SEC(".maps");
 
-static void audit_log(pid_t pid, const char* process, const char* target, Action act)
+static void uuid2str(uuid_t uuid, char *out, size_t out_size)
 {
-    long ret;
-    u32 log_bsz;
-    u32 log_sz;
-    u32 mkey = __LINE__;
-    struct BpfData *log = (typeof(log))malloc_page(mkey);
-    if (!log)
-    {
-        bpf_printk("log buffer full");
-        return;
-    }
+	const char hex_chars[] = "0123456789abcdef";
+	int pos = 0;
 
-    log->pid = pid;
-    log->act = act & 0XFF;
-    log_bsz = 4096 - sizeof(log);
-    log_sz = sizeof(log);
+	if (!out || out_size < 37) {
+		return;
+	}
 
-    u64 data[] = {(u64)process};
-    ret = bpf_snprintf(log->process, log_bsz / 2,
-            "%s", data, sizeof(data));
-    if (ret < 0)
-    {
-        bpf_printk("error: bpf_snprintf: %ld", ret);
-        goto exit;
-    }
+	for (int i = 0; i < 16 && pos < out_size - 1; i++) {
+		if (pos < out_size - 1)
+			out[pos++] = hex_chars[(uuid.b[i] >> 4) & 0xf];
+		if (pos < out_size - 1)
+			out[pos++] = hex_chars[uuid.b[i] & 0xf];
 
-    if (ret > log_bsz / 2)
-    {
-        ret = log_bsz / 2;
-    }
+		if ((i == 3 || i == 5 || i == 7 || i == 9) &&
+		    pos < out_size - 1) {
+			out[pos++] = '-';
+		}
+	}
 
-    log_sz += ret;
-    data[0] = (u64)target;
-    ret = bpf_snprintf(log->process + ret, log_bsz / 2,
-            "%s", data, sizeof(data));
-    if (ret < 0)
-    {
-        bpf_printk("error: bpf_snprintf: %ld", ret);
-        goto exit;
-    }
-
-    if (ret > log_bsz / 2)
-    {
-        ret = log_bsz / 2;
-    }
-
-    log_sz += ret;
-
-    ret = bpf_ringbuf_output(&logs, log, log_sz, 0);
-    if (ret)
-    {
-        bpf_printk("error: bpf_perf_event_output: %ld", ret);
-    }
-
-exit:
-    if (log)
-    {
-        free_page(mkey);
-    }
+	if (pos < out_size)
+		out[pos] = '\0';
 }
 
-struct Event
+static void audit_log(pid_t pid, const char *process,
+		      const struct Target *target, Action act)
 {
-    const char *proc_path;
-    const char *file_path;
-    int act;
+	long ret;
+	u32 log_bsz;
+	u32 log_sz;
+	u32 mkey = __LINE__;
+	struct BpfData *log = (typeof(log))malloc_page(mkey);
+	if (!log) {
+		bpf_printk("log buffer full");
+		return;
+	}
+
+	log->pid = pid;
+	log->act = act & 0XFF;
+	log_bsz = 4096 - sizeof(log);
+	log_sz = sizeof(log);
+
+	ret = bpf_snprintf(log->process, log_bsz / 2, "%s", (u64 *)&process, 8);
+	if (ret < 0) {
+		bpf_printk("error: bpf_snprintf: %ld", ret);
+		goto exit;
+	}
+
+	if (ret > log_bsz / 2) {
+		ret = log_bsz / 2;
+	}
+
+	log_sz += ret;
+	char uuid_str[37];
+	uuid2str(target->uuid, uuid_str, 37);
+	u64 data[] = {
+		(u64)uuid_str,
+		target->ino,
+	};
+	ret = bpf_snprintf(log->process + ret, log_bsz / 2, "%s %ld", data,
+			   sizeof(data));
+	if (ret < 0) {
+		bpf_printk("error: bpf_snprintf: %ld", ret);
+		goto exit;
+	}
+
+	if (ret > log_bsz / 2) {
+		ret = log_bsz / 2;
+	}
+
+	log_sz += ret;
+
+	ret = bpf_ringbuf_output(&logs, log, log_sz, 0);
+	if (ret) {
+		bpf_printk("error: bpf_perf_event_output: %ld", ret);
+	}
+
+exit:
+	if (log) {
+		free_page(mkey);
+	}
+}
+
+struct Event {
+	const char *proc_path;
+	const struct Target *target;
+	int act;
 };
 
-static long match_callback(
-	struct bpf_map *map,
-	const void *key,
-	void *value,
-	void *ctx)
+static long match_callback(struct bpf_map *map, const void *key, void *value,
+			   void *ctx)
 {
-    const char *proc_path;
-    const char *file_path;
-    int act;
+	const char *proc_path;
+	const uuid_t *uuid;
+	ino_t ino;
+	int act;
 
-    struct Event *event = ctx;
-    struct Rule *rule = value;
+	struct Event *event = ctx;
+	struct Rule *rule = value;
 
-    proc_path = event->proc_path;
-    file_path = event->file_path;
-    act = event->act;
-    
-    if (rule->not_pid)
-    {
-        if (!proc_path)
-        {
-            return 0;
-        }
-        // Check if process path matches
-        if (wildcard_match(rule->process, proc_path, 4096))
-        {
-            return 0;
-        }
-    }
-    else
-    {
-        pid_t pid = bpf_get_current_pid_tgid();
-        if (rule->pid != pid)
-        {
-            return 0;
-        }
-    }
-    
-    if (__DEBUG)
-    {
-        bpf_printk("proc fit: %s %s %d",
-            proc_path, file_path, act);
-    }
+	proc_path = event->proc_path;
+	uuid = &event->target->uuid;
+	ino = event->target->ino;
+	act = event->act;
 
-    // Check if file path matches
-    if (wildcard_match(rule->target, file_path, 4096))
-    {
-        return 0;
-    }
+	if (rule->not_pid) {
+		if (!proc_path) {
+			return 0;
+		}
+		// Check if process path matches
+		if (wildcard_match(rule->process, proc_path, 4096)) {
+			return 0;
+		}
+	} else {
+		pid_t pid = bpf_get_current_pid_tgid();
+		if (rule->pid != pid) {
+			return 0;
+		}
+	}
 
-    if (__DEBUG)
-    {
-        bpf_printk("target fit: %s %s %d",
-            proc_path, file_path, act);
-    }
-    // Check if act is a subset of rule->act
-    if (act & rule->act)
-    {
-        event->act = 0;
-    }
+	if (DEBUG_OUTPUT) {
+		bpf_printk("proc fit: %s %d", proc_path, act);
+	}
 
-    return 1;
+	// Check if file path matches
+	if (rule->target.ino != ino) {
+		return 0;
+	}
+
+	for (int i = 0; i < sizeof(uuid_t); i++) {
+		if (((u8 *)&rule->target.uuid)[i] != ((u8 *)uuid)[i]) {
+			return 0;
+		}
+	}
+
+	if (DEBUG_OUTPUT) {
+		char uuid_str[37];
+		uuid2str(rule->target.uuid, uuid_str, 37);
+		bpf_printk("target fit: %s %s %lu %d", proc_path, uuid_str, ino,
+			   act);
+	}
+	// Check if act is a subset of rule->act
+	if (act & rule->act) {
+		event->act = 0;
+	}
+
+	return 1;
 }
 
-static bool rules_filter(
-    const char *proc_path,
-    const char *file_path,
-    int act)
+static bool rules_filter(const char *proc_path, const struct Target *target,
+			 int act)
 {
-    struct Event event =
-    {
-        .act = act,
-        .proc_path = proc_path,
-        .file_path = file_path
-    };
+	struct Event event = { .act = act,
+			       .proc_path = proc_path,
+			       .target = target };
 
-    bpf_for_each_map_elem(
-        &filter, match_callback, &event, 0);
+	bpf_for_each_map_elem(&filter, match_callback, &event, 0);
 
-    return !!event.act;
+	return !!event.act;
 }
 
-static int _permission_check(
-    const char *path,
-    fmode_t mode)
+static int _permission_check(const struct Target *target, fmode_t mode)
 {
-    pid_t pid;
-    char *proc_path = NULL;
-    long ret = 0;
+	pid_t pid;
+	char *proc_path = NULL;
+	long ret = 0;
 
-    pid = bpf_get_current_pid_tgid();
-    
-    proc_path = bpf_map_lookup_elem(&pid2path, &pid);
+	pid = bpf_get_current_pid_tgid();
 
-    if (bpf_strncmp(path, 10, "/root/file") == 0)
-    {
-        bpf_printk("%d proc fit: %s %s %d",
-            pid, proc_path, path, mode);
-    }
-    
-    if (!rules_filter(proc_path, path, mode))
-    {
-        if (proc_path)
-            audit_log(pid, proc_path, path, mode);
-        else
-        {
-            char comm[16];
-            ret = bpf_get_current_comm(comm, sizeof(comm));
-            if (ret)
-            {
-                bpf_printk("fail to get current comm: %ld", ret);
-            }
-            else
-            {
-                audit_log(pid, comm, path, mode);
-            }
-        }
+	proc_path = bpf_map_lookup_elem(&pid2path, &pid);
 
-        if (__DEBUG)
-        {
-            bpf_printk("permission denied: %s %d", path, mode);
-        }
-        ret = -EACCES;
-    }
+	if (!rules_filter(proc_path, target, mode)) {
+		if (proc_path)
+			audit_log(pid, proc_path, target, mode);
+		else {
+			char comm[16];
+			ret = bpf_get_current_comm(comm, sizeof(comm));
+			if (ret) {
+				bpf_printk("fail to get current comm: %ld",
+					   ret);
+			} else {
+				audit_log(pid, comm, target, mode);
+			}
+		}
 
-    return ret;
+		if (DEBUG_OUTPUT) {
+			char uuid_str[37];
+			uuid2str(target->uuid, uuid_str, 37);
+			bpf_printk("permission denied: %s %lu %d", uuid_str,
+				   target->ino, mode);
+		}
+		ret = -EACCES;
+	}
+
+	return ret;
 }
 
-static int permission_check(
-    struct path *path_st,
-    fmode_t mode)
+static int permission_check(struct dentry *dentry, fmode_t mode)
 {
-    char *path = NULL;
-    long ret = 0;
-
-    u32 mkey = __LINE__;
-    path = malloc_page(mkey);
-    if (!path)
-    {
-        bpf_printk("path buffer full");
-        goto exit;
-    }
-
-    ret = bpf_d_path(path_st, path, PAGE_SIZE);
-    if (ret < 0)
-    {
-        bpf_printk("fail to get d_path: %d", ret);
-        ret = 0;
-        goto exit;
-    }
-
-    ret = _permission_check(path, mode);
-
-exit:
-    if (path)
-    {
-        free_page(mkey);
-    }
-
-    return ret;
+	struct Target target = {
+		.ino = dentry->d_inode->i_ino,
+	};
+	memcpy(&target.uuid, &dentry->d_sb->s_uuid, sizeof(uuid_t));
+	int ret = _permission_check(&target, mode);
+	if (ret)
+		return ret;
+	target.ino = dentry->d_parent->d_inode->i_ino;
+	memcpy(&target.uuid, &dentry->d_parent->d_sb->s_uuid, sizeof(uuid_t));
+	return _permission_check(&target, mode);
 }
 
 SEC("lsm/file_open")
-int BPF_PROG(file_open,
-             struct file *file, int ret)
+int BPF_PROG(file_open, struct file *file, int ret)
 {
-    if (ret)
-    {
-        return ret;
-    }
+	if (ret) {
+		return ret;
+	}
 
-    return permission_check(&file->f_path, file->f_mode);
+	return permission_check(file->f_path.dentry, file->f_mode);
 }
 
-static long pid2path_callback(
-	struct bpf_map *map,
-	const void *key,
-	void *value,
-	void *ctx)
+SEC("lsm/file_truncate")
+int BPF_PROG(file_truncate, struct file *file, int ret)
 {
-    char *filepath = *(char**)ctx;
-    struct Rule *rule = value;
-    
-    if (!rule)
-    {
-        filepath[4095] = 0;
-        return 0;
-    }
+	if (ret) {
+		return ret;
+	}
 
-    if (!rule->not_pid)
-    {
-        filepath[4095] = 0;
-        return 0;
-    }
+	return permission_check(file->f_path.dentry, FMODE_WRITE);
+}
 
-    if (wildcard_match(rule->process, filepath, 4096))
-    {
-        filepath[4095] = 0;
-        return 0;
-    }
+SEC("lsm/path_unlink")
+int BPF_PROG(path_unlink, const struct path *dir, struct dentry *dentry,
+	     int ret)
+{
+	if (ret)
+		return ret;
 
-    filepath[4095] = 1;
-    return 1;
+	return permission_check(dir->dentry, FMODE_WRITE);
+}
+
+SEC("lsm/path_mkdir")
+int BPF_PROG(path_mkdir, const struct path *dir, struct dentry *dentry,
+	     umode_t mode, int ret)
+{
+	if (ret)
+		return ret;
+
+	return permission_check(dir->dentry, FMODE_WRITE);
+}
+
+SEC("lsm/path_rmdir")
+int BPF_PROG(path_rmdir, const struct path *dir, struct dentry *dentry, int ret)
+{
+	if (ret)
+		return ret;
+
+	return permission_check(dir->dentry, FMODE_WRITE);
+}
+
+SEC("lsm/path_mknod")
+int BPF_PROG(path_mknod, const struct path *dir, struct dentry *dentry,
+	     umode_t mode, unsigned int dev, int ret)
+{
+	if (ret)
+		return ret;
+
+	return permission_check(dir->dentry, FMODE_WRITE);
+}
+
+static long pid2path_callback(struct bpf_map *map, const void *key, void *value,
+			      void *ctx)
+{
+	char *filepath = *(char **)ctx;
+	struct Rule *rule = value;
+
+	if (!rule) {
+		filepath[4095] = 0;
+		return 0;
+	}
+
+	if (!rule->not_pid) {
+		filepath[4095] = 0;
+		return 0;
+	}
+
+	if (wildcard_match(rule->process, filepath, 4096)) {
+		filepath[4095] = 0;
+		return 0;
+	}
+
+	filepath[4095] = 1;
+	return 1;
 }
 
 static bool pid2path_filter(char *file_path)
 {
-    bpf_for_each_map_elem(
-        &filter, pid2path_callback, &file_path, 0);
+	bpf_for_each_map_elem(&filter, pid2path_callback, &file_path, 0);
 
-    bool ret = !!file_path[4095];
-    file_path[4095] = 0;    // use last byte as flag
-    return ret;
+	bool ret = !!file_path[4095];
+	file_path[4095] = 0; // use last byte as flag
+	return ret;
 }
 
-static long thead_exit_callback(
-	struct bpf_map *map,
-	const void *key,
-	void *value,
-	void *ctx)
+static long thead_exit_callback(struct bpf_map *map, const void *key,
+				void *value, void *ctx)
 {
-    struct Rule *rule = value;
-    bool *ret = ctx;
+	struct Rule *rule = value;
+	bool *ret = ctx;
 
-    if (!rule)
-    {
-        *ret = false;
-        return 0;
-    }
+	if (!rule) {
+		*ret = false;
+		return 0;
+	}
 
-    if (!rule->not_pid)
-    {
-        *ret = false;
-        return 0;
-    }
+	if (!rule->not_pid) {
+		*ret = false;
+		return 0;
+	}
 
-    *ret = true;
-    return 1;
+	*ret = true;
+	return 1;
 }
 
 static bool thread_exit_filter(void)
 {
-    bool ret = false;
-    bpf_for_each_map_elem(
-        &filter, thead_exit_callback, &ret, 0);
+	bool ret = false;
+	bpf_for_each_map_elem(&filter, thead_exit_callback, &ret, 0);
 
-    return ret;
+	return ret;
 }
 
 SEC("fexit/bprm_execve")
-int BPF_PROG(bprm_execve,
-    struct linux_binprm *bprm,
-    int fd,
-    struct filename *filename,
-    int flags)
+int BPF_PROG(bprm_execve, struct linux_binprm *bprm, int fd,
+	     struct filename *filename, int flags)
 {
-    long ret = 0;
-    pid_t pid;
-    char *filepath;
+	long ret = 0;
+	pid_t pid;
+	char *filepath;
 
-    u32 mkey = __LINE__;
-    filepath = malloc_page(mkey);
-    if (!filepath)
-    {
-        bpf_printk("error: malloc_page");
-        return 0;
-    }
+	u32 mkey = __LINE__;
+	filepath = malloc_page(mkey);
+	if (!filepath) {
+		bpf_printk("error: malloc_page");
+		return 0;
+	}
 
-    ret = bpf_probe_read_kernel(filepath, 4096, filename->iname);
-    if (ret < 0)
-    {
-        bpf_printk("error: bpf_probe_read_kernel_str: %ld", ret);
-        goto exit;
-    }
+	ret = bpf_probe_read_kernel(filepath, 4096, filename->iname);
+	if (ret < 0) {
+		bpf_printk("error: bpf_probe_read_kernel_str: %ld", ret);
+		goto exit;
+	}
 
-    if (!pid2path_filter(filepath))
-    {
-        goto exit;
-    }
+	if (!pid2path_filter(filepath)) {
+		goto exit;
+	}
 
-    pid = bpf_get_current_pid_tgid();
+	pid = bpf_get_current_pid_tgid();
 
-    if (__DEBUG)
-    {
-        bpf_printk("pid2hash: %s pid: %d", filepath, pid);
-    }
-    ret = bpf_map_update_elem(&pid2path, &pid, filepath, BPF_ANY);
-    if (ret)
-    {
-        bpf_printk("error: bpf_map_update_elem: %ld", ret);
-        goto exit;
-    }
+	if (DEBUG_OUTPUT) {
+		bpf_printk("pid2hash: %s pid: %d", filepath, pid);
+	}
+	ret = bpf_map_update_elem(&pid2path, &pid, filepath, BPF_ANY);
+	if (ret) {
+		bpf_printk("error: bpf_map_update_elem: %ld", ret);
+		goto exit;
+	}
 
 exit:
-    if (filepath)
-    {
-        free_page(mkey);
-    }
-    return 0;
+	if (filepath) {
+		free_page(mkey);
+	}
+	return 0;
 }
 
 SEC("fentry/exit_thread")
-int BPF_PROG(exit_thread,
-    struct task_struct *tsk)
+int BPF_PROG(exit_thread, struct task_struct *tsk)
 {
-    long ret = 0;
-    pid_t pid;
+	long ret = 0;
+	pid_t pid;
 
-    if (!thread_exit_filter())
-    {
-        return 0;
-    }
+	if (!thread_exit_filter()) {
+		return 0;
+	}
 
-    pid = bpf_get_current_pid_tgid();
-    ret = bpf_map_delete_elem(&pid2path, &pid);
-    if (ret && ret != -ENOENT)
-    {
-        bpf_printk("error: bpf_map_delete_elem: %ld", ret);
-    }
+	pid = bpf_get_current_pid_tgid();
+	ret = bpf_map_delete_elem(&pid2path, &pid);
+	if (ret && ret != -ENOENT) {
+		bpf_printk("error: bpf_map_delete_elem: %ld", ret);
+	}
 
-    return 0;
+	return 0;
 }
