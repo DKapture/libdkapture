@@ -428,9 +428,9 @@ int main(int argc, char **argv)
 	if (0 != frtp_bpf::attach(obj))
 		exit(-1);
 
-	filter_fd = bpf_get_map_fd(obj->obj, "filter");
+	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
 
-	log_map_fd = bpf_get_map_fd(obj->obj, "logs");
+	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
 		goto err_out; // Handle pr_error
