@@ -1,5 +1,5 @@
 BUILD_DIR = build
-TARGETs = include observe filter policy so tools kmodules demo test
+TARGETs = include observe filter policy so tools kmodules demo
 SUBTARGETs = $(foreach i,$(TARGETs),$(i)/%)
 MAKE = make PROJ_ROOT=$(shell pwd)
 
@@ -48,3 +48,8 @@ help:
 	#	或 
 	#	make clean -C dir
 	#	例如 make observe/clean
+	# 
+	# 编译测试用例并运行
+	#	make test
+	#	或者
+	#	make -C test

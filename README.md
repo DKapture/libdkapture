@@ -48,9 +48,20 @@ DKapture（Deepin Kernel Capture）是一个用户空间工具集和动态库，
 ## 环境要求
 
 - 系统: Deepin 23, Deepin 25, UOS 25 专业版
-- 内核：6.6.0以上，且编译选项开启BPF、BTF相关配置。
+- 内核：6.6.0以上，且编译选项开启BPF、BTF相关配置：
+  ```conf
+  CONFIG_DEBUG_INFO_BTF=y
+  CONFIG_BPF=y
+  CONFIG_HAVE_EBPF_JIT=y
+  CONFIG_BPF_SYSCALL=y
+  CONFIG_BPF_JIT=y
+  CONFIG_BPF_LSM=y
+  CONFIG_CGROUP_BPF=y
+  CONFIG_NETFILTER_BPF_LINK=y
+  CONFIG_BPF_EVENTS=y
+  ```
 - 架构：x86_64、ARM64、Loong64、sw64。
-- 编译工具：`sudo yum install build-essential clang llvm libbpf-dev bpftool uuid-dev`
+- 编译工具：`sudo apt install build-essential clang llvm libbpf-dev bpftool uuid-dev`
 
 ## 构建流程
 
@@ -112,23 +123,26 @@ make policy/frtp
 
 构建完成后，以下目录包含可执行文件：
 
-- `observe/` - 系统观察工具
-- `filter/` - 网络和文件过滤器
-- `policy/` - 访问控制策略工具
+- `build/observe/` - 系统观察工具
+- `build/filter/` - 网络和文件过滤器
+- `build/policy/` - 访问控制策略工具
 
 ### 动态库
 
-- `so/libdkapture.so` - 核心动态库，提供 API 接口
+- `build/so/libdkapture.so` - 核心动态库，提供 API 接口
 
 ### 示例程序
 
-- `demo/demo` - 演示如何使用 libdkapture.so
+- `build/demo/demo` - 演示如何使用 libdkapture.so
 
 ## 清理构建
 
 ```bash
-# 清理所有构建产物
+# 清楚所有非生存头文件构建产物
 make clean
+
+# 清理所有构建产物
+make distclean
 
 # 清理特定模块
 make observe/clean
@@ -164,17 +178,17 @@ sudo dpkg -r dkapture
 
 ```bash
 # 检查可执行文件
-ls -la observe/ filter/ policy/
+ls -la /usr/bin/dk-*
 
 # 测试动态库
-ldd so/libdkapture.so
+ldd /lib/libdkapture.so
 
 # 运行示例程序
-./demo/demo
+dk-demo
 
 # 测试单个工具
-sudo ./observe/bio-stat
-sudo ./observe/lsock
+sudo dk-bio-stat
+sudo dk-lsock
 ```
 
 # 功能对比
@@ -212,12 +226,62 @@ sudo ./observe/lsock
 
 # 性能对比
 
-测试参数:
+## 进程信息读取
+
+**测试条件**
+
+1. 仅遍历读取/proc/[pid]/stat信息，作为示例。
+2. 循环遍历100次，间隔500us。
+3. 遍历的是系统的所有线程（非进程）。
+
+**遍历procfs文件节点**（例如ps/top工具）
+
+```bash
+$ sudo strace -cf ./proc-read-test 100 1>/dev/null 
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 34.41    0.991042           3    257483           read
+ 32.73    0.942615           3    302186         2 openat
+ 19.78    0.569749           1    302184           close
+ 10.21    0.293955           3     89400           getdents64
+  2.83    0.081454           1     44706           newfstatat
+  0.04    0.001169           1       704           write
+  0.00    0.000000           0        37           others
+------ ----------- ----------- --------- --------- ----------------
+100.00    2.879984           2    996708         4 total
+```
+
+**dkapture优化方式**
+
+```bash
+$ sudo strace -cf so/dkapture 100 1>/dev/null 
+strace: Process 1542886 attached
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 87.04    0.118218          76      1555           read
+ 10.95    0.014872         118       125         3 bpf
+  0.80    0.001091         109        10           munmap
+  0.53    0.000720          13        53           mmap
+  0.30    0.000402           4       100           clock_nanosleep
+  0.28    0.000381           2       132           close
+  0.03    0.000045           7         6           mremap
+  0.02    0.000025          25         1           clone3
+  0.01    0.000013           2         5           rt_sigprocmask
+  0.01    0.000011           0        13           openat
+  0.01    0.000007           0        13           mprotect
+  0.00    0.000000           0        37           others
+------ ----------- ----------- --------- --------- ----------------
+100.00    0.135814          65      2060         5 total
+```
+
+## 文件跟踪
+
+**测试参数**
 
 - 文件操作次数: 1000
 - 预期总事件数: 2000 (每次操作产生一个read和一个write事件)
 
-## 测试结果
+**测试结果**
 
 | 工具      | 总耗时(秒) | 收集事件数 | 事件采集率 | 每秒处理事件数 | 每秒文件操作数 |
 | --------- | ---------- | ---------- | ---------- | -------------- | -------------- |
@@ -225,7 +289,7 @@ sudo ./observe/lsock
 | sysdig    | 7.94       | 1984       | 0.99x      | 249.89         | 125.94         |
 | systemtap | 11.75      | 2000       | 1.00x      | 170.21         | 85.10          |
 
-指标说明：
+**指标说明**
 
 - 事件采集率：实际收集的事件数/预期事件数
 - 每秒处理事件数：实际收集的事件数/总耗时
