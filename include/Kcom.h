@@ -160,7 +160,7 @@
     })
 
     #define REG_SP(t) ((t)->thread.sp)
-    #define KSTK_EIP(task)		(task_pt_regs(task)->ip)
+    #define KSTK_EIP(task)		BPF_CORE_READ(task_pt_regs(task), ip)
 
 #elif defined(__aarch64__)
 
@@ -183,7 +183,7 @@
     #define task_pt_regs(p) \
         ((struct pt_regs *)(THREAD_SIZE + task_stack_page(p)) - 1)
     #define REG_SP(t) ((t)->thread.cpu_context.sp)
-    #define KSTK_EIP(tsk)	((unsigned long)task_pt_regs(tsk)->pc)
+    #define KSTK_EIP(tsk)	BPF_CORE_READ(task_pt_regs(tsk), pc)
 
 #elif defined(__loongarch__)
 
@@ -205,7 +205,7 @@
     #define task_pt_regs(tsk) ((struct pt_regs *)__KSTK_TOS(tsk))
 
     #define REG_SP(t) ((t)->thread.reg03)
-    #define KSTK_EIP(tsk) (task_pt_regs(tsk)->csr_era)
+    #define KSTK_EIP(tsk) BPF_CORE_READ(task_pt_regs(tsk), csr_era)
 
 #elif defined(__sw64__)
 
@@ -216,7 +216,7 @@
     #define task_pt_regs(task) \
         ((struct pt_regs *) (task->stack + THREAD_SIZE) - 1)
     #define REG_SP(t) ((t)->thread.sp)
-    #define KSTK_EIP(tsk) (task_pt_regs(tsk)->pc)
+    #define KSTK_EIP(tsk) BPF_CORE_READ(task_pt_regs(tsk), pc)
 
 #else
 

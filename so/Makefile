@@ -1,33 +1,46 @@
 PROJ_ROOT ?= ..
+MODULE := $(notdir $(CURDIR))
+BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
+TARGET = $(BUILD_DIR)/libdkapture.so
 CXX_SRC = $(wildcard *.cpp)
-CXX_OBJ = $(CXX_SRC:%.cpp=%.o) \
-		$(PROJ_ROOT)/so/trace-file.o \
-		$(PROJ_ROOT)/so/kmemleak.o \
-		$(PROJ_ROOT)/so/lsock.o \
-		$(PROJ_ROOT)/so/mountsnoop.o \
-		$(PROJ_ROOT)/so/irqsnoop.o
+CXX_OBJ = $(CXX_SRC:%.cpp=$(BUILD_DIR)/%.o) \
+		  $(BUILD_DIR)/trace-file.o \
+		  $(BUILD_DIR)/kmemleak.o \
+		  $(BUILD_DIR)/lsock.o \
+		  $(BUILD_DIR)/mountsnoop.o \
+		  $(BUILD_DIR)/irqsnoop.o
 
-CXXFLAGS = -g -O2 -fPIC -MMD	\
-		   -I$(PROJ_ROOT)/include -I$(PROJ_ROOT)/observe -Wall
+CXXFLAGS = -g -O2 -fPIC -MMD -Wall \
+		   -I$(PROJ_ROOT)/include \
+		   -I$(PROJ_ROOT)/build/observe
+
 LDFLAGS = -Wl,--no-as-needed -lbpf -shared
 
-.PHONY: all clean
-.PRECIOUS: $(PROJ_ROOT)/observe/proc-info.skel.h
+.PHONY: all so clean
+.SECONDARY:
 .SUFFIXES:
 
-all so: $(CXX_OBJ) $(PROJ_ROOT)/observe/proc-info.skel.h
-	g++ $(LDFLAGS) $^ -o libdkapture.so
+all so: $(TARGET)
 
-$(PROJ_ROOT)/so/%.o: $(PROJ_ROOT)/observe/%.cpp $(PROJ_ROOT)/observe/%.skel.h
+$(TARGET): $(CXX_OBJ)
+	g++ $(LDFLAGS) $^ -o $@
+
+$(BUILD_DIR)/%.o: $(PROJ_ROOT)/observe/%.cpp $(PROJ_ROOT)/build/observe/%.skel.h | $(BUILD_DIR)
 	$(CXX) -DBUILTIN $(CXXFLAGS) -c $< -o $@
 
-$(PROJ_ROOT)/observe/%:
-	make -C $(PROJ_ROOT)/observe $* SHARED_LIB=1
+$(PROJ_ROOT)/build/observe/%:
+	make -C $(PROJ_ROOT)/observe $@ SHARED_LIB=1
 
-%.o: %.cpp $(PROJ_ROOT)/observe/proc-info.skel.h
+$(BUILD_DIR)/%.o: %.cpp $(PROJ_ROOT)/build/observe/proc-info.skel.h | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-clean:
-	rm -f $(CXX_OBJ) *.o *.d libdkapture.so
+$(BUILD_DIR):
+	mkdir -p $@
 
--include $(wildcard *.d)
+clean:
+	rm -f $(CXX_OBJ) $(BUILD_DIR)/*.d $(TARGET)
+
+distclean: clean
+	rm -rf $(BUILD_DIR)
+
+-include $(wildcard $(BUILD_DIR)/*.d)

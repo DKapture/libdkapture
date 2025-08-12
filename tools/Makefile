@@ -1,13 +1,26 @@
+PROJ_ROOT ?= ..
+MODULE := $(notdir $(CURDIR))
+BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
 TEST_SRC_C = $(wildcard *.c)
 TEST_SRC_CPP = $(wildcard *.cpp)
 TEST_OBJ = $(TEST_SRC_C:%.c=%.o) $(TEST_SRC_CPP:%.cpp=%.o)
-TARGET = $(TEST_OBJ:%.o=%)
+TARGET = $(TEST_OBJ:%.o=$(BUILD_DIR)/%)
 CXXFLAGS = -g -I$(PROJ_ROOT)/observe \
-		   -I$(PROJ_ROOT)/include -I$(PROJ_ROOT)/filter \
+		   -I$(PROJ_ROOT)/include \
+		   -I$(BUILD_DIR)
 
 .PHONY: all clean
 
 all: $(TARGET)
 
+$(BUILD_DIR)/%: $(BUILD_DIR)/%.o | $(BUILD_DIR)
+	g++ $(CXXFLAGS) $< -o $@
+
+$(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
+	g++ $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR):
+	@mkdir -p $@
+
 clean:
-	rm -f *.o $(TARGET)
+	rm -rf $(BUILD_DIR)
