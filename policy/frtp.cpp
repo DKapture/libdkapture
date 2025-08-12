@@ -1,13 +1,14 @@
+#include "Ulog.h"
+#include <cstdint>
 #include <stdio.h>
-#include <assert.h>
 #include <fcntl.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <bpf/bpf.h>
 #include <signal.h>
 #include <getopt.h>
-#include <uuid/uuid.h>
 #include <linux/limits.h>
 #include <sys/stat.h>
 #include <vector>
@@ -27,8 +28,15 @@ typedef uint32_t Action;
 #define FMODE_WRITE (0x2)
 #define FMODE_EXEC (0x20)
 
+static inline uint32_t dev_old2new(dev_t old)
+{
+	uint32_t major = gnu_dev_major(old);
+	uint32_t minor = gnu_dev_minor(old);
+	return ((major & 0xfff) << 20) | (minor & 0xfffff);
+}
+
 struct Target {
-	uuid_t uuid;
+	uint32_t dev;
 	ino_t ino;
 };
 
@@ -134,7 +142,7 @@ void parse_args(int argc, char **argv)
 
 	if (!policy_file) {
 		policy_file = "frtp.pol";
-		printf("\nNo policy file specified, use frtp.pol as default\n\n");
+		pr_info("No policy file specified, use frtp.pol as default");
 	}
 }
 
@@ -168,59 +176,7 @@ static void path2target(const char *path, struct Target *target)
 	}
 
 	target->ino = st.st_ino;
-
-	char dev_path[PATH_MAX];
-	snprintf(dev_path, sizeof(dev_path), "/dev/block/%u:%u",
-		 (uint32_t)(st.st_dev >> 8), (uint32_t)(st.st_dev & 0xff));
-
-	struct stat tstat = {};
-	if (stat(dev_path, &tstat) != 0) {
-		pr_error("stat %s: %s\n", dev_path, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	DIR *dir = opendir("/dev/disk/by-uuid");
-	if (!dir) {
-		pr_error("opendir /dev/disk/by-uuid: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	struct dirent *entry;
-	while ((entry = readdir(dir)) != NULL) {
-		if (strcmp(entry->d_name, ".") == 0 ||
-		    strcmp(entry->d_name, "..") == 0)
-			continue;
-
-		char link_path[PATH_MAX];
-		snprintf(link_path, sizeof(link_path), "/dev/disk/by-uuid/%s",
-			 entry->d_name);
-
-		struct stat vstat = {};
-		if (stat(link_path, &vstat) != 0) {
-			if (lstat(link_path, &vstat) != 0) {
-				pr_error("stat %s: %s\n", link_path,
-					 strerror(errno));
-				continue;
-			}
-		}
-
-		if (memcmp(&tstat.st_rdev, &vstat.st_rdev, sizeof(dev_t)) != 0)
-			continue;
-
-		if (uuid_parse(entry->d_name, target->uuid) != 0) {
-			closedir(dir);
-			fprintf(stderr, "UUID parse failed for device %s\n",
-				dev_path);
-			exit(EXIT_FAILURE);
-		}
-
-		closedir(dir);
-		return;
-	}
-
-	closedir(dir);
-	fprintf(stderr, "UUID not found for device %s\n", dev_path);
-	exit(EXIT_FAILURE);
+	target->dev = dev_old2new(st.st_dev);
 }
 
 static void add_directories_recursively(const char *dir_path,
@@ -233,7 +189,7 @@ static void add_directories_recursively(const char *dir_path,
 
 	DIR *dir = opendir(dir_path);
 	if (!dir) {
-		fprintf(stderr, "Cannot open directory %s: %s\n", dir_path,
+		pr_error( "Cannot open directory %s: %s", dir_path,
 			strerror(errno));
 		return;
 	}
@@ -250,7 +206,7 @@ static void add_directories_recursively(const char *dir_path,
 
 		struct stat st;
 		if (stat(full_path, &st) != 0) {
-			fprintf(stderr, "Cannot stat %s: %s\n", full_path,
+			pr_error( "Cannot stat %s: %s", full_path,
 				strerror(errno));
 			continue;
 		}
@@ -285,7 +241,7 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 
 		if (sscanf(line, "forbid %5[^=]=%4095s %2s %4095s", type,
 			   identifier, action, target_path) != 4) {
-			fprintf(stderr, "Invalid line: %s\n", line);
+			pr_error( "Invalid line: %s", line);
 			continue;
 		}
 
@@ -298,7 +254,7 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 			rule.pid = strtol(identifier, NULL, 10);
 			rule.not_pid = 0;
 		} else {
-			fprintf(stderr, "Invalid type: %s\n", type);
+			pr_error( "Invalid type: %s", type);
 			continue;
 		}
 
@@ -309,7 +265,7 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 		} else if (strcmp(action, "rw") == 0) {
 			rule.act = FMODE_READ | FMODE_WRITE;
 		} else {
-			fprintf(stderr, "Invalid action: %s\n", action);
+			pr_error( "Invalid action: %s", action);
 			continue;
 		}
 
@@ -327,20 +283,20 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 
 		struct stat st;
 		if (stat(target_path, &st) != 0) {
-			fprintf(stderr, "Cannot access path %s: %s\n",
+			pr_error("Cannot access path %s: %s",
 				target_path, strerror(errno));
 			continue;
 		}
 
 		if (is_dir) {
 			if (S_ISDIR(st.st_mode)) {
-				printf("Rule (diretory): %s %s %s %s\n", type,
-				       identifier, action, target_path);
+				pr_info("Rule (diretory): %s %s %s %s", type,
+					identifier, action, target_path);
 				add_directories_recursively(target_path, &rule,
 							    rules);
 			} else {
-				fprintf(stderr,
-					"Path %s with wildcard is not a directory\n",
+				pr_error(
+					"Path %s with wildcard is not a directory",
 					target_path);
 				continue;
 			}
@@ -348,12 +304,11 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 			if (S_ISREG(st.st_mode)) {
 				path2target(target_path, &rule.target);
 				rules.emplace_back(rule);
-				printf("Rule (regular file): %s %s %s %s\n",
-				       type, identifier, action, target_path);
+				pr_info("Rule (regular file): %s %s %s %s",
+					type, identifier, action, target_path);
 			} else {
-				fprintf(stderr,
-					"Path %s is not a regular file\n",
-					target_path);
+				pr_error("Path %s is not a regular file",
+					 target_path);
 				continue;
 			}
 		}
@@ -381,8 +336,8 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		(const struct BpfData *)data; // Cast data to BpfData structure
 	size_t plen = strlen(log->process);
 	const char *target = log->process + plen + 1;
-	printf("[%s]!!!: %s[%d] tried to %s %s, denied!\n", get_time().c_str(),
-	       log->process, log->pid, act2str(log->act).c_str(), target);
+	pr_warn("[%s]!!!: %s[%d] tried to %s (%s), denied!", get_time().c_str(),
+		log->process, log->pid, act2str(log->act).c_str(), target);
 	return 0;
 }
 
