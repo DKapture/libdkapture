@@ -71,43 +71,43 @@ verify_build() {
     
     local missing_files=()
     
-    # Check executable files in observe directory
-    if [ ! -d "observe" ]; then
-        missing_files+=("observe directory")
+    # Check executable files in build/observe directory
+    if [ ! -d "build/observe" ]; then
+        missing_files+=("build/observe directory")
     else
-        local observe_binaries=$(find observe -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
+        local observe_binaries=$(find build/observe -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
         if [ "$observe_binaries" -eq 0 ]; then
-            missing_files+=("executable files in observe directory")
+            missing_files+=("executable files in build/observe directory")
         fi
     fi
     
-    # Check executable files in filter directory
-    if [ ! -d "filter" ]; then
-        missing_files+=("filter directory")
+    # Check executable files in build/filter directory
+    if [ ! -d "build/filter" ]; then
+        missing_files+=("build/filter directory")
     else
-        local filter_binaries=$(find filter -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
+        local filter_binaries=$(find build/filter -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
         if [ "$filter_binaries" -eq 0 ]; then
-            missing_files+=("executable files in filter directory")
+            missing_files+=("executable files in build/filter directory")
         fi
     fi
     
-    # Check executable files in policy directory
-    if [ ! -d "policy" ]; then
-        missing_files+=("policy directory")
+    # Check executable files in build/policy directory
+    if [ ! -d "build/policy" ]; then
+        missing_files+=("build/policy directory")
     else
-        local policy_binaries=$(find policy -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
+        local policy_binaries=$(find build/policy -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
         if [ "$policy_binaries" -eq 0 ]; then
-            missing_files+=("executable files in policy directory")
+            missing_files+=("executable files in build/policy directory")
         fi
     fi
     
     # Check dynamic library
-    if [ ! -f "so/libdkapture.so" ]; then
+    if [ ! -f "build/so/libdkapture.so" ]; then
         missing_files+=("libdkapture.so dynamic library")
     fi
     
     # Check demo program
-    if [ ! -f "demo/demo" ]; then
+    if [ ! -f "build/demo/demo" ]; then
         missing_files+=("demo program")
     fi
     
@@ -171,7 +171,7 @@ echo -e "${YELLOW}Collecting binary files to /usr/bin...${NC}"
 
 # Executable files in observe directory
 echo -e "${BLUE}Copying executable files from observe directory...${NC}"
-for binary in observe/*; do
+for binary in build/observe/*; do
     if [[ -f "$binary" && -x "$binary" ]]; then
         basename_binary=$(basename "$binary")
         new_name="dk-${basename_binary}"
@@ -182,7 +182,7 @@ done
 
 # Executable files in filter directory
 echo -e "${BLUE}Copying executable files from filter directory...${NC}"
-for binary in filter/*; do
+for binary in build/filter/*; do
     if [[ -f "$binary" && -x "$binary" ]]; then
         basename_binary=$(basename "$binary")
         new_name="dk-${basename_binary}"
@@ -193,7 +193,7 @@ done
 
 # Executable files in policy directory
 echo -e "${BLUE}Copying executable files from policy directory...${NC}"
-for binary in policy/*; do
+for binary in build/policy/*; do
     if [[ -f "$binary" && -x "$binary" ]]; then
         basename_binary=$(basename "$binary")
         new_name="dk-${basename_binary}"
@@ -203,17 +203,17 @@ for binary in policy/*; do
 done
 
 # Demo executable file
-if [[ -f "demo/demo" ]]; then
+if [[ -f "build/demo/demo" ]]; then
     echo -e "${BLUE}Copying demo program...${NC}"
     echo "  Copying: demo -> ${BIN_DIR}/dk-demo"
-    cp "demo/demo" "${BIN_DIR}/dk-demo"
+    cp "build/demo/demo" "${BIN_DIR}/dk-demo"
 fi
 
 # Collect dynamic libraries to /usr/lib
 echo -e "${YELLOW}Collecting dynamic libraries to /usr/lib...${NC}"
-if [[ -f "so/libdkapture.so" ]]; then
+if [[ -f "build/so/libdkapture.so" ]]; then
     echo "  Copying: libdkapture.so -> ${LIB_DIR}/libdkapture.so"
-    cp "so/libdkapture.so" "${LIB_DIR}/libdkapture.so"
+    cp "build/so/libdkapture.so" "${LIB_DIR}/libdkapture.so"
 fi
 
 # Collect header files to /usr/include/${PROJECT_NAME}
@@ -232,7 +232,7 @@ Package: ${PROJECT_NAME}
 Version: ${VERSION}
 Architecture: ${ARCH}
 Maintainer: DKapture Team <dkapture@example.com>
-Depends: libbpf-dev, libuuid1
+Depends: libbpf1, libuuid1
 Priority: optional
 Section: utils
 Description: Deepin Kernel Capture - eBPF-based system observation tools

@@ -1,9 +1,9 @@
-
+BUILD_DIR = build
 TARGETs = include observe filter policy so tools kmodules demo test
 SUBTARGETs = $(foreach i,$(TARGETs),$(i)/%)
 MAKE = make PROJ_ROOT=$(shell pwd)
 
-.PHONY: all clean pseudo $(TARGETs)
+.PHONY: all clean distclean pseudo $(TARGETs)
 .SUFFIXES:
 
 all: $(TARGETs)
@@ -23,6 +23,9 @@ pseudo:
 
 clean:
 	@for i in $(TARGETs); do $(MAKE) -C $$i clean; done
+
+distclean:
+	rm -rf $(BUILD_DIR)
 
 help:
 	# 编译完整项目:
