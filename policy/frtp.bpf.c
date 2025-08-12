@@ -18,8 +18,11 @@ typedef u32 Action;
 #define FMODE_WRITE ((fmode_t)0x2)
 #define FMODE_EXEC ((fmode_t)0x20)
 
+#define MAJOR(dev) (u32)((dev & 0xfff00000) >> 20)
+#define MINOR(dev) (u32)(dev & 0xfffff)
+
 struct Target {
-	uuid_t uuid;
+	dev_t dev;
 	ino_t ino;
 };
 
@@ -60,31 +63,6 @@ struct {
 	__uint(max_entries, 1024 * 1024); // 1 MB
 } logs SEC(".maps");
 
-static void uuid2str(uuid_t uuid, char *out, size_t out_size)
-{
-	const char hex_chars[] = "0123456789abcdef";
-	int pos = 0;
-
-	if (!out || out_size < 37) {
-		return;
-	}
-
-	for (int i = 0; i < 16 && pos < out_size - 1; i++) {
-		if (pos < out_size - 1)
-			out[pos++] = hex_chars[(uuid.b[i] >> 4) & 0xf];
-		if (pos < out_size - 1)
-			out[pos++] = hex_chars[uuid.b[i] & 0xf];
-
-		if ((i == 3 || i == 5 || i == 7 || i == 9) &&
-		    pos < out_size - 1) {
-			out[pos++] = '-';
-		}
-	}
-
-	if (pos < out_size)
-		out[pos] = '\0';
-}
-
 static void audit_log(pid_t pid, const char *process,
 		      const struct Target *target, Action act)
 {
@@ -114,13 +92,12 @@ static void audit_log(pid_t pid, const char *process,
 	}
 
 	log_sz += ret;
-	char uuid_str[37];
-	uuid2str(target->uuid, uuid_str, 37);
 	u64 data[] = {
-		(u64)uuid_str,
+		MAJOR(target->dev),
+		MINOR(target->dev),
 		target->ino,
 	};
-	ret = bpf_snprintf(log->process + ret, log_bsz / 2, "%s %ld", data,
+	ret = bpf_snprintf(log->process + ret, log_bsz / 2, "%u,%u %lu", data,
 			   sizeof(data));
 	if (ret < 0) {
 		bpf_printk("error: bpf_snprintf: %ld", ret);
@@ -154,7 +131,7 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 			   void *ctx)
 {
 	const char *proc_path;
-	const uuid_t *uuid;
+	dev_t dev;
 	ino_t ino;
 	int act;
 
@@ -162,7 +139,7 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 	struct Rule *rule = value;
 
 	proc_path = event->proc_path;
-	uuid = &event->target->uuid;
+	dev = event->target->dev;
 	ino = event->target->ino;
 	act = event->act;
 
@@ -185,21 +162,13 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 		bpf_printk("proc fit: %s %d", proc_path, act);
 	}
 
-	// Check if file path matches
-	if (rule->target.ino != ino) {
+	// Check if file matches
+	if (rule->target.ino != ino || rule->target.dev != dev) {
 		return 0;
 	}
 
-	for (int i = 0; i < sizeof(uuid_t); i++) {
-		if (((u8 *)&rule->target.uuid)[i] != ((u8 *)uuid)[i]) {
-			return 0;
-		}
-	}
-
 	if (DEBUG_OUTPUT) {
-		char uuid_str[37];
-		uuid2str(rule->target.uuid, uuid_str, 37);
-		bpf_printk("target fit: %s %s %lu %d", proc_path, uuid_str, ino,
+		bpf_printk("target fit: %s %lu %lu %d", proc_path, dev, ino,
 			   act);
 	}
 	// Check if act is a subset of rule->act
@@ -247,9 +216,7 @@ static int _permission_check(const struct Target *target, fmode_t mode)
 		}
 
 		if (DEBUG_OUTPUT) {
-			char uuid_str[37];
-			uuid2str(target->uuid, uuid_str, 37);
-			bpf_printk("permission denied: %s %lu %d", uuid_str,
+			bpf_printk("permission denied: %lu %lu %d", target->dev,
 				   target->ino, mode);
 		}
 		ret = -EACCES;
@@ -262,13 +229,13 @@ static int permission_check(struct dentry *dentry, fmode_t mode)
 {
 	struct Target target = {
 		.ino = dentry->d_inode->i_ino,
+		.dev = dentry->d_inode->i_sb->s_dev,
 	};
-	memcpy(&target.uuid, &dentry->d_sb->s_uuid, sizeof(uuid_t));
 	int ret = _permission_check(&target, mode);
 	if (ret)
 		return ret;
 	target.ino = dentry->d_parent->d_inode->i_ino;
-	memcpy(&target.uuid, &dentry->d_parent->d_sb->s_uuid, sizeof(uuid_t));
+	target.dev = dentry->d_parent->d_inode->i_sb->s_dev;
 	return _permission_check(&target, mode);
 }
 
