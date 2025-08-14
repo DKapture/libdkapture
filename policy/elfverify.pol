@@ -1,0 +1,6 @@
+user=root
+path=/usr/bin
+path=/bin
+path=/usr/local/bin
+path=/usr/lib
+path=/usr/libexec
