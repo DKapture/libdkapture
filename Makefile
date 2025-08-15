@@ -9,7 +9,6 @@ MAKE = make PROJ_ROOT=$(shell pwd)
 all: $(TARGETs)
 
 demo: so
-test: so
 so: observe filter policy
 observe filter policy: include
 
@@ -18,6 +17,9 @@ $(TARGETs):
 
 $(SUBTARGETs): pseudo
 	$(MAKE)  $* -C $(shell dirname $@)
+
+test: pseudo
+	$(MAKE) -C $@
 
 pseudo:
 

@@ -1,7 +1,9 @@
+#include <cerrno>
 #include <dirent.h>
 #include <system_error>
 
 #include "bpf.h"
+#include "Ulog.h"
 #include "types.h"
 
 #include <bpf/libbpf.h>
@@ -22,7 +24,7 @@ int BPF::retreat_bpf_map(const char *name)
     int fd = -1;
     struct bpf_map_info info = {};
     u32 len = sizeof(info);
-    std::string map_pin_path(PIN_PATH "/");
+    std::string map_pin_path(PIN_PATH "/map-");
     map_pin_path += name;
     if (access(map_pin_path.c_str(), F_OK) != 0)
     {
@@ -64,7 +66,7 @@ int BPF::retreat_bpf_map(const char *name)
         }
         ::close(fd);
     }
-    return -1;
+    return -errno;
 }
 
 std::string BPF::retreat_bpf_iter(const char *name)

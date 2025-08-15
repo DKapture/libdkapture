@@ -109,20 +109,22 @@ TEST(DKaptureTest, open_and_close)
 
 TEST(DKaptureTest, read_overload1)
 {
+    // 构造的数据在 mock-data-generator.h 中，阅读以了解生成逻辑
     int ret;
+    pid_t pid = 1000;
     DKapture *dk = DKapture::new_instance();
     Releaser r(dk);
     ASSERT_EQ(dk->open(gtest_fp, DKapture::DEBUG), 0);
     dk->lifetime(1000000);
     DKapture::DataHdr *dh = (DKapture::DataHdr *)buf;
-    ret = dk->read(DKapture::PROC_PID_STAT, 1 /* systemd */, dh, BUF_SZ);
+    ret = dk->read(DKapture::PROC_PID_STAT, pid, dh, BUF_SZ);
     ASSERT_EQ(ret, sizeof(DKapture::DataHdr) + sizeof(ProcPidStat));
 
     ProcPidStat *stat = (struct ProcPidStat *)dh->data;
-    ASSERT_EQ(dh->pid, 1);
+    ASSERT_EQ(dh->pid, pid);
     ASSERT_EQ(dh->dsz, ret);
     ASSERT_EQ(dh->type, DKapture::PROC_PID_STAT);
-    ASSERT_EQ(stat->ppid, 0);
+    ASSERT_EQ(stat->ppid, 1);
     dk->close();
 }
 
@@ -135,8 +137,8 @@ TEST(DKaptureTest, read_overload5)
     ASSERT_EQ(dk->open(gtest_fp, DKapture::DEBUG), 0);
     dk->lifetime(1000000);
     std::vector<pid_t> pids;
-    pids.push_back(1);
-    pids.push_back(getpid());
+    pids.push_back(1001);
+    pids.push_back(1003);
     DKapture::DataHdr *dh = (DKapture::DataHdr *)buf;
     ret = dk->read(DKapture::PROC_PID_STAT, pids, dh, BUF_SZ);
     dsz = sizeof(DKapture::DataHdr) + sizeof(ProcPidStat);
@@ -154,8 +156,8 @@ TEST(DKaptureTest, read_overload5)
         dh = (DKapture::DataHdr *)((char *)dh + dh->dsz);
     }
 
-    ASSERT_TRUE(pids_got.find(1) != pids_got.end());
-    ASSERT_TRUE(pids_got.find(getpid()) != pids_got.end());
+    ASSERT_TRUE(pids_got.find(1001) != pids_got.end());
+    ASSERT_TRUE(pids_got.find(1003) != pids_got.end());
 
     dk->close();
 }
@@ -169,17 +171,17 @@ TEST(DKaptureTest, read_overload2)
     DKapture::DataHdr *dh = (DKapture::DataHdr *)buf;
     dsz = sizeof(DKapture::DataHdr) + sizeof(ProcPidStat);
     ASSERT_EQ(dk->open(gtest_fp, DKapture::DEBUG), 0);
-    ret = dk->read("/proc/1/stat1", dh, BUF_SZ);
+    ret = dk->read("/proc/1001/stat1", dh, BUF_SZ);
     ASSERT_EQ(ret, -ENOSYS);
     ret = dk->read("sdfasdf", dh, BUF_SZ);
     ASSERT_EQ(ret, -EINVAL);
     ret = dk->read(nullptr, dh, BUF_SZ);
     ASSERT_EQ(ret, -EINVAL);
-    ret = dk->read("/proc/1/stat", nullptr, BUF_SZ);
+    ret = dk->read("/proc/1001/stat", nullptr, BUF_SZ);
     ASSERT_EQ(ret, -EINVAL);
-    ret = dk->read("/proc/1/stat", dh, 0);
+    ret = dk->read("/proc/1001/stat", dh, 0);
     ASSERT_EQ(ret, -EINVAL);
-    ret = dk->read("/proc/1/stat", dh, BUF_SZ);
+    ret = dk->read("/proc/1001/stat", dh, BUF_SZ);
     ASSERT_EQ(ret, dsz);
     dk->close();
 }
@@ -198,13 +200,13 @@ TEST(DKaptureTest, lifetime)
     dsz = sizeof(DKapture::DataHdr) + sizeof(ProcPidIo);
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    ret = dk->read(DKapture::PROC_PID_IO, 1, dh, BUF_SZ);
+    ret = dk->read(DKapture::PROC_PID_IO, 1009, dh, BUF_SZ);
     ASSERT_EQ(ret, dsz);
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     delta_time1 = TIME_ns(ts_end) - TIME_ns(ts_start);
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    ret = dk->read(DKapture::PROC_PID_IO, 1, dh, BUF_SZ);
+    ret = dk->read(DKapture::PROC_PID_IO, 1009, dh, BUF_SZ);
     ASSERT_EQ(ret, dsz);
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     delta_time2 = TIME_ns(ts_end) - TIME_ns(ts_start);
@@ -214,7 +216,7 @@ TEST(DKaptureTest, lifetime)
     usleep(100000);
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    ret = dk->read(DKapture::PROC_PID_IO, 1, dh, BUF_SZ);
+    ret = dk->read(DKapture::PROC_PID_IO, 1009, dh, BUF_SZ);
     ASSERT_EQ(ret, dsz);
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     delta_time3 = TIME_ns(ts_end) - TIME_ns(ts_start);

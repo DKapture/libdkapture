@@ -28,8 +28,7 @@ CXX = g++
 .PHONY: all clean distclean
 .SECONDARY:
 .SUFFIXES:
-test:
-	@echo $(OBJS)
+
 all: $(TARGET)
 
 $(TARGET): $(OBJS) $(GTEST_LIBS) \

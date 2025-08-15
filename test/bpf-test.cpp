@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#define TEST_PIN_PATH "/sys/fs/bpf/test_dkapture"
+#define TEST_PIN_PATH "/sys/fs/bpf/dkapture"
 
 class BPFTest : public ::testing::Test {
 protected:
@@ -59,8 +59,8 @@ TEST_F(BPFTest, PinPrograms) {
 TEST_F(BPFTest, RetreatBpfMap) {
     // Test the retreat_bpf_map method
     const char* map_name = "test_map";
-    int ret = bpf_instance->retreat_bpf_map(map_name);
-    ASSERT_EQ(ret, 0) << "Failed to retreat BPF map";
+    int ret = bpf_instance->retreat_bpf_map("dk_shared_mem");
+    ASSERT_GT(ret, 0) << "Failed to retreat BPF map";
 }
 
 TEST_F(BPFTest, RetreatBpfIter) {

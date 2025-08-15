@@ -10,7 +10,11 @@
 // 跨进程共享ring buffer
 class RingBuffer
 {
+#ifdef __GTEST__
+public:
+#else
 private:
+#endif
     long type = 0;
     /**
      * totle buffer size, it must be a power of 2 and a multiple of the page size

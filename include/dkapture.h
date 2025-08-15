@@ -99,7 +99,7 @@ public:
     struct DataHdr
     {
         enum DataType type;       // 数据类型
-        unsigned int dsz;         // 数据大小
+        unsigned int dsz;         // 数据大小（含本头部）
         char comm[TASK_COMM_LEN]; // 进程名称
         pid_t pid;                // 轻量进程 ID
         pid_t tgid;               // 线程组 ID
