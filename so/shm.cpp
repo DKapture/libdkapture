@@ -9,7 +9,7 @@
 #include <system_error>
 #include <string>
 
-#include "shared-memory.h"
+#include "shm.h"
 #include "spinlock.h"
 #include "Ucom.h"
 

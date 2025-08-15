@@ -1,7 +1,7 @@
 #pragma once
 #include "limits.h"
 
-#include "shared-memory.h"
+#include "shm.h"
 #include "spinlock.h"
 #include "Ucom.h"
 #include "proc-info.skel.h"

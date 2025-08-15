@@ -4,7 +4,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-#include "shared-memory.h"
+#include "shm.h"
 #include "spinlock.h"
 
 // 跨进程共享ring buffer

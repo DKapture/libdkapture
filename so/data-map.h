@@ -2,7 +2,7 @@
 #include "limits.h"
 
 #include "ring-buffer.h"
-#include "shared-memory.h"
+#include "shm.h"
 #include "spinlock.h"
 #include "Ucom.h"
 #include "dkapture.h"
