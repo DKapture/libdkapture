@@ -7,15 +7,16 @@
 
 #include "urblat.h"
 
-struct request_queue___x {
+struct request_queue___x
+{
 	struct gendisk *disk;
 } __attribute__((preserve_access_index));
 
-struct request___x {
+struct request___x
+{
 	struct request_queue___x *q;
 	struct gendisk *rq_disk;
 } __attribute__((preserve_access_index));
-
 
 _Pragma("GCC diagnostic push");
 _Pragma("GCC diagnostic ignored \"-Wunused-function\"");
@@ -29,10 +30,9 @@ static __always_inline struct gendisk *get_disk(void *request)
 }
 _Pragma("GCC diagnostic pop")
 
+#define MAX_ENTRIES 10240
 
-#define MAX_ENTRIES	10240
-
-extern int LINUX_KERNEL_VERSION __kconfig;
+	extern int LINUX_KERNEL_VERSION __kconfig;
 
 const volatile bool filter_cg = false;
 const volatile bool targ_per_disk = false;
@@ -43,14 +43,16 @@ const volatile bool filter_dev = false;
 const volatile __u32 targ_dev = 0;
 const volatile bool targ_single = true;
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_CGROUP_ARRAY);
 	__type(key, u32);
 	__type(value, u32);
 	__uint(max_entries, 1);
 } cgroup_map SEC(".maps");
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES);
 	__type(key, struct urb *);
@@ -59,7 +61,8 @@ struct {
 
 static struct hist initial_hist;
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES);
 	__type(key, struct hist_key);
@@ -94,7 +97,8 @@ static int handle_urb_complete(struct urb *urb)
 	// 	hkey.cmd_flags = BPF_CORE_READ(urb, cmd_flags);
 
 	histp = bpf_map_lookup_elem(&hists, &hkey);
-	if (!histp) {
+	if (!histp)
+	{
 		bpf_map_update_elem(&hists, &hkey, &initial_hist, 0);
 		histp = bpf_map_lookup_elem(&hists, &hkey);
 		if (!histp)
@@ -156,8 +160,8 @@ static int handle_urb_submit(struct urb *urb)
 SEC("kprobe/usb_submit_urb")
 int BPF_PROG(usb_submit_urb, struct urb *urb, gfp_t mem_flags)
 {
-    // bpf_printk("usb_submit_urb urb=%u\n",urb);
-    bpf_printk("usb_submit_urb \n");
+	// bpf_printk("usb_submit_urb urb=%u\n",urb);
+	bpf_printk("usb_submit_urb \n");
 
 	return handle_urb_submit(urb);
 }
@@ -165,8 +169,8 @@ int BPF_PROG(usb_submit_urb, struct urb *urb, gfp_t mem_flags)
 SEC("kprobe/usb_free_urb")
 int BPF_PROG(usb_free_urb, struct urb *urb)
 {
-    // bpf_printk("usb_kill_urb urb=%u\n",urb);
-    bpf_printk("usb_free_urb \n");
+	// bpf_printk("usb_kill_urb urb=%u\n",urb);
+	bpf_printk("usb_free_urb \n");
 
 	return handle_urb_complete(urb);
 }

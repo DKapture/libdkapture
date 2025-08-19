@@ -12,17 +12,18 @@ const volatile bool targ_ns = false;
 
 static struct irq_event_t zero = {};
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__uint(max_entries, 1);
 	__type(key, int);
-	__type(value, struct irq_event_t); 
+	__type(value, struct irq_event_t);
 } start SEC(".maps");
 
 struct
 {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 1024 * 1024);
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries, 1024 * 1024);
 } irq_map SEC(".maps");
 
 __u64 counts[NR_SOFTIRQS] = {};

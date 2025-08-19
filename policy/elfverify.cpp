@@ -29,22 +29,27 @@ static inline uint32_t dev_old2new(dev_t old)
 	return ((major & 0xfff) << 20) | (minor & 0xfffff);
 }
 
-struct Target {
+struct Target
+{
 	uint32_t dev;
 	ino_t ino;
 };
 
-struct Rule {
-	union {
+struct Rule
+{
+	union
+	{
 		struct Target target;
-		struct {
+		struct
+		{
 			int not_uid;
 			uid_t uid;
 		};
 	};
 };
 
-struct BpfData {
+struct BpfData
+{
 	uid_t uid;
 	pid_t pid;
 	int is_binary;
@@ -63,7 +68,8 @@ static struct option lopts[] = { { "policy-file", required_argument, 0, 'p' },
 				 { 0, 0, 0, 0 } };
 
 // Structure for help messages
-struct HelpMsg {
+struct HelpMsg
+{
 	const char *argparam; // Argument parameter
 	const char *msg; // Help message
 };
@@ -80,7 +86,8 @@ void Usage(const char *arg0)
 	printf("Usage: %s [option]\n", arg0);
 	printf("  prevent the execution of applications from untrusted sources according to the policy file\n\n");
 	printf("Options:\n");
-	for (int i = 0; lopts[i].name; i++) {
+	for (int i = 0; lopts[i].name; i++)
+	{
 		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
 		       help_msg[i].argparam, help_msg[i].msg);
 	}
@@ -90,9 +97,11 @@ void Usage(const char *arg0)
 std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
-	for (int i = 0; lopts[i].name; i++) {
+	for (int i = 0; lopts[i].name; i++)
+	{
 		sopts += lopts[i].val; // Add short option character
-		switch (lopts[i].has_arg) {
+		switch (lopts[i].has_arg)
+		{
 		case no_argument:
 			break;
 		case required_argument:
@@ -115,8 +124,10 @@ void parse_args(int argc, char **argv)
 	std::string sopts = long_opt2short_opt(
 		lopts); // Convert long options to short options
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0) {
-		switch (opt) {
+	       0)
+	{
+		switch (opt)
+		{
 		case 'p': // Policy File
 			policy_file = optarg;
 			break;
@@ -131,7 +142,8 @@ void parse_args(int argc, char **argv)
 		}
 	}
 
-	if (!policy_file) {
+	if (!policy_file)
+	{
 		policy_file = "elfverify.pol";
 		printf("\nNo policy file specified, use elfverify.pol as default\n\n");
 	}
@@ -146,7 +158,8 @@ void register_signal()
 	sa.sa_flags = 0; // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
-	if (sigaction(SIGINT, &sa, NULL) == -1) {
+	if (sigaction(SIGINT, &sa, NULL) == -1)
+	{
 		perror("sigaction");
 		exit(EXIT_FAILURE);
 	}
@@ -154,13 +167,15 @@ void register_signal()
 
 static void path2target(const char *path, struct Target *target)
 {
-	if (access(path, F_OK) == -1) {
+	if (access(path, F_OK) == -1)
+	{
 		pr_error("file %s: %s", path, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
 	struct stat st;
-	if (stat(path, &st) != 0) {
+	if (stat(path, &st) != 0)
+	{
 		pr_error("stat %s: %s", path, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
@@ -179,14 +194,16 @@ static void add_directories_recursively(const char *dir_path,
 	rules.emplace_back(dir_rule);
 
 	DIR *dir = opendir(dir_path);
-	if (!dir) {
+	if (!dir)
+	{
 		pr_error("Cannot open directory %s: %s", dir_path,
 			 strerror(errno));
 		return;
 	}
 
 	struct dirent *entry;
-	while ((entry = readdir(dir)) != NULL) {
+	while ((entry = readdir(dir)) != NULL)
+	{
 		if (strcmp(entry->d_name, ".") == 0 ||
 		    strcmp(entry->d_name, "..") == 0)
 			continue;
@@ -196,17 +213,20 @@ static void add_directories_recursively(const char *dir_path,
 			 entry->d_name);
 
 		struct stat st;
-		if (lstat(full_path, &st) != 0) {
+		if (lstat(full_path, &st) != 0)
+		{
 			pr_error("Cannot lstat %s: %s", full_path,
 				 strerror(errno));
 			continue;
 		}
 
-		if (S_ISLNK(st.st_mode)) {
+		if (S_ISLNK(st.st_mode))
+		{
 			continue;
 		}
 
-		if (S_ISDIR(st.st_mode)) {
+		if (S_ISDIR(st.st_mode))
+		{
 			add_directories_recursively(full_path, base_rule,
 						    rules);
 		}
@@ -218,9 +238,12 @@ static void add_directories_recursively(const char *dir_path,
 static void user2uid(const char *user, uid_t *uid)
 {
 	struct passwd *pw = getpwnam(user);
-	if (pw) {
+	if (pw)
+	{
 		*uid = pw->pw_uid;
-	} else {
+	}
+	else
+	{
 		exit(EXIT_FAILURE);
 	}
 }
@@ -229,39 +252,49 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 {
 	std::vector<struct Rule> rules;
 	FILE *file = fopen(filename, "r");
-	if (!file) {
+	if (!file)
+	{
 		pr_error("fopen: %s: %s", strerror(errno), filename);
 		exit(EXIT_FAILURE);
 	}
 
-	while (fgets(line, sizeof(line), file)) {
+	while (fgets(line, sizeof(line), file))
+	{
 		char type[5];
 		char content[4096];
 
 		if (line[0] == '#')
 			continue;
 
-		if (sscanf(line, "%4[^=]=%4095s", type, content) != 2) {
+		if (sscanf(line, "%4[^=]=%4095s", type, content) != 2)
+		{
 			pr_error("Invalid line: %s", line);
 			continue;
 		}
 		struct Rule rule = { 0 };
 
-		if (strcmp(type, "path") == 0) {
+		if (strcmp(type, "path") == 0)
+		{
 			struct stat st;
-			if (stat(content, &st) != 0) {
+			if (stat(content, &st) != 0)
+			{
 				pr_error("Cannot access path %s: %s", content,
 					 strerror(errno));
 				continue;
 			}
-			if (S_ISDIR(st.st_mode)) {
+			if (S_ISDIR(st.st_mode))
+			{
 				add_directories_recursively(content, &rule,
 							    rules);
-			} else {
+			}
+			else
+			{
 				path2target(content, &rule.target);
 				rules.emplace_back(rule);
 			}
-		} else if (strcmp(type, "user") == 0) {
+		}
+		else if (strcmp(type, "user") == 0)
+		{
 			user2uid(content, &rule.uid);
 			rules.emplace_back(rule);
 		}
@@ -275,10 +308,12 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 void load_rules(const std::vector<struct Rule> &rules)
 {
 	uint32_t key = 0;
-	for (const auto &rule : rules) {
+	for (const auto &rule : rules)
+	{
 		key++;
 		if (bpf_map_update_elem(whitelist_fd, &key, &rule, BPF_ANY) !=
-		    0) {
+		    0)
+		{
 			perror("bpf_map_update_elem");
 			exit(EXIT_FAILURE);
 		}
@@ -298,10 +333,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 void ringbuf_worker(void)
 {
-	while (!exit_flag) {
+	while (!exit_flag)
+	{
 		int err = ring_buffer__poll(rb, 1000 /* timeout in ms */);
 		// Check for errors during polling
-		if (err < 0 && err != -EINTR) {
+		if (err < 0 && err != -EINTR)
+		{
 			pr_error("Error polling ring buffer: %d", err);
 			sleep(5); // Sleep before retrying
 		}

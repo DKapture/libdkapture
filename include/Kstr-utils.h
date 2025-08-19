@@ -14,37 +14,37 @@ _Pragma("GCC diagnostic ignored \"-Wunused-function\"");
  */
 static long strncmp(const char *s1, const char *s2, long n)
 {
-    if (n < 0)
-        return 0; // Ensure n is not negative
-    // Compare in chunks of long size
-    while (n >= sizeof(long))
-    {
-        const long *p1 = (const long *)s1;
-        const long *p2 = (const long *)s2;
-        if (*p1 != *p2)
-        {
-            return (*p1 - *p2); // Return comparison result
-        }
-        if (*p1 == 0)
-            return 0;       // Stop if end of string is reached
-        s1 += sizeof(long); // Move pointers
-        s2 += sizeof(long);
-        n -= sizeof(long);
-    }
-    // Compare remaining characters
-    while (n > 0)
-    {
-        if (*s1 != *s2)
-        {
-            return (*s1 - *s2); // Return comparison result
-        }
-        if (*s1 == 0)
-            return 0; // Stop if end of string is reached
-        s1++;
-        s2++;
-        n--; // Move to next character
-    }
-    return 0; // All compared characters are equal
+	if (n < 0)
+		return 0; // Ensure n is not negative
+	// Compare in chunks of long size
+	while (n >= sizeof(long))
+	{
+		const long *p1 = (const long *)s1;
+		const long *p2 = (const long *)s2;
+		if (*p1 != *p2)
+		{
+			return (*p1 - *p2); // Return comparison result
+		}
+		if (*p1 == 0)
+			return 0; // Stop if end of string is reached
+		s1 += sizeof(long); // Move pointers
+		s2 += sizeof(long);
+		n -= sizeof(long);
+	}
+	// Compare remaining characters
+	while (n > 0)
+	{
+		if (*s1 != *s2)
+		{
+			return (*s1 - *s2); // Return comparison result
+		}
+		if (*s1 == 0)
+			return 0; // Stop if end of string is reached
+		s1++;
+		s2++;
+		n--; // Move to next character
+	}
+	return 0; // All compared characters are equal
 }
 
 /**
@@ -55,36 +55,36 @@ static long strncmp(const char *s1, const char *s2, long n)
  */
 static long strlen(const char *s, long n)
 {
-    const unsigned long *p = (const unsigned long *)s;
-    long slen = 0;
-    while (n > sizeof(long))
-    {
-        if (*p == 0)
-            break;
+	const unsigned long *p = (const unsigned long *)s;
+	long slen = 0;
+	while (n > sizeof(long))
+	{
+		if (*p == 0)
+			break;
 
-        p++;
-        n -= sizeof(long);
-        slen += sizeof(long);
-    }
+		p++;
+		n -= sizeof(long);
+		slen += sizeof(long);
+	}
 
-    const char *c = (const char *)(p - 1);
-    slen -= sizeof(long);
+	const char *c = (const char *)(p - 1);
+	slen -= sizeof(long);
 
-    if (c < s)
-        return 0;
+	if (c < s)
+		return 0;
 
-    if (slen <= 0)
-        return 0;
+	if (slen <= 0)
+		return 0;
 
-    while (slen < n)
-    {
-        if (*c == 0)
-            break;
+	while (slen < n)
+	{
+		if (*c == 0)
+			break;
 
-        c++;
-        slen++;
-    }
-    return slen;
+		c++;
+		slen++;
+	}
+	return slen;
 }
 
 /**
@@ -96,15 +96,15 @@ static long strlen(const char *s, long n)
  */
 static long legacy_strncpy(char *dst, const char *src, long n)
 {
-    long i = 0;
-    for (; i < n - 1; i++)
-    {
-        if (src[i] == 0)
-            break;
-        dst[i] = src[i];
-    }
-    dst[i] = 0;
-    return i + 1;
+	long i = 0;
+	for (; i < n - 1; i++)
+	{
+		if (src[i] == 0)
+			break;
+		dst[i] = src[i];
+	}
+	dst[i] = 0;
+	return i + 1;
 }
 
 /**
@@ -116,43 +116,43 @@ static long legacy_strncpy(char *dst, const char *src, long n)
  */
 static long strncpy(char *dst, const char *src, long n)
 {
-    long ret = 0;
-    unsigned long *d = (unsigned long *)dst;
-    const unsigned long *s = (const unsigned long *)src;
-    while (n > sizeof(long))
-    {
-        if (*s == 0)
-        {
-            *d = 0;
-            break;
-        }
+	long ret = 0;
+	unsigned long *d = (unsigned long *)dst;
+	const unsigned long *s = (const unsigned long *)src;
+	while (n > sizeof(long))
+	{
+		if (*s == 0)
+		{
+			*d = 0;
+			break;
+		}
 
-        *d = *s;
-        d++;
-        s++;
-        n -= sizeof(long);
-        ret += sizeof(long);
-    }
+		*d = *s;
+		d++;
+		s++;
+		n -= sizeof(long);
+		ret += sizeof(long);
+	}
 
-    char *cs = (char *)(s);
-    char *cd = (char *)(d);
+	char *cs = (char *)(s);
+	char *cd = (char *)(d);
 
-    while (n > 0)
-    {
-        if (*cs == 0)
-        {
-            *cd = 0;
-            break;
-        }
+	while (n > 0)
+	{
+		if (*cs == 0)
+		{
+			*cd = 0;
+			break;
+		}
 
-        *cd = *cs;
-        cd++;
-        cs++;
-        n -= 1;
-        ret += 1;
-    }
+		*cd = *cs;
+		cd++;
+		cs++;
+		n -= 1;
+		ret += 1;
+	}
 
-    return ret;
+	return ret;
 }
 
 /**
@@ -164,45 +164,45 @@ static long strncpy(char *dst, const char *src, long n)
  */
 static long strchr(const char *s, long n, char c)
 {
-    const unsigned long *p = (const unsigned long *)s;
-    long slen = 0;
-    while (n > sizeof(long))
-    {
-        if (*p == 0)
-            break;
+	const unsigned long *p = (const unsigned long *)s;
+	long slen = 0;
+	while (n > sizeof(long))
+	{
+		if (*p == 0)
+			break;
 
-        if ((*p & 0xff) == c)
-            return slen;
+		if ((*p & 0xff) == c)
+			return slen;
 
-        if ((*p & 0xff00) == c)
-            return slen + 1;
+		if ((*p & 0xff00) == c)
+			return slen + 1;
 
-        if ((*p & 0xff0000) == c)
-            return slen + 2;
+		if ((*p & 0xff0000) == c)
+			return slen + 2;
 
-        if ((*p & 0xff000000) == c)
-            return slen + 3;
+		if ((*p & 0xff000000) == c)
+			return slen + 3;
 
-        p++;
-        n -= sizeof(long);
-        slen += sizeof(long);
-    }
+		p++;
+		n -= sizeof(long);
+		slen += sizeof(long);
+	}
 
-    const char *cs = (const char *)(p);
-    while (n > 0)
-    {
-        if (*cs == 0)
-            break;
+	const char *cs = (const char *)(p);
+	while (n > 0)
+	{
+		if (*cs == 0)
+			break;
 
-        if (*cs == c)
-            return slen;
+		if (*cs == c)
+			return slen;
 
-        cs++;
-        n -= 1;
-        slen += 1;
-    }
+		cs++;
+		n -= 1;
+		slen += 1;
+	}
 
-    return -1;
+	return -1;
 }
 
 /**
@@ -214,60 +214,61 @@ static long strchr(const char *s, long n, char c)
  */
 static long wildcard_match(const char *pattern, const char *str, long n)
 {
-    const char *s1 = pattern;
-    const char *s2 = str;
-    if (n < 0)
-        return 0; // Ensure n is not negative
-    // Compare in chunks of long size
-    while (n >= sizeof(long))
-    {
-        const unsigned long *p1 = (const unsigned long *)s1;
-        const unsigned long *p2 = (const unsigned long *)s2;
-        if (*p1 != *p2)
-        {
-            if (n > sizeof(long))
-                n = sizeof(long);
+	const char *s1 = pattern;
+	const char *s2 = str;
+	if (n < 0)
+		return 0; // Ensure n is not negative
+	// Compare in chunks of long size
+	while (n >= sizeof(long))
+	{
+		const unsigned long *p1 = (const unsigned long *)s1;
+		const unsigned long *p2 = (const unsigned long *)s2;
+		if (*p1 != *p2)
+		{
+			if (n > sizeof(long))
+				n = sizeof(long);
 
-            while (n > 0)
-            {
-                if (*s1 == '*')
-                    return 0;
+			while (n > 0)
+			{
+				if (*s1 == '*')
+					return 0;
 
-                if (*s1 != *s2)
-                {
-                    return (*s1 - *s2); // Return comparison result
-                }
-                if (*s1 == 0)
-                    return 0; // Stop if end of string is reached
-                s1++;
-                s2++;
-                n--; // Move to next character
-            }
-            return *p1 - *p2;
-        }
-        if (*p1 == 0)
-            return 0;       // Stop if end of string is reached
-        s1 += sizeof(long); // Move pointers
-        s2 += sizeof(long);
-        n -= sizeof(long);
-    }
+				if (*s1 != *s2)
+				{
+					return (*s1 -
+						*s2); // Return comparison result
+				}
+				if (*s1 == 0)
+					return 0; // Stop if end of string is reached
+				s1++;
+				s2++;
+				n--; // Move to next character
+			}
+			return *p1 - *p2;
+		}
+		if (*p1 == 0)
+			return 0; // Stop if end of string is reached
+		s1 += sizeof(long); // Move pointers
+		s2 += sizeof(long);
+		n -= sizeof(long);
+	}
 
-    while (n > 0)
-    {
-        if (*s1 == '*')
-            return 0;
+	while (n > 0)
+	{
+		if (*s1 == '*')
+			return 0;
 
-        if (*s1 != *s2)
-        {
-            return (*s1 - *s2); // Return comparison result
-        }
-        if (*s1 == 0)
-            return 0; // Stop if end of string is reached
-        s1++;
-        s2++;
-        n--; // Move to next character
-    }
-    return 0; // All compared characters are equal
+		if (*s1 != *s2)
+		{
+			return (*s1 - *s2); // Return comparison result
+		}
+		if (*s1 == 0)
+			return 0; // Stop if end of string is reached
+		s1++;
+		s2++;
+		n--; // Move to next character
+	}
+	return 0; // All compared characters are equal
 }
 
 /**
@@ -279,39 +280,39 @@ static long wildcard_match(const char *pattern, const char *str, long n)
  */
 static long memncmp(const void *d1, const void *d2, long n)
 {
-    if (n < 0)
-        return 0; // Ensure n is not negative
-    // Compare in chunks of long size
-    while (n >= sizeof(long))
-    {
-        const long *p1 = (const long *)d1;
-        const long *p2 = (const long *)d2;
-        if (*p1 != *p2)
-        {
-            return (*p1 - *p2); // Return comparison result
-        }
-        if (*p1 == 0)
-            return 0;       // Stop if end of string is reached
-        d1 += sizeof(long); // Move pointers
-        d2 += sizeof(long);
-        n -= sizeof(long);
-    }
-    const char *c1 = (const char *)d1;
-    const char *c2 = (const char *)d2;
-    // Compare remaining characters
-    while (n > 0)
-    {
-        if (*c1 != *c2)
-        {
-            return (*c1 - *c2); // Return comparison result
-        }
-        if (*c1 == 0)
-            return 0; // Stop if end of string is reached
-        c1++;
-        c2++;
-        n--; // Move to next character
-    }
-    return 0; // All compared characters are equal
+	if (n < 0)
+		return 0; // Ensure n is not negative
+	// Compare in chunks of long size
+	while (n >= sizeof(long))
+	{
+		const long *p1 = (const long *)d1;
+		const long *p2 = (const long *)d2;
+		if (*p1 != *p2)
+		{
+			return (*p1 - *p2); // Return comparison result
+		}
+		if (*p1 == 0)
+			return 0; // Stop if end of string is reached
+		d1 += sizeof(long); // Move pointers
+		d2 += sizeof(long);
+		n -= sizeof(long);
+	}
+	const char *c1 = (const char *)d1;
+	const char *c2 = (const char *)d2;
+	// Compare remaining characters
+	while (n > 0)
+	{
+		if (*c1 != *c2)
+		{
+			return (*c1 - *c2); // Return comparison result
+		}
+		if (*c1 == 0)
+			return 0; // Stop if end of string is reached
+		c1++;
+		c2++;
+		n--; // Move to next character
+	}
+	return 0; // All compared characters are equal
 }
 
 /**
@@ -322,23 +323,23 @@ static long memncmp(const void *d1, const void *d2, long n)
  * @param n the number of bytes to set
  * @note 'offset' and 'n' must be able to be conformed at compiling time
  */
-static __attribute__((no_builtin))
-void memset(void *data, long val, unsigned long offset, unsigned long n)
+static __attribute__((no_builtin)) void
+memset(void *data, long val, unsigned long offset, unsigned long n)
 {
-    char *d = (char*)data;
-    long c = offset;
-    while (c % sizeof(long) && c < n)
-    {
-        /**
+	char *d = (char *)data;
+	long c = offset;
+	while (c % sizeof(long) && c < n)
+	{
+		/**
          * clang will optimize this to memset
          * which cause compiling error:
          * error: A call to built-in function 'memset' is not supported.
          * so the compiling option -fno-builtin is added.
          */
-        d[c] = 0; 
-        c++;
-    }
-    /**
+		d[c] = 0;
+		c++;
+	}
+	/**
      * don't compare the address directly like this:
      *
      *  long *ls = (long*)((char*)data + c);
@@ -373,14 +374,14 @@ void memset(void *data, long val, unsigned long offset, unsigned long n)
      *
      * for reasons explained above, use the code below instead
      */
-    long *ls = (long*)((char*)data + c);
-    long left = (n - c) / sizeof(long);
-    while (left > 0)
-    {
-        *ls = 0;
-        ls++;
-        left--;
-    }
+	long *ls = (long *)((char *)data + c);
+	long left = (n - c) / sizeof(long);
+	while (left > 0)
+	{
+		*ls = 0;
+		ls++;
+		left--;
+	}
 }
 
 /**
@@ -388,17 +389,17 @@ void memset(void *data, long val, unsigned long offset, unsigned long n)
  * @param str the string buffer
  * @param n the size of the buffer
  */
-static __attribute__((no_builtin))
-void zero_str_tail(char *str, unsigned long n)
+static __attribute__((no_builtin)) void zero_str_tail(char *str,
+						      unsigned long n)
 {
-    unsigned long i = 0;
-    for (; i < n; i++)
-    {
-        if (str[i] == 0)
-            break;
-    }
+	unsigned long i = 0;
+	for (; i < n; i++)
+	{
+		if (str[i] == 0)
+			break;
+	}
 
-    memset(str, 0, i, n);
+	memset(str, 0, i, n);
 }
 
 /**
@@ -410,15 +411,15 @@ void zero_str_tail(char *str, unsigned long n)
  */
 static long hex_print(char *dst, const void *src, long n)
 {
-    long i = 0;
-    const unsigned char *s = (const unsigned char *)src;
-    for (; i < n / 2; i++)
-    {
-        unsigned char c = s[i];
-        dst[i * 2] = "0123456789abcdef"[c >> 4];
-        dst[i * 2 + 1] = "0123456789abcdef"[c & 0xf];
-    }
-    return i * 2;
+	long i = 0;
+	const unsigned char *s = (const unsigned char *)src;
+	for (; i < n / 2; i++)
+	{
+		unsigned char c = s[i];
+		dst[i * 2] = "0123456789abcdef"[c >> 4];
+		dst[i * 2 + 1] = "0123456789abcdef"[c & 0xf];
+	}
+	return i * 2;
 }
 
 _Pragma("GCC diagnostic pop")

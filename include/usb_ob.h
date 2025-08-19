@@ -1,16 +1,17 @@
 #ifndef __USB_OB_H__
 #define __USB_OB_H__
 
+#define TASK_COMM_LEN 16
+#define MAX_SLOTS 26
 
-#define TASK_COMM_LEN	16
-#define MAX_SLOTS	26
-
-struct hkey {
+struct hkey
+{
 	__u32 pid;
 };
 
-struct hist {
-    char comm[TASK_COMM_LEN];
+struct hist
+{
+	char comm[TASK_COMM_LEN];
 	__u64 count;
 };
 

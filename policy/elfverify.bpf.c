@@ -14,41 +14,49 @@ char _license[] SEC("license") = "GPL";
 #define MAJOR(dev) (u32)((dev & 0xfff00000) >> 20)
 #define MINOR(dev) (u32)(dev & 0xfffff)
 
-struct Target {
+struct Target
+{
 	dev_t dev;
 	ino_t ino;
 };
 
-struct Rule {
-	union {
+struct Rule
+{
+	union
+	{
 		struct Target target;
-		struct {
+		struct
+		{
 			int not_uid;
 			uid_t uid;
 		};
 	};
 };
 
-struct BpfData {
+struct BpfData
+{
 	uid_t uid;
 	pid_t pid;
 	int is_binary;
 	struct Target target;
 };
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, u32);
 	__type(value, struct Rule);
 	__uint(max_entries, 400000);
 } whitelist SEC(".maps");
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 1024 * 1024); // 1 MB
 } logs SEC(".maps");
 
-static void audit_log(uid_t uid, pid_t pid, int is_binary, struct Target *target)
+static void audit_log(uid_t uid, pid_t pid, int is_binary,
+		      struct Target *target)
 {
 	struct BpfData log;
 	log.uid = uid;
@@ -56,12 +64,14 @@ static void audit_log(uid_t uid, pid_t pid, int is_binary, struct Target *target
 	log.is_binary = is_binary;
 	log.target = *target;
 	long ret = bpf_ringbuf_output(&logs, &log, sizeof(log), 0);
-	if (ret) {
+	if (ret)
+	{
 		bpf_printk("error: bpf_perf_event_output: %ld", ret);
 	}
 }
 
-struct Event {
+struct Event
+{
 	bool allow;
 	uid_t uid;
 	struct Target *target;
@@ -73,12 +83,14 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 	struct Event *event = ctx;
 	struct Rule *rule = value;
 
-	if (!rule->not_uid && rule->uid == event->uid) {
+	if (!rule->not_uid && rule->uid == event->uid)
+	{
 		event->allow = true;
 		return 1;
 	}
 	if (rule->target.dev == event->target->dev &&
-	    rule->target.ino == event->target->ino) {
+	    rule->target.ino == event->target->ino)
+	{
 		event->allow = true;
 		return 1;
 	}
@@ -131,20 +143,22 @@ int BPF_PROG(mmap_file, struct file *file, unsigned long reqprot,
 }
 
 SEC("lsm/bprm_creds_for_exec")
-int BPF_PROG(bprm_creds_for_exec, struct linux_binprm *bprm, int ret){
-	if(ret)
+int BPF_PROG(bprm_creds_for_exec, struct linux_binprm *bprm, int ret)
+{
+	if (ret)
 		return ret;
-	if(bprm && bprm->file)
+	if (bprm && bprm->file)
 		return check_permission(bprm->file->f_path.dentry, 0);
 	else
 		return 0;
 }
 
 SEC("lsm/bprm_check_security")
-int BPF_PROG(bprm_check_security, struct linux_binprm *bprm, int ret){
-	if(ret)
+int BPF_PROG(bprm_check_security, struct linux_binprm *bprm, int ret)
+{
+	if (ret)
 		return ret;
-	if(bprm && bprm->file)
+	if (bprm && bprm->file)
 		return check_permission(bprm->file->f_path.dentry, 0);
 	else
 		return 0;

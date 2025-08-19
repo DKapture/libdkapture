@@ -15,8 +15,9 @@ const std::string FRTP_BINARY = "./build/policy/frtp";
 const std::string TEST_POLICY_FILE = "/tmp/frtp_test.pol";
 const std::string TEST_DIR = "/tmp/frtp_test_dir";
 
-class FrtpBinaryTest : public ::testing::Test {
-	protected:
+class FrtpBinaryTest : public ::testing::Test
+{
+    protected:
 	void SetUp() override
 	{
 		// 清理任何之前的测试文件
@@ -37,20 +38,23 @@ class FrtpBinaryTest : public ::testing::Test {
 	std::string runFrtpCommand(const std::vector<std::string> &args)
 	{
 		std::string command = FRTP_BINARY;
-		for (const auto &arg : args) {
+		for (const auto &arg : args)
+		{
 			command += " " + arg;
 		}
 		command += " 2>&1"; // 重定向stderr到stdout
 
 		FILE *pipe = popen(command.c_str(), "r");
-		if (!pipe) {
+		if (!pipe)
+		{
 			last_exit_code = -1;
 			return "";
 		}
 
 		std::string result;
 		char buffer[128];
-		while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+		while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+		{
 			result += buffer;
 		}
 
@@ -287,7 +291,8 @@ TEST_F(FrtpBinaryTest, ExitCodes)
 // ========== 扩展功能测试类定义 ==========
 
 // 策略规则结构体
-struct PolicyRule {
+struct PolicyRule
+{
 	std::string type; // "proc" or "pid"
 	std::string identifier; // process path or PID
 	std::string action; // "r", "w", "rw"
@@ -304,8 +309,9 @@ struct PolicyRule {
 };
 
 // 基础测试类，包含扩展的辅助函数
-class FrtpExtendedTest : public FrtpBinaryTest {
-	protected:
+class FrtpExtendedTest : public FrtpBinaryTest
+{
+    protected:
 	// 策略生成工具
 	std::string generatePolicyRule(const std::string &type,
 				       const std::string &identifier,
@@ -319,7 +325,8 @@ class FrtpExtendedTest : public FrtpBinaryTest {
 	std::string createMultiRulePolicy(const std::vector<PolicyRule> &rules)
 	{
 		std::string policy = "# Generated multi-rule policy file\n";
-		for (const auto &rule : rules) {
+		for (const auto &rule : rules)
+		{
 			policy += generatePolicyRule(rule.type, rule.identifier,
 						     rule.action, rule.target);
 		}
@@ -329,10 +336,12 @@ class FrtpExtendedTest : public FrtpBinaryTest {
 	// 文件系统工具
 	void createTestFileStructure(const std::vector<std::string> &paths)
 	{
-		for (const auto &path : paths) {
+		for (const auto &path : paths)
+		{
 			std::string dir =
 				path.substr(0, path.find_last_of('/'));
-			if (!dir.empty()) {
+			if (!dir.empty())
+			{
 				system(("mkdir -p " + dir).c_str());
 			}
 			std::ofstream file(path);
@@ -345,8 +354,10 @@ class FrtpExtendedTest : public FrtpBinaryTest {
 	bool containsAllKeywords(const std::string &output,
 				 const std::vector<std::string> &keywords)
 	{
-		for (const auto &keyword : keywords) {
-			if (output.find(keyword) == std::string::npos) {
+		for (const auto &keyword : keywords)
+		{
+			if (output.find(keyword) == std::string::npos)
+			{
 				return false;
 			}
 		}
@@ -358,13 +369,15 @@ class FrtpExtendedTest : public FrtpBinaryTest {
 		std::vector<std::string> errors;
 		std::istringstream stream(output);
 		std::string line;
-		while (std::getline(stream, line)) {
+		while (std::getline(stream, line))
+		{
 			if (line.find("error") != std::string::npos ||
 			    line.find("Error") != std::string::npos ||
 			    line.find("ERROR") != std::string::npos ||
 			    line.find("unrecognized") != std::string::npos ||
 			    line.find("invalid") != std::string::npos ||
-			    line.find("Invalid") != std::string::npos) {
+			    line.find("Invalid") != std::string::npos)
+			{
 				errors.push_back(line);
 			}
 		}
@@ -399,19 +412,29 @@ class FrtpExtendedTest : public FrtpBinaryTest {
 };
 
 // 策略格式测试类
-class FrtpPolicyFormatTest : public FrtpExtendedTest {};
+class FrtpPolicyFormatTest : public FrtpExtendedTest
+{
+};
 
 // 路径处理测试类
-class FrtpPathHandlingTest : public FrtpExtendedTest {};
+class FrtpPathHandlingTest : public FrtpExtendedTest
+{
+};
 
 // 错误处理测试类
-class FrtpErrorHandlingTest : public FrtpExtendedTest {};
+class FrtpErrorHandlingTest : public FrtpExtendedTest
+{
+};
 
 // 输出验证测试类
-class FrtpOutputValidationTest : public FrtpExtendedTest {};
+class FrtpOutputValidationTest : public FrtpExtendedTest
+{
+};
 
 // 边界条件测试类
-class FrtpBoundaryTest : public FrtpExtendedTest {};
+class FrtpBoundaryTest : public FrtpExtendedTest
+{
+};
 
 // ========== 策略格式测试用例 ==========
 
@@ -427,7 +450,8 @@ TEST_F(FrtpPolicyFormatTest, ValidProcRules)
 			   "/var/log/app.log")
 	};
 
-	for (const auto &rule : validRules) {
+	for (const auto &rule : validRules)
+	{
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
 		createTestPolicyFile(policy);
@@ -454,7 +478,8 @@ TEST_F(FrtpPolicyFormatTest, ValidPidRules)
 		PolicyRule("pid", "99999", "r", "/home/user/file.txt")
 	};
 
-	for (const auto &rule : validPidRules) {
+	for (const auto &rule : validPidRules)
+	{
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
 		createTestPolicyFile(policy);
@@ -475,7 +500,8 @@ TEST_F(FrtpPolicyFormatTest, ActionCombinations)
 {
 	std::vector<std::string> actions = { "r", "w", "rw" };
 
-	for (const auto &action : actions) {
+	for (const auto &action : actions)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", action,
 				"/tmp/test.txt");
 		std::string policy = generatePolicyRule(
@@ -501,7 +527,8 @@ TEST_F(FrtpPolicyFormatTest, InvalidTypeFormats)
 						  "program",	"user",
 						  "group" };
 
-	for (const auto &type : invalidTypes) {
+	for (const auto &type : invalidTypes)
+	{
 		std::string policy = generatePolicyRule(type, "/usr/bin/cat",
 							"r", "/etc/passwd");
 		createTestPolicyFile(policy);
@@ -525,7 +552,8 @@ TEST_F(FrtpPolicyFormatTest, InvalidIdentifierFormats)
 		"path/without/leading/slash"
 	};
 
-	for (const auto &identifier : invalidProcIdentifiers) {
+	for (const auto &identifier : invalidProcIdentifiers)
+	{
 		std::string policy = generatePolicyRule("proc", identifier, "r",
 							"/etc/passwd");
 		createTestPolicyFile(policy);
@@ -544,7 +572,8 @@ TEST_F(FrtpPolicyFormatTest, InvalidIdentifierFormats)
 		"", "-1", "abc", "12.34", "1000000000", "0x123", "1 2"
 	};
 
-	for (const auto &identifier : invalidPidIdentifiers) {
+	for (const auto &identifier : invalidPidIdentifiers)
+	{
 		std::string policy = generatePolicyRule("pid", identifier, "r",
 							"/etc/passwd");
 		createTestPolicyFile(policy);
@@ -567,7 +596,8 @@ TEST_F(FrtpPolicyFormatTest, InvalidActionFormats)
 						    "rwe",  "wr",   "R",
 						    "W",    "RW",   "rwx" };
 
-	for (const auto &action : invalidActions) {
+	for (const auto &action : invalidActions)
+	{
 		std::string policy = generatePolicyRule("proc", "/usr/bin/cat",
 							action, "/etc/passwd");
 		createTestPolicyFile(policy);
@@ -592,7 +622,8 @@ TEST_F(FrtpPolicyFormatTest, WhitespaceHandling)
 		"forbid proc=/usr/bin/cat r /etc/passwd \n" // 行尾空格
 	};
 
-	for (const auto &policy : policies) {
+	for (const auto &policy : policies)
+	{
 		createTestPolicyFile(policy);
 
 		std::string output =
@@ -694,7 +725,8 @@ TEST_F(FrtpPathHandlingTest, AbsolutePaths)
 		"/root/.bashrc"
 	};
 
-	for (const auto &path : absolutePaths) {
+	for (const auto &path : absolutePaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -720,7 +752,8 @@ TEST_F(FrtpPathHandlingTest, RelativePaths)
 						   "./subdir/../file.txt",
 						   "../../grandparent.txt" };
 
-	for (const auto &path : relativePaths) {
+	for (const auto &path : relativePaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -746,7 +779,8 @@ TEST_F(FrtpPathHandlingTest, WildcardPaths)
 						   "/home/*", "/var/log/*",
 						   "/etc/*" };
 
-	for (const auto &path : wildcardPaths) {
+	for (const auto &path : wildcardPaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -769,7 +803,8 @@ TEST_F(FrtpPathHandlingTest, DirectoryPaths)
 						    "/usr/bin/", "/var/log/",
 						    "/home/user/" };
 
-	for (const auto &path : directoryPaths) {
+	for (const auto &path : directoryPaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -792,7 +827,8 @@ TEST_F(FrtpPathHandlingTest, RecursiveDirectories)
 						    "/usr/bin/*", "/var/log/*",
 						    "/home/user/*" };
 
-	for (const auto &path : recursivePaths) {
+	for (const auto &path : recursivePaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "rw", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -821,7 +857,8 @@ TEST_F(FrtpPathHandlingTest, SpecialCharacterPaths)
 	// 创建这些测试文件
 	createTestFileStructure(specialPaths);
 
-	for (const auto &path : specialPaths) {
+	for (const auto &path : specialPaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -844,9 +881,11 @@ TEST_F(FrtpPathHandlingTest, LongPaths)
 
 	// 生成不同长度的路径
 	std::string basePath = "/tmp";
-	for (int i = 1; i <= 5; i++) {
+	for (int i = 1; i <= 5; i++)
+	{
 		std::string longPath = basePath;
-		for (int j = 0; j < i * 50; j++) {
+		for (int j = 0; j < i * 50; j++)
+		{
 			longPath += "/very_long_directory_name_" +
 				    std::to_string(j);
 		}
@@ -854,7 +893,8 @@ TEST_F(FrtpPathHandlingTest, LongPaths)
 		longPaths.push_back(longPath);
 	}
 
-	for (const auto &path : longPaths) {
+	for (const auto &path : longPaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -880,7 +920,8 @@ TEST_F(FrtpPathHandlingTest, NonexistentPaths)
 		"/usr/bin/nonexistent_binary"
 	};
 
-	for (const auto &path : nonexistentPaths) {
+	for (const auto &path : nonexistentPaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -912,7 +953,8 @@ TEST_F(FrtpPathHandlingTest, PermissionDeniedPaths)
 		"/sys/kernel/debug/something" // 调试文件系统
 	};
 
-	for (const auto &path : restrictedPaths) {
+	for (const auto &path : restrictedPaths)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -977,7 +1019,8 @@ TEST_F(FrtpErrorHandlingTest, MalformedPolicyLines)
 		"deny proc=/usr/bin/cat r /etc/passwd" // 错误的关键字
 	};
 
-	for (const auto &line : malformedLines) {
+	for (const auto &line : malformedLines)
+	{
 		createTestPolicyFile(line + "\n");
 
 		std::string output =
@@ -1006,7 +1049,8 @@ TEST_F(FrtpErrorHandlingTest, MissingFields)
 		"forbid  =/usr/bin/cat r /etc/passwd" // 空的类型
 	};
 
-	for (const auto &rule : incompleteRules) {
+	for (const auto &rule : incompleteRules)
+	{
 		createTestPolicyFile(rule + "\n");
 
 		std::string output =
@@ -1029,7 +1073,8 @@ TEST_F(FrtpErrorHandlingTest, ExtraFields)
 		"forbid proc=/usr/bin/cat extra r /etc/passwd"
 	};
 
-	for (const auto &rule : rulesWithExtra) {
+	for (const auto &rule : rulesWithExtra)
+	{
 		createTestPolicyFile(rule + "\n");
 
 		std::string output =
@@ -1037,12 +1082,15 @@ TEST_F(FrtpErrorHandlingTest, ExtraFields)
 		int exit_code = getLastExitCode();
 
 		// 多余字段可能被忽略或导致错误
-		if (rule.find("#") != std::string::npos) {
+		if (rule.find("#") != std::string::npos)
+		{
 			// 包含注释的行应该正常处理
 			EXPECT_EQ(exit_code, 255)
 				<< "Rule with comment should be processed: "
 				<< rule;
-		} else {
+		}
+		else
+		{
 			EXPECT_NE(exit_code, 0)
 				<< "Rule with extra fields might cause error: "
 				<< rule;
@@ -1061,7 +1109,8 @@ TEST_F(FrtpErrorHandlingTest, InvalidCharacters)
 		"forbid proc=/usr/bin/cat™ r /etc/passwd" // 商标符号
 	};
 
-	for (const auto &rule : rulesWithInvalidChars) {
+	for (const auto &rule : rulesWithInvalidChars)
+	{
 		createTestPolicyFile(rule + "\n");
 
 		std::string output =
@@ -1084,7 +1133,8 @@ TEST_F(FrtpErrorHandlingTest, EncodingIssues)
 		"forbid proc=/usr/bin/naïve r /etc/passwd" // 带变音符的程序名
 	};
 
-	for (const auto &rule : encodingTests) {
+	for (const auto &rule : encodingTests)
+	{
 		createTestPolicyFile(rule + "\n");
 
 		std::string output =
@@ -1103,7 +1153,8 @@ TEST_F(FrtpErrorHandlingTest, TruncatedPolicyFile)
 	std::string fullRule = "forbid proc=/usr/bin/cat r /etc/passwd";
 
 	// 测试不同程度的截断
-	for (size_t i = 1; i < fullRule.length(); i += 5) {
+	for (size_t i = 1; i < fullRule.length(); i += 5)
+	{
 		std::string truncated = fullRule.substr(0, i);
 		createTestPolicyFile(truncated);
 
@@ -1122,7 +1173,8 @@ TEST_F(FrtpErrorHandlingTest, BinaryPolicyFile)
 {
 	// 创建包含二进制数据的文件
 	std::ofstream binaryFile(TEST_POLICY_FILE, std::ios::binary);
-	for (int i = 0; i < 256; i++) {
+	for (int i = 0; i < 256; i++)
+	{
 		binaryFile.put(static_cast<char>(i));
 	}
 	binaryFile.close();
@@ -1189,18 +1241,22 @@ TEST_F(FrtpErrorHandlingTest, PolicyFilePermissions)
 		0644 // 正常权限
 	};
 
-	for (mode_t perm : permissions) {
+	for (mode_t perm : permissions)
+	{
 		chmod(TEST_POLICY_FILE.c_str(), perm);
 
 		std::string output =
 			runFrtpCommand({ "--policy-file", TEST_POLICY_FILE });
 		int exit_code = getLastExitCode();
 
-		if (perm & 0400) { // 有读权限
+		if (perm & 0400)
+		{ // 有读权限
 			EXPECT_EQ(exit_code, 255)
 				<< "Should be able to read file with permission "
 				<< std::oct << perm;
-		} else { // 无读权限
+		}
+		else
+		{ // 无读权限
 			EXPECT_NE(exit_code, 0)
 				<< "Should fail to read file without read permission "
 				<< std::oct << perm;
@@ -1268,8 +1324,10 @@ TEST_F(FrtpOutputValidationTest, ErrorMessageFormats)
 						 "RLIMIT_MEMLOCK",
 						 "Operation not permitted" };
 	bool hasBpfError = false;
-	for (const auto &keyword : bpfKeywords) {
-		if (output3.find(keyword) != std::string::npos) {
+	for (const auto &keyword : bpfKeywords)
+	{
+		if (output3.find(keyword) != std::string::npos)
+		{
 			hasBpfError = true;
 			break;
 		}
@@ -1313,9 +1371,10 @@ TEST_F(FrtpOutputValidationTest, LogMessageFormats)
 	std::string line;
 	bool hasProperLogFormat = false;
 
-	while (std::getline(stream, line)) {
-		if (!line.empty() &&
-		    line.find("libbpf:") != std::string::npos) {
+	while (std::getline(stream, line))
+	{
+		if (!line.empty() && line.find("libbpf:") != std::string::npos)
+		{
 			hasProperLogFormat = true;
 			break;
 		}
@@ -1339,8 +1398,10 @@ TEST_F(FrtpOutputValidationTest, BPFErrorMessages)
 	};
 
 	bool hasExpectedErrors = false;
-	for (const auto &error : expectedBpfErrors) {
-		if (output.find(error) != std::string::npos) {
+	for (const auto &error : expectedBpfErrors)
+	{
+		if (output.find(error) != std::string::npos)
+		{
 			hasExpectedErrors = true;
 			break;
 		}
@@ -1358,7 +1419,8 @@ TEST_F(FrtpBoundaryTest, MaximumPolicyRules)
 	std::vector<PolicyRule> maxRules;
 
 	// 生成大量规则（接近或超过BPF map限制）
-	for (int i = 0; i < 1000; i++) {
+	for (int i = 0; i < 1000; i++)
+	{
 		maxRules.push_back(PolicyRule(
 			"proc", "/usr/bin/test" + std::to_string(i), "r",
 			"/tmp/file" + std::to_string(i) + ".txt"));
@@ -1382,9 +1444,11 @@ TEST_F(FrtpBoundaryTest, MaximumLineLength)
 	// 生成超长的策略行
 	std::vector<size_t> lineLengths = { 100, 500, 1000, 4096, 8192, 16384 };
 
-	for (size_t length : lineLengths) {
+	for (size_t length : lineLengths)
+	{
 		std::string longPath = "/tmp/";
-		while (longPath.length() < length - 50) {
+		while (longPath.length() < length - 50)
+		{
 			longPath += "very_long_directory_name_";
 		}
 		longPath += "file.txt";
@@ -1398,11 +1462,14 @@ TEST_F(FrtpBoundaryTest, MaximumLineLength)
 			runFrtpCommand({ "--policy-file", TEST_POLICY_FILE });
 		int exit_code = getLastExitCode();
 
-		if (length <= 8192) {
+		if (length <= 8192)
+		{
 			// 应该能处理合理长度的行
 			EXPECT_NE(exit_code, 0) << "Line length " << length
 						<< " might cause path issues";
-		} else {
+		}
+		else
+		{
 			// 超长行可能导致缓冲区溢出
 			EXPECT_NE(exit_code, 0)
 				<< "Very long line should cause buffer issues at length "
@@ -1423,7 +1490,8 @@ TEST_F(FrtpBoundaryTest, ExtremePIDValues)
 		"4294967295" // 32位无符号最大值（可能无效）
 	};
 
-	for (const auto &pid : extremePids) {
+	for (const auto &pid : extremePids)
+	{
 		PolicyRule rule("pid", pid, "r", "/etc/passwd");
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -1433,11 +1501,14 @@ TEST_F(FrtpBoundaryTest, ExtremePIDValues)
 			runFrtpCommand({ "--policy-file", TEST_POLICY_FILE });
 		int exit_code = getLastExitCode();
 
-		if (pid == "0" || pid == "4294967295") {
+		if (pid == "0" || pid == "4294967295")
+		{
 			// 特殊PID值可能无效
 			EXPECT_NE(exit_code, 0)
 				<< "Extreme PID " << pid << " might be invalid";
-		} else {
+		}
+		else
+		{
 			// 其他PID值应该能解析
 			EXPECT_EQ(exit_code, 255) << "Valid PID " << pid
 						  << " should reach BPF stage";
@@ -1458,7 +1529,8 @@ TEST_F(FrtpBoundaryTest, UnicodeCharacters)
 		"/tmp/naïve.txt" // 带变音符
 	};
 
-	for (const auto &path : unicodeTests) {
+	for (const auto &path : unicodeTests)
+	{
 		PolicyRule rule("proc", "/usr/bin/test", "r", path);
 		std::string policy = generatePolicyRule(
 			rule.type, rule.identifier, rule.action, rule.target);
@@ -1485,7 +1557,8 @@ TEST_F(FrtpBoundaryTest, MinimumValidPolicy)
 		"forbid proc=/usr/bin/cat r /etc/passwd" // 标准最小策略
 	};
 
-	for (const auto &policy : minimalPolicies) {
+	for (const auto &policy : minimalPolicies)
+	{
 		createTestPolicyFile(policy + "\n");
 
 		std::string output =
@@ -1494,12 +1567,15 @@ TEST_F(FrtpBoundaryTest, MinimumValidPolicy)
 
 		// 最小策略应该能正确解析
 		if (policy.find("proc=/") != std::string::npos &&
-		    policy.find(" r /") != std::string::npos) {
+		    policy.find(" r /") != std::string::npos)
+		{
 			// 可能因为路径问题失败
 			EXPECT_NE(exit_code, 0)
 				<< "Minimal policy might fail due to path issues: "
 				<< policy;
-		} else {
+		}
+		else
+		{
 			EXPECT_EQ(exit_code, 255)
 				<< "Minimal valid policy should reach BPF stage: "
 				<< policy;

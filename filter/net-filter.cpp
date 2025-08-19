@@ -39,7 +39,8 @@ void NetFilter::read_trace_pipe(FILE *fp)
 		fp = stdout;
 
 	char *buf = (char *)calloc(4096, 1);
-	if (!buf) {
+	if (!buf)
+	{
 		pr_error("Failed to allocate buffer from heap\n");
 		close(trace_fd);
 		return;
@@ -53,7 +54,7 @@ void NetFilter::read_trace_pipe(FILE *fp)
 		if (sz < 0)
 			break;
 	}
-	
+
 	free(buf);
 	close(trace_fd);
 }
@@ -78,7 +79,8 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 static bool check_bpf_env(void)
 {
 	char *buf = (char *)calloc(4096, 1);
-	if (!buf) {
+	if (!buf)
+	{
 		pr_error("Failed to allocate buffer from heap\n");
 		return false;
 	}
@@ -98,7 +100,8 @@ static bool check_bpf_env(void)
 	while ((rd_sz = getline(&line, &len, mnt_fp)) != -1)
 	{
 		buf[0] = fs_type[0] = '\0';
-		sscanf(line, "%*s %*s %*s %*s %4096s %*s %*s %*s %16s %*s %*s", buf, fs_type);
+		sscanf(line, "%*s %*s %*s %*s %4096s %*s %*s %*s %16s %*s %*s",
+		       buf, fs_type);
 		if (strcmp(fs_type, "securityfs") == 0)
 		{
 			securityfs_lsm = buf;
@@ -113,7 +116,8 @@ static bool check_bpf_env(void)
 	int fd = open(securityfs_lsm.c_str(), O_RDONLY);
 	if (fd < 0)
 	{
-		pr_error("open %s: %s\n", securityfs_lsm.c_str(), strerror(errno));
+		pr_error("open %s: %s\n", securityfs_lsm.c_str(),
+			 strerror(errno));
 		free(buf);
 		return false;
 	}
@@ -121,7 +125,7 @@ static bool check_bpf_env(void)
 	memset(buf, 0, 4096);
 	read(fd, buf, 4095); // pr_error ignored
 	close(fd);
-	
+
 	bool result = !!strstr(buf, "bpf");
 	free(buf);
 	return result;
@@ -140,8 +144,8 @@ int NetFilter::init(LogCallback cb)
 	if (!check_bpf_env())
 	{
 		pr_error("bpf-lsm isn't activated,"
-			  " process name filtering feature of "
-			  "net-monitor won't be available\n");
+			 " process name filtering feature of "
+			 "net-monitor won't be available\n");
 	}
 	obj = net_filter_bpf::open(NULL);
 	if (!obj)
@@ -166,11 +170,16 @@ int NetFilter::init(LogCallback cb)
 		goto err_out;
 
 	// bpf_links.push_back(bpf_attach_kretprobe(kretprobe_send_prog, "kr_sock_sendmsg"));
-	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg, "sock_sendmsg"));
-	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg, "sock_write_iter"));
-	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg, "__sys_sendto"));
-	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg, "____sys_sendmsg"));
-	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_recvmsg, "sock_recvmsg"));
+	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg,
+						 "sock_sendmsg"));
+	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg,
+						 "sock_write_iter"));
+	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg,
+						 "__sys_sendto"));
+	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_sendmsg,
+						 "____sys_sendmsg"));
+	bpf_links.push_back(bpf_attach_kretprobe(obj->progs.kr_sock_recvmsg,
+						 "sock_recvmsg"));
 
 	link_fds.clear();
 	/* attach to netfilter forward handler */
@@ -195,14 +204,18 @@ int NetFilter::init(LogCallback cb)
 
 #ifndef __loongarch__
 	attr.link_create.attach_type = BPF_LSM_MAC;
-	attr.link_create.prog_fd = bpf_get_prog_fd(obj->progs.lsm_socket_sendmsg);
+	attr.link_create.prog_fd =
+		bpf_get_prog_fd(obj->progs.lsm_socket_sendmsg);
 	link_fds.push_back(bpf_syscall(BPF_LINK_CREATE, attr));
 
-	attr.link_create.prog_fd = bpf_get_prog_fd(obj->progs.lsm_socket_recvmsg);
+	attr.link_create.prog_fd =
+		bpf_get_prog_fd(obj->progs.lsm_socket_recvmsg);
 	link_fds.push_back(bpf_syscall(BPF_LINK_CREATE, attr));
 #else
-	bpf_links.push_back(bpf_attach_kprobe(obj->progs.k_socket_sendmsg, "security_socket_sendmsg"));
-	bpf_links.push_back(bpf_attach_kprobe(obj->progs.k_socket_recvmsg, "security_socket_recvmsg"));
+	bpf_links.push_back(bpf_attach_kprobe(obj->progs.k_socket_sendmsg,
+					      "security_socket_sendmsg"));
+	bpf_links.push_back(bpf_attach_kprobe(obj->progs.k_socket_recvmsg,
+					      "security_socket_recvmsg"));
 #endif
 
 	printf("bpf program/map loaded....\n");
@@ -238,7 +251,8 @@ void NetFilter::deinit(void)
 
 int NetFilter::add_rule(const Rule &rule)
 {
-	int err = bpf_map_update_elem(rules_map_fd, &key_cnt, &rule, BPF_NOEXIST);
+	int err =
+		bpf_map_update_elem(rules_map_fd, &key_cnt, &rule, BPF_NOEXIST);
 
 	if (err == 0)
 		return key_cnt++;
@@ -380,14 +394,14 @@ static void parse_area(char *str, char *out1, char *out2, size_t sz)
 
 static int parse_ip(char *ip_str, void *ips, void *ipe, bool is_ipv6)
 {
-	char begin[40] = {0}, end[40] = {0};
+	char begin[40] = { 0 }, end[40] = { 0 };
 	struct in_addr ip;
 	struct in6_addr ipv6;
 
-#define return_error(msg)                      \
-	{                                          \
+#define return_error(msg)                                 \
+	{                                                 \
 		pr_error("invalid rule part: %s\n", msg); \
-		return -1;                             \
+		return -1;                                \
 	}
 
 	if (strstr(ip_str, "--"))
@@ -450,13 +464,13 @@ static int parse_port(char *port_str, u16 &sport, u16 &dport)
 {
 	char begin[8], end[8];
 
-#define return_if_invalid(p, msg, ep)              \
-	{                                              \
-		if (p < 0 || p > 65535 || msg == ep)       \
-		{                                          \
+#define return_if_invalid(p, msg, ep)                             \
+	{                                                         \
+		if (p < 0 || p > 65535 || msg == ep)              \
+		{                                                 \
 			pr_error("invalid rule part: %s\n", msg); \
-			return -1;                             \
-		}                                          \
+			return -1;                                \
+		}                                                 \
 	}
 
 	int n;
@@ -481,9 +495,8 @@ static int parse_port(char *port_str, u16 &sport, u16 &dport)
 	return 0;
 }
 
-static int parse_ip_pair(char *ip1, char *ip2,
-						 char *sport, char *dport,
-						 char *protocol, struct Rule &rule)
+static int parse_ip_pair(char *ip1, char *ip2, char *sport, char *dport,
+			 char *protocol, struct Rule &rule)
 {
 	bool is_ipv6 = rule.ip_proto == 6;
 	// src ip
@@ -513,10 +526,13 @@ static int parse_ip_pair(char *ip1, char *ip2,
 	}
 	else if (strcasecmp(protocol, "icmp") == 0)
 	{
-		rule.tl_proto = rule.ip_proto == 4 ? (u8)IPPROTO_ICMP : (u8)IPPROTO_ICMPV6;
+		rule.tl_proto = rule.ip_proto == 4 ? (u8)IPPROTO_ICMP :
+						     (u8)IPPROTO_ICMPV6;
 		if (rule.comm[0] != 0)
 		{
-			pr_error("filter comm(%s) can't work with protocol icmp\n", rule.comm);
+			pr_error(
+				"filter comm(%s) can't work with protocol icmp\n",
+				rule.comm);
 			return -1;
 		}
 	}
@@ -575,11 +591,11 @@ bool NetFilter::parse_rule(const char *line, Rule &rule)
 	char dport[16] = {};
 	char protocol[6] = {};
 	char action[32] = {};
-	char process_name[16] = {0};
+	char process_name[16] = { 0 };
 
-	ret = sscanf(line, "%9s %87s %87s %15s %15s %5s %31s %15s",
-				 family, saddr, daddr, sport, dport,
-				 protocol, action, process_name);
+	ret = sscanf(line, "%9s %87s %87s %15s %15s %5s %31s %15s", family,
+		     saddr, daddr, sport, dport, protocol, action,
+		     process_name);
 
 	if (ret < 7)
 	{
@@ -616,15 +632,17 @@ err_out:
 	return false;
 }
 
-
 #define DEFAULT_POLI_PATH "/etc/net-monitor/"
 #define DEFAULT_BPF_PATH "/lib/net-monitor-bpf/"
 #define DEFAULT_LOG_PATH "/var/log/net-monitor/"
 
-#define SIZE_1M	(1024*1024)
+#define SIZE_1M (1024 * 1024)
 
-#define LOG(fmt, args...) {printf("[%s]: " fmt, get_time().c_str(), ##args); fflush(stdout);}
-
+#define LOG(fmt, args...)                                         \
+	{                                                         \
+		printf("[%s]: " fmt, get_time().c_str(), ##args); \
+		fflush(stdout);                                   \
+	}
 
 static std::string log_path;
 std::string poli_path = DEFAULT_POLI_PATH "policy.conf";
@@ -638,19 +656,19 @@ NetFilter nf;
 
 static std::string get_date(void)
 {
-    char buffer[20] = {0};
+	char buffer[20] = { 0 };
 	time_t timestamp = time(NULL);
-    struct tm *info = localtime(&timestamp);
+	struct tm *info = localtime(&timestamp);
 	if (!info)
 		return "";
-    strftime(buffer, sizeof buffer, "%Y-%m-%d", info);
+	strftime(buffer, sizeof buffer, "%Y-%m-%d", info);
 
-    return std::string(buffer);
+	return std::string(buffer);
 }
 
-static const char* proto_str(u8 proto)
+static const char *proto_str(u8 proto)
 {
-	const char* str = "";
+	const char *str = "";
 	switch (proto)
 	{
 	case IPPROTO_UDP:
@@ -663,7 +681,7 @@ static const char* proto_str(u8 proto)
 	case IPPROTO_ICMPV6:
 		str = "icmp";
 		break;
-	
+
 	default:
 		printf("=========== coding pr_error ===========\n");
 		abort();
@@ -678,33 +696,25 @@ void print_rule(const Rule &rule)
 	if (rule.ip_proto == 4)
 	{
 		LOG("src: %u.%u.%u.%u-%u.%u.%u.%u : %u-%u\n",
-			   SLICE_IP(rule.sip),
-			   SLICE_IP(rule.sip_end),
-			   rule.sport,
-			   rule.sport_end);
+		    SLICE_IP(rule.sip), SLICE_IP(rule.sip_end), rule.sport,
+		    rule.sport_end);
 		LOG("dst: %u.%u.%u.%u-%u.%u.%u.%u : %u-%u\n",
-			   SLICE_IP(rule.dip),
-			   SLICE_IP(rule.dip_end),
-			   rule.dport,
-			   rule.dport_end);
+		    SLICE_IP(rule.dip), SLICE_IP(rule.dip_end), rule.dport,
+		    rule.dport_end);
 	}
 	else
 	{
 		LOG("src: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x-"
-			"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x : %u-%u\n",
-			SLICE_IPv6(rule.sipv6),
-			SLICE_IPv6(rule.sipv6_end),
-			rule.sport,
-			rule.sport_end);
+		    "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x : %u-%u\n",
+		    SLICE_IPv6(rule.sipv6), SLICE_IPv6(rule.sipv6_end),
+		    rule.sport, rule.sport_end);
 		LOG("dst: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x-"
-			"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x : %u-%u\n",
-			SLICE_IPv6(rule.dipv6),
-			SLICE_IPv6(rule.dipv6_end),
-			rule.sport,
-			rule.sport_end);
+		    "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x : %u-%u\n",
+		    SLICE_IPv6(rule.dipv6), SLICE_IPv6(rule.dipv6_end),
+		    rule.sport, rule.sport_end);
 	}
 
-	const char* pkg_dir;
+	const char *pkg_dir;
 	switch (rule.pkg_dir)
 	{
 	case PKG_DIR_IN:
@@ -716,13 +726,13 @@ void print_rule(const Rule &rule)
 	case PKG_DIR_ANY:
 		pkg_dir = "any";
 		break;
-	
+
 	default:
 		printf("coding pr_error\n");
 		abort();
 		break;
 	}
-	LOG("pkg_dir: %s\n",  pkg_dir);
+	LOG("pkg_dir: %s\n", pkg_dir);
 
 	std::string action;
 	if (rule.action & NM_DROP)
@@ -733,7 +743,7 @@ void print_rule(const Rule &rule)
 	if (!action.empty())
 		action.pop_back();
 
-	const char* proto = proto_str(rule.tl_proto);
+	const char *proto = proto_str(rule.tl_proto);
 	LOG("proto: %s\n", proto);
 	LOG("comm: %s\n", rule.comm);
 	LOG("action: %s\n\n", action.c_str());
@@ -745,41 +755,38 @@ void sig_handle(int)
 	nf.exit();
 }
 
-static struct option lopts[] = {
-	{"policy",  required_argument, 0,  'p' },
-	{"help",    no_argument,       0,  'h' },
-	{"debug",   optional_argument, 0,  'd' },
-	{0,         0,                 0,   0  }
-};
+static struct option lopts[] = { { "policy", required_argument, 0, 'p' },
+				 { "help", no_argument, 0, 'h' },
+				 { "debug", optional_argument, 0, 'd' },
+				 { 0, 0, 0, 0 } };
 
-struct HelpMsg 
+struct HelpMsg
 {
-	const char* argparam;
-	const char* msg;
+	const char *argparam;
+	const char *msg;
 };
 
 static HelpMsg help_msg[] = {
-	{"<path>",  "set the policy file path\n"
-				"\tdefault: " DEFAULT_POLI_PATH "policy.conf\n"},
-	{"",        "print this help message\n"},
-	{"[level]", "set debug log level:\n"
-					"\t0: no debug(default)\n"
-					"\t1: output TCP package capture with LSM\n"
-					"\t2: output UDP package capture with LSM\n"
-					"\t3: output ICMP package capture with LSM\n"
-					"\t4: output all package capture with LSM\n"
-					"\t5: outtput TCP package capture with NETFILTER\n"
-					"\t6: outtput UDP package capture with NETFILTER\n"
-					"\t7: outtput ICMP package capture with NETFILTER\n"
-					"\t8: outtput all package capture with NETFILTER\n"
-					"\t9: outtput all package capture while rule matching\n"
-	},
+	{ "<path>", "set the policy file path\n"
+		    "\tdefault: " DEFAULT_POLI_PATH "policy.conf\n" },
+	{ "", "print this help message\n" },
+	{ "[level]", "set debug log level:\n"
+		     "\t0: no debug(default)\n"
+		     "\t1: output TCP package capture with LSM\n"
+		     "\t2: output UDP package capture with LSM\n"
+		     "\t3: output ICMP package capture with LSM\n"
+		     "\t4: output all package capture with LSM\n"
+		     "\t5: outtput TCP package capture with NETFILTER\n"
+		     "\t6: outtput UDP package capture with NETFILTER\n"
+		     "\t7: outtput ICMP package capture with NETFILTER\n"
+		     "\t8: outtput all package capture with NETFILTER\n"
+		     "\t9: outtput all package capture while rule matching\n" },
 };
 
 std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
-	for (int i=0; lopts[i].name; i++)
+	for (int i = 0; lopts[i].name; i++)
 	{
 		sopts += lopts[i].val;
 		switch (lopts[i].has_arg)
@@ -792,7 +799,7 @@ std::string long_opt2short_opt(const option lopts[])
 		case optional_argument:
 			sopts += "::";
 			break;
-		
+
 		default:
 			printf("code internal bug!!!\n");
 			abort();
@@ -802,17 +809,14 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 
-void Usage(const char* arg0)
+void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
 	printf("options:\n");
-	for (int i=0; lopts[i].name; i++)
+	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", 
-			lopts[i].val, 
-			lopts[i].name, 
-			help_msg[i].argparam, 
-			help_msg[i].msg);
+		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
+		       help_msg[i].argparam, help_msg[i].msg);
 	}
 }
 
@@ -821,7 +825,8 @@ void parse_args(int argc, char **argv)
 	int opt, opt_idx;
 	optind = 1;
 	std::string sopts = long_opt2short_opt(lopts);
-	while((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
+	       0)
 	{
 		switch (opt)
 		{
@@ -842,7 +847,7 @@ void parse_args(int argc, char **argv)
 				dbg_lvl = strtol(optarg, NULL, 10);
 			}
 			break;
-		
+
 		default:
 			Usage(argv[0]);
 			exit(-1);
@@ -851,7 +856,7 @@ void parse_args(int argc, char **argv)
 	}
 }
 
-void* log_maintainor(void*)
+void *log_maintainor(void *)
 {
 	while (!exit_flag)
 	{
@@ -876,19 +881,20 @@ void log_printer(const struct BpfData &log)
 	}
 	if (tuple.ip_proto == 4)
 	{
-		LOG("%llu (%s:%d) %s %d.%d.%d.%d:%d %s %d.%d.%d.%d:%d sz(%d)\n", 
-			log.timestamp, tuple.comm, log.pid, proto_str(tuple.tl_proto),
-			SLICE_IP(tuple.sip), tuple.sport,
-			tuple.pkg_dir == PKG_DIR_IN ? "<-" : "->",
-			SLICE_IP(tuple.dip), tuple.dport, log.data_len);
-	}else
+		LOG("%llu (%s:%d) %s %d.%d.%d.%d:%d %s %d.%d.%d.%d:%d sz(%d)\n",
+		    log.timestamp, tuple.comm, log.pid,
+		    proto_str(tuple.tl_proto), SLICE_IP(tuple.sip), tuple.sport,
+		    tuple.pkg_dir == PKG_DIR_IN ? "<-" : "->",
+		    SLICE_IP(tuple.dip), tuple.dport, log.data_len);
+	}
+	else
 	{
 		LOG("%llu (%s:%d) %s %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%d "
-			"%s %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%d sz(%d)\n", 
-			log.timestamp, tuple.comm, log.pid, proto_str(tuple.tl_proto),
-			SLICE_IPv6(tuple.sipv6), tuple.sport,
-			tuple.pkg_dir == PKG_DIR_IN ? "<-" : "->",
-			SLICE_IPv6(tuple.dipv6), tuple.dport, log.data_len);
+		    "%s %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x:%d sz(%d)\n",
+		    log.timestamp, tuple.comm, log.pid,
+		    proto_str(tuple.tl_proto), SLICE_IPv6(tuple.sipv6),
+		    tuple.sport, tuple.pkg_dir == PKG_DIR_IN ? "<-" : "->",
+		    SLICE_IPv6(tuple.dipv6), tuple.dport, log.data_len);
 	}
 }
 
@@ -896,7 +902,7 @@ int main(int argc, char **argv)
 {
 	parse_args(argc, argv);
 	signal(SIGINT, sig_handle);
-	atexit([](){
+	atexit([]() {
 		exit_flag = true;
 		LOG("*************** net-monitor exited ***************\n");
 	});
@@ -936,10 +942,13 @@ int main(int argc, char **argv)
 
 	if (dbg_lvl != DEBUG_NONE)
 	{
-		pthread_create(&trace_pipe_thread, NULL, [](void*) -> void* {
-			NetFilter::read_trace_pipe();
-			return nullptr;
-		}, NULL);
+		pthread_create(
+			&trace_pipe_thread, NULL,
+			[](void *) -> void * {
+				NetFilter::read_trace_pipe();
+				return nullptr;
+			},
+			NULL);
 	}
 
 	nf.set_bpf_debug(dbg_lvl);

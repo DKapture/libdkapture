@@ -55,11 +55,8 @@ struct RuleCallBckCtx
 	int ret;
 };
 
-static long rule_filter_callback(
-	struct bpf_map *map,
-	const void *key,
-	void *value,
-	void *ctx)
+static long rule_filter_callback(struct bpf_map *map, const void *key,
+				 void *value, void *ctx)
 {
 	struct RuleCallBckCtx *cbctx;
 	cbctx = (struct RuleCallBckCtx *)ctx;
@@ -74,10 +71,7 @@ static int rule_filter(pid_t pid)
 	long ret = 0;
 	struct RuleCallBckCtx ctx;
 	ctx.pid = pid;
-	ret = bpf_for_each_map_elem(
-		&filter,
-		rule_filter_callback,
-		&ctx, 0);
+	ret = bpf_for_each_map_elem(&filter, rule_filter_callback, &ctx, 0);
 	if (ret < 0)
 	{
 		bpf_printk("error: bpf_for_each_map_elem: %ld", ret);
@@ -97,8 +91,8 @@ static int filter_pid(void)
 	return 0;
 }
 
-static void *
-bpf_map_lookup_or_try_init(void *map, const void *key, const void *init)
+static void *bpf_map_lookup_or_try_init(void *map, const void *key,
+					const void *init)
 {
 	void *val;
 	int err;
@@ -118,14 +112,14 @@ static void update_statistics_add(u64 stack_id, u64 sz)
 {
 	union combined_alloc_info *existing_cinfo;
 
-	existing_cinfo = bpf_map_lookup_or_try_init(
-		&combined_allocs, &stack_id, &initial_cinfo);
+	existing_cinfo = bpf_map_lookup_or_try_init(&combined_allocs, &stack_id,
+						    &initial_cinfo);
 	if (!existing_cinfo)
 		return;
 
 	const union combined_alloc_info incremental_cinfo = {
-		.total_size = sz,
-		.number_of_allocs = 1};
+		.total_size = sz, .number_of_allocs = 1
+	};
 
 	__sync_fetch_and_add(&existing_cinfo->bits, incremental_cinfo.bits);
 }
@@ -143,8 +137,8 @@ static void update_statistics_del(u64 stack_id, u64 sz)
 	}
 
 	const union combined_alloc_info decremental_cinfo = {
-		.total_size = sz,
-		.number_of_allocs = 1};
+		.total_size = sz, .number_of_allocs = 1
+	};
 
 	__sync_fetch_and_sub(&existing_cinfo->bits, decremental_cinfo.bits);
 }
@@ -168,7 +162,8 @@ static int trace_alloc(size_t size, void *ctx, u64 address)
 	if (address != 0)
 	{
 		info.timestamp_ns = bpf_ktime_get_ns();
-		info.stack_id = bpf_get_stackid(ctx, &stack_traces, stack_flags);
+		info.stack_id =
+			bpf_get_stackid(ctx, &stack_traces, stack_flags);
 		bpf_map_update_elem(&allocs, &address, &info, BPF_ANY);
 		update_statistics_add(info.stack_id, info.size);
 	}
@@ -176,7 +171,7 @@ static int trace_alloc(size_t size, void *ctx, u64 address)
 	if (trace_all)
 	{
 		bpf_printk("alloc exited, size = %lu, result = %lx\n",
-				   info.size, address);
+			   info.size, address);
 	}
 
 	return 0;
@@ -195,8 +190,8 @@ static int trace_free_enter(const void *address)
 
 	if (trace_all)
 	{
-		bpf_printk("free entered, address = %lx, size = %lu\n",
-				   address, info->size);
+		bpf_printk("free entered, address = %lx, size = %lu\n", address,
+			   info->size);
 	}
 
 	return 0;
