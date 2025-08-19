@@ -190,6 +190,8 @@ pid_t dkapture::parse_path(const char *path, DataType &dt)
             dt = PROC_PID_SCHEDSTAT;
         else if (strcmp(path, "fd") == 0)
             dt = PROC_PID_FD;
+        else if (strcmp(path, "ns") == 0)
+			dt = PROC_PID_NS;
         else
             return -ENOSYS;
     }

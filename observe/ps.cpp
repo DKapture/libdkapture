@@ -90,7 +90,7 @@ static struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
 
 const char *argp_program_version = "ps 1.0";
-const char *argp_program_bug_address = "your-email@example.com";
+const char *argp_program_bug_address = NULL;
 
 static const char argp_program_doc[] =
     "ps - Display process status information\n"
