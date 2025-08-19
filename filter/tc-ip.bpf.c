@@ -635,29 +635,34 @@ static __inline int update_token_bucket_safe(struct rate_bucket *b,
 }
 
 // Apply rate limiting with comprehensive safety checks
-static __inline struct token_bucket_result
-apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps, __u32 time_scale,
-			 __u32 packet_size)
+static int apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps,
+				    __u32 time_scale, __u32 packet_size,
+				    struct token_bucket_result *result)
 {
 	DEBUG(DEBUG_ON,
 	      "apply_rate_limiting_safe: bucket_key=%llu, packet_size=%u",
 	      bucket_key, packet_size);
 
-	struct token_bucket_result result = { .should_drop = false,
-					      .tokens_consumed = 0,
-					      .current_tokens = 0,
-					      .error_code = NF_ACCEPT };
+	if (!result)
+	{
+		return -1;
+	}
+
+	result->should_drop = false;
+	result->tokens_consumed = 0;
+	result->current_tokens = 0;
+	result->error_code = NF_ACCEPT;
 
 	if (!is_valid_packet_size(packet_size))
 	{
 		DEBUG(DEBUG_ON, "Invalid packet size");
-		return result;
+		return 0;
 	}
 
 	if (rate_bps == 0 || time_scale == 0)
 	{
 		DEBUG(DEBUG_ON, "Invalid rate or time_scale");
-		return result;
+		return 0;
 	}
 
 	int bucket_error = 0;
@@ -666,8 +671,8 @@ apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps, __u32 time_scale,
 	if (!b || bucket_error != 1)
 	{
 		DEBUG(DEBUG_ON, "Bucket error: %d", bucket_error);
-		result.error_code = bucket_error;
-		return result;
+		result->error_code = bucket_error;
+		return 0;
 	}
 
 	DEBUG(DEBUG_ON, "Bucket obtained successfully");
@@ -676,33 +681,33 @@ apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps, __u32 time_scale,
 	if (update_error != 1)
 	{
 		DEBUG(DEBUG_ON, "Bucket error: %d", update_error);
-		result.error_code = update_error;
-		return result;
+		result->error_code = update_error;
+		return 0;
 	}
 
 	DEBUG(DEBUG_ON, "Bucket updated successfully");
 
-	result.current_tokens = b->tokens;
+	result->current_tokens = b->tokens;
 
 	DEBUG(DEBUG_ON, "Current tokens: %llu, packet_size: %u", b->tokens,
 	      packet_size);
 
 	if (b->tokens < packet_size)
 	{
-		result.should_drop = true;
-		result.tokens_consumed = 0;
+		result->should_drop = true;
+		result->tokens_consumed = 0;
 		DEBUG(DEBUG_ON, "Insufficient tokens, will drop");
 	}
 	else
 	{
-		result.should_drop = false;
-		result.tokens_consumed = packet_size;
+		result->should_drop = false;
+		result->tokens_consumed = packet_size;
 		b->tokens -= packet_size;
 		DEBUG(DEBUG_ON, "Sufficient tokens, will pass, remaining: %llu",
 		      b->tokens);
 	}
 
-	return result;
+	return 1;
 }
 
 // Main Netfilter packet processing function
@@ -809,11 +814,13 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 
 	// Apply rate limiting using encapsulated algorithm
 	DEBUG(DEBUG_ON, "Apply rate limiting");
-	struct token_bucket_result rate_result = apply_rate_limiting_safe(
-		bucket_key, rule->rate_bps, rule->time_scale, packet_len);
+	struct token_bucket_result rate_result;
+	int rate_result_code = apply_rate_limiting_safe(
+		bucket_key, rule->rate_bps, rule->time_scale, packet_len,
+		&rate_result);
 
 	// Handle rate limiting errors
-	if (rate_result.error_code != 1)
+	if (rate_result_code != 1 || rate_result.error_code != 1)
 	{
 		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
 				    tuple.dst_port, packet_len, 0, 1, 0,
