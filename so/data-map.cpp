@@ -250,6 +250,7 @@ int DataMap::update(DKapture::DataType dt)
     this->push(bpf_idx, DKapture::PROC_PID_SCHEDSTAT, dsz++);
     this->push(bpf_idx, DKapture::PROC_PID_FD, dsz++);
     this->push(bpf_idx, DKapture::PROC_PID_STATUS, dsz++);
+	this->push(bpf_idx, DKapture::PROC_PID_NS, dsz++);
     DEBUG(0, "update called");
     return 0;
 }

@@ -596,6 +596,97 @@ static int dump_proc_status(struct task_struct *task)
     return 0;
 }
 
+static int dump_proc_ns(struct task_struct *task)
+{
+    skip_kthread(task);
+    thread_leader_only(task);
+    
+    size_t dsz;
+    struct DataHdr *hdr;
+    struct ProcPidNs *ns_info;
+    
+    dsz = sizeof(struct DataHdr) + sizeof(struct ProcPidNs);
+    hdr = (struct DataHdr *)bpf_ringbuf_reserve(&dk_shared_mem, dsz, 0);
+    if (!hdr) {
+        bpf_err("ringbuf allocation failure for ns");
+        return 1;
+    }
+    
+    fill_hdr(hdr, task, dsz, PROC_PID_NS);
+    ns_info = (struct ProcPidNs *)hdr->data;
+    __builtin_memset(ns_info, 0, sizeof(struct ProcPidNs));
+    
+    struct user_namespace *user_ns = task->cred->user_ns;
+    if(user_ns) {
+        ns_info->user = BPF_CORE_READ(user_ns, ns.inum);
+    }
+
+    if (bpf_core_field_exists(task->thread_pid)) {
+        struct pid *thread_pid = BPF_CORE_READ(task, thread_pid);
+        if (thread_pid) {
+            unsigned int level;
+            if (bpf_core_field_exists(thread_pid->level)) {
+                level = BPF_CORE_READ(thread_pid, level);
+                if (level >= 0) {
+                    struct upid *upid = (struct upid *)&thread_pid->numbers[level];
+                    if (bpf_core_field_exists(upid->ns)) {
+                        struct pid_namespace *ns = BPF_CORE_READ(upid, ns);
+                        if (ns) {
+                            ns_info->pid = BPF_CORE_READ(ns, ns.inum);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    struct nsproxy *nsproxy = task->nsproxy;
+    if (nsproxy) {
+        struct uts_namespace *uts_ns = BPF_CORE_READ(nsproxy, uts_ns);
+        if (uts_ns) {
+            ns_info->uts = BPF_CORE_READ(uts_ns, ns.inum);
+        }
+
+        struct ipc_namespace *ipc_ns = BPF_CORE_READ(nsproxy, ipc_ns);
+        if (ipc_ns) {
+            ns_info->ipc = BPF_CORE_READ(ipc_ns, ns.inum);
+        }
+
+        struct mnt_namespace *mnt_ns = BPF_CORE_READ(nsproxy, mnt_ns);
+        if (mnt_ns) {
+            ns_info->mnt = BPF_CORE_READ(mnt_ns, ns.inum);
+        }
+
+        struct pid_namespace *pid_ns_for_children = BPF_CORE_READ(nsproxy, pid_ns_for_children);
+        if (pid_ns_for_children) {
+            ns_info->pid_for_children = BPF_CORE_READ(pid_ns_for_children, ns.inum);
+        }
+
+        struct net *net_ns = BPF_CORE_READ(nsproxy, net_ns);
+        if (net_ns) {
+            ns_info->net = BPF_CORE_READ(net_ns, ns.inum);
+        }
+
+        struct time_namespace *time_ns = BPF_CORE_READ(nsproxy, time_ns);
+        if (time_ns) {
+            ns_info->time = BPF_CORE_READ(time_ns, ns.inum);
+        }
+
+        struct time_namespace *time_ns_for_children = BPF_CORE_READ(nsproxy, time_ns_for_children);
+        if(time_ns_for_children) {
+            ns_info->time_for_children = BPF_CORE_READ(time_ns_for_children, ns.inum);
+        }
+
+        struct cgroup_namespace *cgroup_ns = BPF_CORE_READ(nsproxy, cgroup_ns);
+        if (cgroup_ns) {
+            ns_info->cgroup = BPF_CORE_READ(cgroup_ns, ns.inum);
+        }
+    }
+    
+    bpf_ringbuf_submit(hdr, 0);
+    return 0;
+}
+
 static int put_prologue(void)
 {
     return 0;
@@ -635,6 +726,8 @@ int dump_task(struct bpf_iter__task *ctx)
     if (dump_proc_schedstat(task))
         return 1;
     if (dump_proc_status(task))
+        return 1;
+    if (dump_proc_ns(task))
         return 1;
     DEBUG(0, "dump_task: %d %s", task->pid, task->comm);
 

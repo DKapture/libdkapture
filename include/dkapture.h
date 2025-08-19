@@ -44,6 +44,7 @@ public:
         PROC_PID_EXE,       // /proc/<pid>/exe
         PROC_PID_MAPS,      // /proc/<pid>/maps
         PROC_PID_sock,      // /proc/<pid>/sock
+        PROC_PID_NS,        // /proc/<pid>/ns
         PROC_END,
         // 待扩展
     };
@@ -426,6 +427,19 @@ struct ProcPidIo
     size_t read_bytes;
     size_t write_bytes;
     size_t cancelled_write_bytes;
+};
+
+struct ProcPidNs {
+    unsigned int cgroup;
+    unsigned int ipc;
+    unsigned int mnt;
+    unsigned int net;
+    unsigned int pid;
+    unsigned int pid_for_children;
+    unsigned int user;
+    unsigned int uts;
+    unsigned int time;
+    unsigned int time_for_children;
 };
 
 /**

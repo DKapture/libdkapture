@@ -47,7 +47,7 @@ DKapture::DataType string_to_datatype(const std::string& node_name) {
 	if (node_name == "exe") return DKapture::PROC_PID_EXE;
 	if (node_name == "maps") return DKapture::PROC_PID_MAPS;
 	if (node_name == "sock") return DKapture::PROC_PID_sock;
-	
+	if (node_name == "ns") return DKapture::PROC_PID_NS;
 	// 默认返回STAT类型
 	return DKapture::PROC_NONE;
 }
@@ -182,6 +182,19 @@ int print_proc_info(void *ctx, const void *_data, size_t data_sz)
 				   status->state, status->umask,
 				   status->uid[0], status->uid[1], status->uid[2], status->uid[3],
 				   status->gid[0], status->gid[1], status->gid[2], status->gid[3]);
+		}
+		break;
+		case DKapture::PROC_PID_NS:
+		{
+			const struct ProcPidNs *ns = (typeof(ns))data->data;
+			printf("pid: %d tgid: %d comm: %s cgroup_ns: %u ipc_ns: %u mnt_ns: %u"
+					" net_ns: %u pid_ns: %u pid_ns_for_children: %u time_ns: %u"
+					" time_ns_for_children: %u user_ns: %u uts_ns: %u\n",
+					data->pid, data->tgid, data->comm,
+					ns->cgroup, ns->ipc, ns->mnt, ns->net, ns->pid,
+					ns->pid_for_children, ns->time, ns->time_for_children,
+					ns->user, ns->uts
+			);
 		}
 		break;
 		default:
@@ -393,7 +406,7 @@ void print_usage(const char* program_name) {
 	printf("Options:\n");
 	printf("  -p, --procfs-read [node]        Enable procfs reading\n");
 	printf("                                  iterate to read /proc/pid/node (e.g., stat, io, traffic)\n");
-	printf("                                  Supported nodes: stat, io, traffic, statm, schedstat, fd,\n");
+	printf("                                  Supported nodes: stat, io, traffic, statm, schedstat, fd, ns,\n");
 	printf("                                             status, net, cmdline, env, cwd, root, exe, maps, sock\n");
 	printf("  -f, --file-watch [file]         Enable file monitoring (default: all files)\n");
 	printf("  -m, --memory-scan [pid]         Enable kernel memory leak scanning\n");
@@ -532,6 +545,7 @@ void run_procfs_read(DKapture* dk) {
 			DKapture::PROC_PID_SCHEDSTAT,
 			DKapture::PROC_PID_FD,
 			DKapture::PROC_PID_STATUS,
+            DKapture::PROC_PID_NS,
 		};
 		printf("Reading all procfs nodes\n");
 	}

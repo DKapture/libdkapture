@@ -34,6 +34,7 @@ static struct env
     bool show_statm;
     bool show_status;
     bool show_schedstat;
+    bool show_ns;
 } env = {
     .verbose = false,
     .show_header = true,
@@ -44,6 +45,7 @@ static struct env
     .show_statm = true,
     .show_status = true,
     .show_schedstat = true,
+    .show_ns = true,
 };
 
 static proc_info_bpf *obj;
@@ -51,7 +53,7 @@ static struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
 
 const char *argp_program_version = "proc-info 1.0";
-const char *argp_program_bug_address = "your-email@example.com";
+const char *argp_program_bug_address = NULL;
 
 static const char argp_program_doc[] =
     "proc-info - Display detailed process information\n"
@@ -69,6 +71,7 @@ static const struct argp_option opts[] = {
     {"no-statm", 'm', NULL, 0, "Don't show memory information"},
     {"no-status", 's', NULL, 0, "Don't show status information"},
     {"no-schedstat", 'S', NULL, 0, "Don't show scheduler statistics"},
+    {"no-ns", 'n', NULL, 0, "Don't show namespace information"},
     {},
 };
 
@@ -110,6 +113,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         break;
     case 'S':
         env.show_schedstat = false;
+        break;
+    case 'n':
+        env.show_ns = false;
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -394,7 +400,37 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
                   << " MODE:" << std::oct << fd->i_mode << std::dec << std::endl;
         break;
     }
-    
+    case DKapture::PROC_PID_NS:
+    {
+        if(!env.show_ns) break;
+        const struct ProcPidNs *ns = reinterpret_cast<const struct ProcPidNs *>(hdr->data);
+        std::cout << std::setw(5) << hdr->pid << " "
+                  << std::setw(5) << hdr->tgid << " "
+                  << std::setw(16) << hdr->comm << " "
+                  << std::setw(5) << " " << " "
+                  << std::setw(8) << "NS" << " ";
+
+        if (env.verbose)
+        {
+            std::cout << std::setw(8) << " " << " "
+                      << std::setw(8) << " " << " "
+                      << std::setw(8) << " " << " "
+                      << std::setw(8) << " " << " ";
+        }
+
+        std::cout << "CGROUP:[" << ns->cgroup
+                  << "] IPC:[" << ns->ipc
+                  << "] MNT:[" << ns->mnt
+                  << "] NET:[" << ns->net
+                  << "] PID:[" << ns->pid
+                  << "] PID_FOR_CHILDREN:[" << ns->pid_for_children
+                  << "] TIME:[" << ns->time
+                  << "] TIME_FOR_CHILDREN:[" << ns->time_for_children
+                  << "] USER:[" << ns->user
+                  << "] UTS:[" << ns->uts
+                  << "]" << std::endl; 
+        break;
+    }
     default:
         if (env.verbose)
         {
