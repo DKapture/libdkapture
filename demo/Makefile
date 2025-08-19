@@ -5,7 +5,7 @@ TARGET = $(BUILD_DIR)/demo
 CXX_FLAGS = -g -MMD -I$(PROJ_ROOT)/include/ -I$(PROJ_ROOT)/build/include/
 LD_FLAGS = -L$(PROJ_ROOT)/build/so/ -ldkapture -luuid
 ifeq ($(DEBUG), 1)
-	LD_FLAGS += -Wl,-rpath=$(PROJ_ROOT)/so/
+	LD_FLAGS += -Wl,-rpath=$(PROJ_ROOT)/build/so/
 endif
 
 all: $(TARGET)
