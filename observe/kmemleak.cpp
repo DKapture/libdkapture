@@ -90,23 +90,23 @@ static struct env
 	bool verbose;
 	char command[32];
 } env = {
-	.interval = 5,			  // posarg 1
-	.nr_intervals = -1,		  // posarg 2
-	.pid = 0,				  // -p --pid
-	.trace_all = false,		  // -t --trace
-	.show_allocs = false,	  // -a --show-allocs
-	.combined_only = false,	  // --combined-only
-	.min_age_ns = 500,		  // -o --older (arg * 1e6)
-	.sample_rate = 1,		  // -s --sample-rate
-	.top_stacks = 10,		  // -T --top
-	.min_size = 0,			  // -z --min-size
-	.max_size = UINT64_MAX,	  // -Z --max-size
+	.interval = 5, // posarg 1
+	.nr_intervals = -1, // posarg 2
+	.pid = 0, // -p --pid
+	.trace_all = false, // -t --trace
+	.show_allocs = false, // -a --show-allocs
+	.combined_only = false, // --combined-only
+	.min_age_ns = 500, // -o --older (arg * 1e6)
+	.sample_rate = 1, // -s --sample-rate
+	.top_stacks = 10, // -T --top
+	.min_size = 0, // -z --min-size
+	.max_size = UINT64_MAX, // -Z --max-size
 	.wa_missing_free = false, // --wa-missing-free
 	.perf_max_stack_depth = 127,
 	.stack_map_max_entries = 10240,
 	.page_size = 1,
 	.verbose = false,
-	.command = {0}, // -c --command
+	.command = { 0 }, // -c --command
 };
 
 struct allocation_node
@@ -124,14 +124,14 @@ struct allocation
 	struct allocation_node *allocations;
 };
 
-#define __CHECK_PROGRAM(skel, prog_name)                   \
-	do                                                     \
-	{                                                      \
-		if (!skel->links.prog_name)                        \
-		{                                                  \
+#define __CHECK_PROGRAM(skel, prog_name)                               \
+	do                                                             \
+	{                                                              \
+		if (!skel->links.prog_name)                            \
+		{                                                      \
 			perror("no program attached for " #prog_name); \
 			return -errno;                                 \
-		}                                                  \
+		}                                                      \
 	} while (false)
 
 static void sig_handler(int signo);
@@ -139,7 +139,8 @@ static void sig_handler(int signo);
 static long argp_parse_long(int key, const char *arg, struct argp_state *state);
 static error_t parse_args(int key, char *arg, struct argp_state *state);
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args);
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
+			   va_list args);
 
 static int event_init(int *fd);
 static int event_wait(int fd, uint64_t expected_event);
@@ -147,7 +148,8 @@ static int event_notify(int fd, uint64_t event);
 static pid_t fork_sync_exec(const char *command, int fd);
 static int alloc_size_compare(const void *a, const void *b);
 static int print_outstanding_allocs(int allocs_fd, int stack_traces_fd);
-static int print_outstanding_combined_allocs(int combined_allocs_fd, int stack1_traces_fd);
+static int print_outstanding_combined_allocs(int combined_allocs_fd,
+					     int stack1_traces_fd);
 
 const char *argp_program_version = "memleak 0.1";
 const char *argp_program_bug_address =
@@ -180,18 +182,29 @@ const char argp_args_doc[] =
 	"";
 
 static const struct argp_option argp_options[] = {
-	{"pid", 'p', "PID", 0, "process ID to trace. if not specified, trace kernel allocs", 0},
-	{"trace", 't', 0, 0, "print trace messages for each alloc/free call", 0},
-	{"show-allocs", 'a', 0, 0, "show allocation addresses and sizes as well as call stacks", 0},
-	{"older", 'o', "AGE_MS", 0, "prune allocations younger than this age in milliseconds", 0},
-	{"command", 'c', "COMMAND", 0, "execute and trace the specified command", 0},
-	{"combined-only", 'C', 0, 0, "show combined allocation statistics only", 0},
-	{"wa-missing-free", 'F', 0, 0, "workaround to alleviate misjudgments when free is missing", 0},
-	{"sample-rate", 's', "SAMPLE_RATE", 0, "sample every N-th allocation to decrease the overhead", 0},
-	{"top", 'T', "TOP_STACKS", 0, "display only this many top allocating stacks (by size)", 0},
-	{"min-size", 'z', "MIN_SIZE", 0, "capture only allocations larger than this size", 0},
-	{"max-size", 'Z', "MAX_SIZE", 0, "capture only allocations smaller than this size", 0},
-	{"verbose", 'v', NULL, 0, "verbose debug output", 0},
+	{ "pid", 'p', "PID", 0,
+	  "process ID to trace. if not specified, trace kernel allocs", 0 },
+	{ "trace", 't', 0, 0, "print trace messages for each alloc/free call",
+	  0 },
+	{ "show-allocs", 'a', 0, 0,
+	  "show allocation addresses and sizes as well as call stacks", 0 },
+	{ "older", 'o', "AGE_MS", 0,
+	  "prune allocations younger than this age in milliseconds", 0 },
+	{ "command", 'c', "COMMAND", 0,
+	  "execute and trace the specified command", 0 },
+	{ "combined-only", 'C', 0, 0,
+	  "show combined allocation statistics only", 0 },
+	{ "wa-missing-free", 'F', 0, 0,
+	  "workaround to alleviate misjudgments when free is missing", 0 },
+	{ "sample-rate", 's', "SAMPLE_RATE", 0,
+	  "sample every N-th allocation to decrease the overhead", 0 },
+	{ "top", 'T', "TOP_STACKS", 0,
+	  "display only this many top allocating stacks (by size)", 0 },
+	{ "min-size", 'z', "MIN_SIZE", 0,
+	  "capture only allocations larger than this size", 0 },
+	{ "max-size", 'Z', "MAX_SIZE", 0,
+	  "capture only allocations smaller than this size", 0 },
+	{ "verbose", 'v', NULL, 0, "verbose debug output", 0 },
 	{},
 };
 
@@ -242,8 +255,7 @@ unsigned long long get_ns(void)
 	return ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
 }
 
-const struct ksym *ksyms_find(const struct ksyms *ksyms,
-							  unsigned long addr)
+const struct ksym *ksyms_find(const struct ksyms *ksyms, unsigned long addr)
 {
 	int start = 0, end = ksyms->syms_sz - 1, mid;
 	unsigned long sym_addr;
@@ -326,8 +338,8 @@ struct ksyms *ksyms_load(void)
 
 	while (true)
 	{
-		ret = fscanf(f, "%lx %c %s%*[^\n]\n",
-					 &sym_addr, &sym_type, sym_name);
+		ret = fscanf(f, "%lx %c %s%*[^\n]\n", &sym_addr, &sym_type,
+			     sym_name);
 		if (ret == EOF && feof(f))
 			break;
 		if (ret != 3)
@@ -355,12 +367,12 @@ void setup_filter(struct bpf_object *obj)
 {
 	int filter_fd;
 	int key = 0;
-    filter_fd = bpf_get_map_fd(obj, "filter", goto err_out);
+	filter_fd = bpf_get_map_fd(obj, "filter", goto err_out);
 
-    if (0 != bpf_map_update_elem(filter_fd, &key, &env.pid, BPF_ANY))
-    {
-        printf("Error: bpf_map_update_elem");
-    }
+	if (0 != bpf_map_update_elem(filter_fd, &key, &env.pid, BPF_ANY))
+	{
+		printf("Error: bpf_map_update_elem");
+	}
 err_out:
 	return;
 }
@@ -376,9 +388,9 @@ int kmemleak_stop(void)
 
 	free(allocs);
 	free(stack);
-    return 0;
+	return 0;
 }
-int kmemleak_start(int argc, char **argv, DKapture::DKCallback cb, void* ctx)
+int kmemleak_start(int argc, char **argv, DKapture::DKCallback cb, void *ctx)
 #else
 int main(int argc, char **argv)
 #endif
@@ -409,7 +421,8 @@ int main(int argc, char **argv)
 
 #ifndef BUILTIN
 	// install signal handler
-	if (sigaction(SIGINT, &sig_action, NULL) || sigaction(SIGCHLD, &sig_action, NULL))
+	if (sigaction(SIGINT, &sig_action, NULL) ||
+	    sigaction(SIGCHLD, &sig_action, NULL))
 	{
 		perror("failed to set up signal handling");
 		ret = -errno;
@@ -421,7 +434,8 @@ int main(int argc, char **argv)
 	// post-processing and validation of env settings
 	if (env.min_size > env.max_size)
 	{
-		fprintf(stderr, "min size (-z) can't be greater than max_size (-Z)\n");
+		fprintf(stderr,
+			"min size (-z) can't be greater than max_size (-Z)\n");
 		return 1;
 	}
 
@@ -434,7 +448,8 @@ int main(int argc, char **argv)
 	{
 		if (env.pid > 0)
 		{
-			fprintf(stderr, "cannot specify both command and pid\n");
+			fprintf(stderr,
+				"cannot specify both command and pid\n");
 			ret = 1;
 
 			goto cleanup;
@@ -447,7 +462,8 @@ int main(int argc, char **argv)
 			goto cleanup;
 		}
 
-		const pid_t child_pid = fork_sync_exec(env.command, child_exec_event_fd);
+		const pid_t child_pid =
+			fork_sync_exec(env.command, child_exec_event_fd);
 		if (child_pid < 0)
 		{
 			perror("failed to spawn child process");
@@ -471,9 +487,11 @@ int main(int argc, char **argv)
 
 	// allocate space for storing "allocation" structs
 	if (env.combined_only)
-		allocs = (typeof(allocs))calloc(COMBINED_ALLOCS_MAX_ENTRIES, sizeof(*allocs));
+		allocs = (typeof(allocs))calloc(COMBINED_ALLOCS_MAX_ENTRIES,
+						sizeof(*allocs));
 	else
-		allocs = (typeof(allocs))calloc(ALLOCS_MAX_ENTRIES, sizeof(*allocs));
+		allocs = (typeof(allocs))calloc(ALLOCS_MAX_ENTRIES,
+						sizeof(*allocs));
 
 	if (!allocs)
 	{
@@ -502,8 +520,10 @@ int main(int argc, char **argv)
 	skel->rodata->wa_missing_free = env.wa_missing_free;
 
 	bpf_map__set_value_size(skel->maps.stack_traces,
-							env.perf_max_stack_depth * sizeof(unsigned long));
-	bpf_map__set_max_entries(skel->maps.stack_traces, env.stack_map_max_entries);
+				env.perf_max_stack_depth *
+					sizeof(unsigned long));
+	bpf_map__set_max_entries(skel->maps.stack_traces,
+				 env.stack_map_max_entries);
 
 	ret = kmemleak_bpf__load(skel);
 	if (ret)
@@ -534,7 +554,8 @@ int main(int argc, char **argv)
 		ret = event_notify(child_exec_event_fd, 1);
 		if (ret)
 		{
-			fprintf(stderr, "failed to notify child to perform exec\n");
+			fprintf(stderr,
+				"failed to notify child to perform exec\n");
 
 			goto cleanup;
 		}
@@ -562,7 +583,8 @@ int main(int argc, char **argv)
 		sleep(env.interval);
 
 		if (env.combined_only)
-			print_outstanding_combined_allocs(combined_allocs_fd, stack_traces_fd);
+			print_outstanding_combined_allocs(combined_allocs_fd,
+							  stack_traces_fd);
 		else
 			print_outstanding_allocs(allocs_fd, stack_traces_fd);
 	}
@@ -675,7 +697,8 @@ error_t parse_args(int key, char *arg, struct argp_state *state)
 		}
 		else
 		{
-			fprintf(stderr, "Unrecognized positional argument: %s\n", arg);
+			fprintf(stderr,
+				"Unrecognized positional argument: %s\n", arg);
 			argp_usage(state);
 		}
 
@@ -687,7 +710,8 @@ error_t parse_args(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
+int libbpf_print_fn(enum libbpf_print_level level, const char *format,
+		    va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
 		return 0;
@@ -744,7 +768,8 @@ int event_wait(int fd, uint64_t expected_event)
 
 	if (event != expected_event)
 	{
-		fprintf(stderr, "read event %lu, expected %lu\n", event, expected_event);
+		fprintf(stderr, "read event %lu, expected %lu\n", event,
+			expected_event);
 
 		return 1;
 	}
@@ -763,7 +788,9 @@ int event_notify(int fd, uint64_t event)
 	}
 	else if (bytes != sizeof(event))
 	{
-		fprintf(stderr, "attempted to write %zu bytes, wrote %zd bytes\n", sizeof(event), bytes);
+		fprintf(stderr,
+			"attempted to write %zu bytes, wrote %zd bytes\n",
+			sizeof(event), bytes);
 
 		return 1;
 	}
@@ -780,8 +807,7 @@ pid_t fork_sync_exec(const char *command, int fd)
 	case -1:
 		perror("failed to create child process");
 		break;
-	case 0:
-	{
+	case 0: {
 		const uint64_t event = 1;
 		if (event_wait(fd, event))
 		{
@@ -823,10 +849,10 @@ void print_stack_frames_by_ksyms(char *buf, size_t bsz)
 		const struct ksym *ksym = ksyms_find(ksyms, addr);
 		if (ksym)
 			sz = snprintf(buf, left, "\t%zu [<%016lx>] %s+0x%lx\n",
-				i, addr, ksym->name, addr - ksym->addr);
+				      i, addr, ksym->name, addr - ksym->addr);
 		else
-			sz = snprintf(buf, left, "\t%zu [<%016lx>] <%s>\n",
-				i, addr, "unknown");
+			sz = snprintf(buf, left, "\t%zu [<%016lx>] <%s>\n", i,
+				      addr, "unknown");
 		buf += sz;
 		left -= sz;
 		if (left <= 0)
@@ -834,10 +860,8 @@ void print_stack_frames_by_ksyms(char *buf, size_t bsz)
 	}
 }
 
-int print_stack_frames(
-	struct allocation *allocs,
-	size_t nr_allocs,
-	int stack_traces_fd)
+int print_stack_frames(struct allocation *allocs, size_t nr_allocs,
+		       int stack_traces_fd)
 {
 	size_t idx = 0;
 	size_t bsz = env.perf_max_stack_depth * 256;
@@ -848,20 +872,23 @@ int print_stack_frames(
 	{
 		const struct allocation *alloc = &allocs[i];
 
-		idx = snprintf(buf, bsz, "%zu bytes in %zu allocations from stack\n",
-			alloc->size, alloc->count);
+		idx = snprintf(buf, bsz,
+			       "%zu bytes in %zu allocations from stack\n",
+			       alloc->size, alloc->count);
 
 		if (env.show_allocs)
 		{
 			struct allocation_node *it = alloc->allocations;
 			while (it != NULL)
 			{
-				pr_info("\taddr = %#lx size = %zu\n", it->address, it->size);
+				pr_info("\taddr = %#lx size = %zu\n",
+					it->address, it->size);
 				it = it->next;
 			}
 		}
 
-		if (bpf_map_lookup_elem(stack_traces_fd, &alloc->stack_id, stack))
+		if (bpf_map_lookup_elem(stack_traces_fd, &alloc->stack_id,
+					stack))
 		{
 			if (errno == ENOENT)
 				continue;
@@ -963,7 +990,8 @@ int print_outstanding_allocs(int allocs_fd, int stack_traces_fd)
 				if (env.show_allocs)
 				{
 					struct allocation_node *node;
-					node = (typeof(node))malloc(sizeof(struct allocation_node));
+					node = (typeof(node))malloc(
+						sizeof(struct allocation_node));
 					if (!node)
 					{
 						perror("malloc failed");
@@ -990,12 +1018,14 @@ int print_outstanding_allocs(int allocs_fd, int stack_traces_fd)
 			.stack_id = (uint64_t)alloc_info.stack_id,
 			.size = alloc_info.size,
 			.count = 1,
-			.allocations = NULL};
+			.allocations = NULL
+		};
 
 		if (env.show_allocs)
 		{
 			struct allocation_node *node;
-			node = (typeof(node))malloc(sizeof(struct allocation_node));
+			node = (typeof(node))malloc(
+				sizeof(struct allocation_node));
 			if (!node)
 			{
 				perror("malloc failed");
@@ -1016,10 +1046,11 @@ int print_outstanding_allocs(int allocs_fd, int stack_traces_fd)
 	qsort(allocs, nr_allocs, sizeof(allocs[0]), alloc_size_compare);
 
 	// get min of allocs we stored vs the top N requested stacks
-	nr_allocs_to_show = nr_allocs < (size_t)env.top_stacks ? nr_allocs : env.top_stacks;
+	nr_allocs_to_show = nr_allocs < (size_t)env.top_stacks ? nr_allocs :
+								 env.top_stacks;
 
 	printf("[%d:%d:%d] Top %zu stacks with outstanding allocations:\n",
-		   tm->tm_hour, tm->tm_min, tm->tm_sec, nr_allocs_to_show);
+	       tm->tm_hour, tm->tm_min, tm->tm_sec, nr_allocs_to_show);
 
 	print_stack_frames(allocs, nr_allocs_to_show, stack_traces_fd);
 
@@ -1042,10 +1073,10 @@ cleanup:
 	}
 
 	return ret;
-
 }
 
-int print_outstanding_combined_allocs(int combined_allocs_fd, int stack_traces_fd)
+int print_outstanding_combined_allocs(int combined_allocs_fd,
+				      int stack_traces_fd)
 {
 	time_t t = time(NULL);
 	struct tm *tm = localtime(&t);
@@ -1059,7 +1090,8 @@ int print_outstanding_combined_allocs(int combined_allocs_fd, int stack_traces_f
 		union combined_alloc_info combined_alloc_info;
 		memset(&combined_alloc_info, 0, sizeof(combined_alloc_info));
 
-		if (bpf_map_get_next_key(combined_allocs_fd, &prev_key, &curr_key))
+		if (bpf_map_get_next_key(combined_allocs_fd, &prev_key,
+					 &curr_key))
 		{
 			if (errno == ENOENT)
 			{
@@ -1071,7 +1103,8 @@ int print_outstanding_combined_allocs(int combined_allocs_fd, int stack_traces_f
 			return -errno;
 		}
 
-		if (bpf_map_lookup_elem(combined_allocs_fd, &curr_key, &combined_alloc_info))
+		if (bpf_map_lookup_elem(combined_allocs_fd, &curr_key,
+					&combined_alloc_info))
 		{
 			if (errno == ENOENT)
 				continue;
@@ -1084,7 +1117,8 @@ int print_outstanding_combined_allocs(int combined_allocs_fd, int stack_traces_f
 			.stack_id = curr_key,
 			.size = combined_alloc_info.total_size,
 			.count = combined_alloc_info.number_of_allocs,
-			.allocations = NULL};
+			.allocations = NULL
+		};
 
 		memcpy(&allocs[nr_allocs], &alloc, sizeof(alloc));
 		nr_allocs++;
@@ -1093,10 +1127,11 @@ int print_outstanding_combined_allocs(int combined_allocs_fd, int stack_traces_f
 	qsort(allocs, nr_allocs, sizeof(allocs[0]), alloc_size_compare);
 
 	// get min of allocs we stored vs the top N requested stacks
-	nr_allocs = nr_allocs < (size_t)env.top_stacks ? nr_allocs : env.top_stacks;
+	nr_allocs = nr_allocs < (size_t)env.top_stacks ? nr_allocs :
+							 env.top_stacks;
 
 	printf("[%d:%d:%d] Top %zu stacks with outstanding allocations:\n",
-		   tm->tm_hour, tm->tm_min, tm->tm_sec, nr_allocs);
+	       tm->tm_hour, tm->tm_min, tm->tm_sec, nr_allocs);
 
 	print_stack_frames(allocs, nr_allocs, stack_traces_fd);
 

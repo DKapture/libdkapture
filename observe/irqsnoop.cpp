@@ -51,12 +51,12 @@ const char argp_program_doc[] =
 	"    irqsnoop -NT 1      # 1s summaries, nanoseconds, and timestamps\n";
 
 static const struct argp_option opts[] = {
-	{"distributed", 'd', NULL, 0, "Show distributions as histograms", 0},
-	{"timestamp", 'T', NULL, 0, "Include timestamp on output", 0},
-	{"nanoseconds", 'N', NULL, 0, "Output in nanoseconds", 0},
-	{"count", 'C', NULL, 0, "Show event counts with timing", 0},
-	{"verbose", 'v', NULL, 0, "Verbose debug output", 0},
-	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0},
+	{ "distributed", 'd', NULL, 0, "Show distributions as histograms", 0 },
+	{ "timestamp", 'T', NULL, 0, "Include timestamp on output", 0 },
+	{ "nanoseconds", 'N', NULL, 0, "Output in nanoseconds", 0 },
+	{ "count", 'C', NULL, 0, "Show event counts with timing", 0 },
+	{ "verbose", 'v', NULL, 0, "Verbose debug output", 0 },
+	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0 },
 	{},
 };
 
@@ -107,7 +107,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		else
 		{
 			fprintf(stderr,
-					"unrecognized positional argument: %s\n", arg);
+				"unrecognized positional argument: %s\n", arg);
 			argp_usage(state);
 		}
 		pos_args++;
@@ -118,7 +118,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
+			   va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
 		return 0;
@@ -133,16 +134,11 @@ static void sig_handler(int sig)
 #ifndef BUILTIN
 
 static const char *vec_names[] = {
-	[HI_SOFTIRQ] = "hi",
-	[TIMER_SOFTIRQ] = "timer",
-	[NET_TX_SOFTIRQ] = "net_tx",
-	[NET_RX_SOFTIRQ] = "net_rx",
-	[BLOCK_SOFTIRQ] = "block",
-	[IRQ_POLL_SOFTIRQ] = "irq_poll",
-	[TASKLET_SOFTIRQ] = "tasklet",
-	[SCHED_SOFTIRQ] = "sched",
-	[HRTIMER_SOFTIRQ] = "hrtimer",
-	[RCU_SOFTIRQ] = "rcu",
+	[HI_SOFTIRQ] = "hi",	       [TIMER_SOFTIRQ] = "timer",
+	[NET_TX_SOFTIRQ] = "net_tx",   [NET_RX_SOFTIRQ] = "net_rx",
+	[BLOCK_SOFTIRQ] = "block",     [IRQ_POLL_SOFTIRQ] = "irq_poll",
+	[TASKLET_SOFTIRQ] = "tasklet", [SCHED_SOFTIRQ] = "sched",
+	[HRTIMER_SOFTIRQ] = "hrtimer", [RCU_SOFTIRQ] = "rcu",
 };
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
@@ -154,12 +150,14 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	if (e->type == IRQ)
 	{
 		printf("[IRQ] pid=%d tid=%d comm=%s irq=%d name=%s delta=%lluns ret=%d\n",
-			   e->pid, e->tid, e->comm, e->vec_nr, e->name, e->delta, e->ret);
+		       e->pid, e->tid, e->comm, e->vec_nr, e->name, e->delta,
+		       e->ret);
 	}
 	else if (e->type == SOFT_IRQ)
 	{
 		printf("[SOFTIRQ] pid=%d tid=%d comm=%s vec=%s delta=%lluns ret=%d\n",
-			   e->pid, e->tid, e->comm, vec_names[e->vec_nr], e->delta, e->ret);
+		       e->pid, e->tid, e->comm, vec_names[e->vec_nr], e->delta,
+		       e->ret);
 	}
 	return 0;
 }
@@ -242,7 +240,7 @@ int main(int argc, char **argv)
 	if (!obj->bss)
 	{
 		fprintf(stderr, "Memory-mapping BPF maps is supported "
-						"starting from Linux 5.7, please upgrade.\n");
+				"starting from Linux 5.7, please upgrade.\n");
 		goto cleanup;
 	}
 
@@ -254,9 +252,11 @@ int main(int argc, char **argv)
 	}
 
 #ifdef BUILTIN
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.irq_map), (ring_buffer_sample_fn)cb, ctx, NULL);
+	rb = ring_buffer__new(bpf_map__fd(obj->maps.irq_map),
+			      (ring_buffer_sample_fn)cb, ctx, NULL);
 #else
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.irq_map), handle_event, NULL, NULL);
+	rb = ring_buffer__new(bpf_map__fd(obj->maps.irq_map), handle_event,
+			      NULL, NULL);
 #endif
 	if (!rb)
 	{

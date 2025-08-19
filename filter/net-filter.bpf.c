@@ -43,7 +43,7 @@
 #define NF_STOP 5
 
 #define IPPROTO_ICMPV6 58
-#define PF_INET 2	/* IP protocol family.  */
+#define PF_INET 2 /* IP protocol family.  */
 #define PF_INET6 10 /* IP version 6.  */
 
 #if !__x86_64__ && !__arm__ && !__aarch64__ && !__loongarch__ && !__sw_64__
@@ -55,38 +55,29 @@
 	bpf_probe_read_kernel(kaddr, sizeof(*(kaddr)), bpf_addr)
 
 // read kernel memory to bpf memory, return 'ret' while error
-#define bpf_read_mem_ret(kaddr, bpf_addr, ret)		\
-	{												\
-		int err = 0;								\
-		err = bpf_read_mem(kaddr, bpf_addr);		\
-		if (err < 0)								\
-		{											\
-			bpf_printk("error: bpf read kernel"		\
-				"(%d:%d)\n", 						\
-				err,								\
-				__LINE__);							\
-			return ret;								\
-		}											\
+#define bpf_read_mem_ret(kaddr, bpf_addr, ret)              \
+	{                                                   \
+		int err = 0;                                \
+		err = bpf_read_mem(kaddr, bpf_addr);        \
+		if (err < 0)                                \
+		{                                           \
+			bpf_printk("error: bpf read kernel" \
+				   "(%d:%d)\n",             \
+				   err, __LINE__);          \
+			return ret;                         \
+		}                                           \
 	}
 
-
 #if !defined(__sw_64__)
-int bpf_dynptr_from_skb(
-	struct sk_buff *skb,
-	__u64 flags,
-	struct bpf_dynptr *ptr__uninit) __ksym;
+int bpf_dynptr_from_skb(struct sk_buff *skb, __u64 flags,
+			struct bpf_dynptr *ptr__uninit) __ksym;
 
-void *bpf_dynptr_slice(
-	const struct bpf_dynptr *ptr,
-	uint32_t offset,
-	void *buffer,
-	uint32_t buffer__sz) __ksym;
+void *bpf_dynptr_slice(const struct bpf_dynptr *ptr, uint32_t offset,
+		       void *buffer, uint32_t buffer__sz) __ksym;
 #endif
 
-static void debug_tuple(
-	const struct ip_tuple *tuple,
-	const char *title,
-	int type);
+static void debug_tuple(const struct ip_tuple *tuple, const char *title,
+			int type);
 
 struct
 {
@@ -118,10 +109,9 @@ struct
 	__uint(max_entries, 10000);
 } sk_map SEC(".maps");
 
-static inline struct Configs* conf(void)
+static inline struct Configs *conf(void)
 {
-	static struct Configs _configs = 
-	{
+	static struct Configs _configs = {
 		.enable = true,
 		.debug = DEBUG_NONE,
 	};
@@ -137,9 +127,7 @@ static inline struct Configs* conf(void)
 	return &_configs;
 }
 
-static int ipv6_cmp(
-	const struct in6_addr *ipa,
-	const struct in6_addr *ipb)
+static int ipv6_cmp(const struct in6_addr *ipa, const struct in6_addr *ipb)
 {
 	u32 *a = (u32 *)ipa;
 	u32 *b = (u32 *)ipb;
@@ -209,7 +197,7 @@ static struct tcphdr *tcp_hdr(struct sk_buff *skb, u32 offset)
 		return NULL;
 
 	p = bpf_dynptr_slice(&ptr, offset, &tcph, sizeof(tcph));
-	return p; 
+	return p;
 }
 
 static struct udphdr *udp_hdr(struct sk_buff *skb, u32 offset)
@@ -257,9 +245,7 @@ static struct icmp6hdr *icmp6_hdr(struct sk_buff *skb, u32 offset)
 	return p;
 }
 
-static bool parse_sk_buff(
-	struct sk_buff *skb,
-	struct BpfData *log)
+static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 {
 	struct iphdr *iph;
 	struct ipv6hdr *ipv6h;
@@ -366,10 +352,7 @@ struct CbCtx
 	int action;
 };
 
-static int strncmp(
-	const char *s1,
-	const char *s2,
-	int n)
+static int strncmp(const char *s1, const char *s2, int n)
 {
 	for (int i = 0; i < n; i++)
 	{
@@ -381,12 +364,10 @@ static int strncmp(
 	return 0;
 }
 
-static bool rule_match(
-	const struct ip_tuple *t1,
-	const struct Rule *rule)
+static bool rule_match(const struct ip_tuple *t1, const struct Rule *rule)
 {
 	bool ret = false;
-	
+
 	debug_tuple(t1, "rule_match_1", DEBUG_RULE_MATCH);
 
 	if (rule->ip_proto != t1->ip_proto)
@@ -418,11 +399,9 @@ static bool rule_match(
 	debug_tuple(t1, "rule_match_3", DEBUG_RULE_MATCH);
 
 	ret = (rule->sport == 0 ||
-		   (rule->sport <= t1->sport &&
-			t1->sport <= rule->sport_end)) &&
-		  (rule->dport == 0 ||
-		   (rule->dport <= t1->dport &&
-			t1->dport <= rule->dport_end));
+	       (rule->sport <= t1->sport && t1->sport <= rule->sport_end)) &&
+	      (rule->dport == 0 ||
+	       (rule->dport <= t1->dport && t1->dport <= rule->dport_end));
 
 	if (!ret)
 		return ret;
@@ -432,57 +411,47 @@ static bool rule_match(
 	if (rule->ip_proto == 4)
 	{
 		ret = (rule->sip == 0 ||
-			   (rule->sip <= t1->sip &&
-				t1->sip <= rule->sip_end)) &&
-			  (rule->dip == 0 ||
-			   (rule->dip <= t1->dip &&
-				t1->dip <= rule->dip_end));
+		       (rule->sip <= t1->sip && t1->sip <= rule->sip_end)) &&
+		      (rule->dip == 0 ||
+		       (rule->dip <= t1->dip && t1->dip <= rule->dip_end));
 	}
 	else
 	{
 		ret = (ipv6_zero(&rule->sipv6) ||
-			   (ipv6_cmp(&rule->sipv6, &t1->sipv6) <= 0 &&
-				ipv6_cmp(&t1->sipv6, &rule->sipv6_end) <= 0)) &&
-			  (ipv6_zero(&rule->dipv6) ||
-			   (ipv6_cmp(&rule->dipv6, &t1->dipv6) <= 0 &&
-				ipv6_cmp(&t1->dipv6, &rule->dipv6_end) <= 0));
+		       (ipv6_cmp(&rule->sipv6, &t1->sipv6) <= 0 &&
+			ipv6_cmp(&t1->sipv6, &rule->sipv6_end) <= 0)) &&
+		      (ipv6_zero(&rule->dipv6) ||
+		       (ipv6_cmp(&rule->dipv6, &t1->dipv6) <= 0 &&
+			ipv6_cmp(&t1->dipv6, &rule->dipv6_end) <= 0));
 	}
 
 	return ret;
 }
 
-static void debug_tuple(
-	const struct ip_tuple *tuple,
-	const char *title,
-	int type)
+static void debug_tuple(const struct ip_tuple *tuple, const char *title,
+			int type)
 {
 	if (conf()->debug != type)
 		return;
 
 	if (tuple->ip_proto == 4)
 	{
-		bpf_printk("%s: %u.%u.%u.%u:%u %s %u.%u.%u.%u:%u",
-				   title,
-				   SLICE_IP(tuple->sip), tuple->sport,
-				   tuple->pkg_dir == PKG_DIR_IN ? "<-" : "->",
-				   SLICE_IP(tuple->dip), tuple->dport);
+		bpf_printk("%s: %u.%u.%u.%u:%u %s %u.%u.%u.%u:%u", title,
+			   SLICE_IP(tuple->sip), tuple->sport,
+			   tuple->pkg_dir == PKG_DIR_IN ? "<-" : "->",
+			   SLICE_IP(tuple->dip), tuple->dport);
 	}
 	else
 	{
-		bpf_printk("%s: src: %x:%x:%x:%x:%x:%x:%x:%x:%u",
-				   title,
-				   SLICE_IPv6(tuple->sipv6), tuple->sport);
-		bpf_printk("%s: dst: %x:%x:%x:%x:%x:%x:%x:%x:%u",
-				   title,
-				   SLICE_IPv6(tuple->dipv6), tuple->dport);
+		bpf_printk("%s: src: %x:%x:%x:%x:%x:%x:%x:%x:%u", title,
+			   SLICE_IPv6(tuple->sipv6), tuple->sport);
+		bpf_printk("%s: dst: %x:%x:%x:%x:%x:%x:%x:%x:%u", title,
+			   SLICE_IPv6(tuple->dipv6), tuple->dport);
 	}
 }
 
-static long match_callback(
-	struct bpf_map *map,
-	const void *key,
-	void *value,
-	void *ctx)
+static long match_callback(struct bpf_map *map, const void *key, void *value,
+			   void *ctx)
 {
 	struct Rule *rule = (struct Rule *)value;
 	struct CbCtx *ctx_ip = (struct CbCtx *)ctx;
@@ -500,11 +469,7 @@ static long match_callback(
 
 static int rules_match(const struct ip_tuple *tuple)
 {
-	struct CbCtx ctx =
-	{
-		.tuple = tuple,
-		.action = NM_ACCEPT
-	};
+	struct CbCtx ctx = { .tuple = tuple, .action = NM_ACCEPT };
 
 	bpf_for_each_map_elem(&rules, match_callback, &ctx, 0);
 
@@ -581,8 +546,7 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 
 	switch (pf)
 	{
-	case PF_INET:
-	{
+	case PF_INET: {
 		u32 dst_addr;
 		u32 src_addr;
 #if !defined(__loongarch__) && !defined(__sw_64__)
@@ -590,7 +554,8 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 		src_addr = bpf_ntohl(sk->__sk_common.skc_rcv_saddr);
 #else
 		bpf_read_mem_ret(&dst_addr, &sk->__sk_common.skc_daddr, false);
-		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_rcv_saddr, false);
+		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_rcv_saddr,
+				 false);
 		dst_addr = bpf_ntohl(dst_addr);
 		src_addr = bpf_ntohl(src_addr);
 #endif
@@ -601,19 +566,20 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 		log->tuple.sip = src_addr;
 		log->tuple.dip = dst_addr;
 		log->tuple.ip_proto = 4;
-		
+
 		break;
 	}
-	case PF_INET6:
-	{
+	case PF_INET6: {
 		struct in6_addr dst_addr;
 		struct in6_addr src_addr;
 #if !defined(__loongarch__) && !defined(__sw_64__)
 		dst_addr = sk->__sk_common.skc_v6_daddr;
 		src_addr = sk->__sk_common.skc_v6_rcv_saddr;
 #else
-		bpf_read_mem_ret(&dst_addr, &sk->__sk_common.skc_v6_daddr, false);
-		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_v6_rcv_saddr, false);
+		bpf_read_mem_ret(&dst_addr, &sk->__sk_common.skc_v6_daddr,
+				 false);
+		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_v6_rcv_saddr,
+				 false);
 #endif
 
 		if (ipv6_cmp(&src_addr, &dst_addr) == 0)
@@ -649,7 +615,6 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 	log->timestamp = bpf_ktime_get_boot_ns() / 1000;
 	bpf_read_mem(&log->start_time, &task->start_time);
 
-
 	switch (log->tuple.tl_proto)
 	{
 	case IPPROTO_TCP:
@@ -673,10 +638,8 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 
 #if !defined(__loongarch__) && !defined(__sw_64__)
 SEC("lsm/socket_sendmsg")
-int BPF_PROG(lsm_socket_sendmsg,
-	struct socket *sock,
-	struct msghdr *msg,
-	int size, int ret)
+int BPF_PROG(lsm_socket_sendmsg, struct socket *sock, struct msghdr *msg,
+	     int size, int ret)
 #else
 /**
  * loongarch bpf-lsm isn't complete, so kprobe is used instead,
@@ -684,10 +647,8 @@ int BPF_PROG(lsm_socket_sendmsg,
  * value is ignored by the bpf subsystem
  */
 SEC("kprobe/security_socket_sendmsg")
-int BPF_KPROBE(k_socket_sendmsg,
-	struct socket *sock,
-	struct msghdr *msg,
-	int size)
+int BPF_KPROBE(k_socket_sendmsg, struct socket *sock, struct msghdr *msg,
+	       int size)
 #endif
 {
 #if !defined(__loongarch__) && !defined(__sw_64__)
@@ -700,9 +661,7 @@ int BPF_KPROBE(k_socket_sendmsg,
 
 	int action = NM_ACCEPT;
 
-	struct BpfData log = {
-		.tuple.pkg_dir = PKG_DIR_OUT
-	};
+	struct BpfData log = { .tuple.pkg_dir = PKG_DIR_OUT };
 
 	if (!parse_sock(sock, &log))
 		return 0;
@@ -732,22 +691,17 @@ int BPF_KPROBE(k_socket_sendmsg,
 
 #if !defined(__loongarch__) && !defined(__sw_64__)
 SEC("lsm/socket_recvmsg")
-int BPF_PROG(lsm_socket_recvmsg,
-	struct socket *sock,
-	struct msghdr *msg,
-	int size, int flags, int ret)
+int BPF_PROG(lsm_socket_recvmsg, struct socket *sock, struct msghdr *msg,
+	     int size, int flags, int ret)
 #else
 /**
  * loongarch bpf-lsm isn't complete, so kprobe is used instead,
  * as a result, the 'drop' function won't work as kprobe return
  * value is ignored by the bpf subsystem
- */ 
+ */
 SEC("kprobe/security_socket_recvmsg")
-int BPF_KPROBE(k_socket_recvmsg,
-	struct socket *sock,
-	struct msghdr *msg,
-	int size,
-	int flags)
+int BPF_KPROBE(k_socket_recvmsg, struct socket *sock, struct msghdr *msg,
+	       int size, int flags)
 #endif
 {
 #if !defined(__loongarch__) && !defined(__sw_64__)
@@ -760,9 +714,7 @@ int BPF_KPROBE(k_socket_recvmsg,
 
 	int action = NM_ACCEPT;
 
-	struct BpfData log = {
-		.tuple.pkg_dir = PKG_DIR_IN
-	};
+	struct BpfData log = { .tuple.pkg_dir = PKG_DIR_IN };
 
 	if (!parse_sock(sock, &log))
 		return 0;
@@ -803,7 +755,7 @@ static int stat_pkg_sz(int sz)
 		return 0;
 
 	pid_t pid = bpf_get_current_pid_tgid();
-	struct BpfData* log = bpf_map_lookup_elem(&sk_map, &pid);
+	struct BpfData *log = bpf_map_lookup_elem(&sk_map, &pid);
 	if (!log)
 	{
 		return 0;

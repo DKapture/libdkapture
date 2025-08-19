@@ -6,12 +6,12 @@
 #define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
 #define WRITE_ONCE(x, val) ((*(volatile typeof(x) *)&(x)) = val)
 
-
 #define MAX_ENTRIES 102400
 #define TASK_COMM_LEN 16
 #define PERF_MAX_STACK_DEPTH 127
 
-struct lock_stat {
+struct lock_stat
+{
 	__u64 acq_count;
 	__u64 acq_total_time;
 	__u64 acq_max_time;
@@ -26,7 +26,8 @@ struct lock_stat {
 	char hld_max_comm[TASK_COMM_LEN];
 };
 
-struct ksym {
+struct ksym
+{
 	const char *name;
 	unsigned long addr;
 };
@@ -40,14 +41,16 @@ const struct ksym *ksyms__map_addr(const struct ksyms *ksyms,
 const struct ksym *ksyms__get_symbol(const struct ksyms *ksyms,
 				     const char *name);
 
-struct sym {
+struct sym
+{
 	const char *name;
 	unsigned long start;
 	unsigned long size;
 	unsigned long offset;
 };
 
-struct sym_info {
+struct sym_info
+{
 	const char *dso_name;
 	unsigned long dso_offset;
 	const char *sym_name;
@@ -55,6 +58,5 @@ struct sym_info {
 };
 
 struct syms;
-
 
 #endif /* spinlock_ob_H_ */

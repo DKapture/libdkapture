@@ -9,8 +9,8 @@
 #include <bpf/bpf_core_read.h>
 #include <asm-generic/errno.h>
 
-#define MAX_ENTRIES	10240
-#define TASK_RUNNING 	0
+#define MAX_ENTRIES 10240
+#define TASK_RUNNING 0
 
 const volatile bool filter_cg = false;
 const volatile bool targ_per_process = false;
@@ -19,23 +19,26 @@ const volatile bool targ_per_pidns = false;
 const volatile bool targ_ms = false;
 const volatile pid_t targ_tgid = 0;
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_CGROUP_ARRAY);
 	__type(key, u32);
 	__type(value, u32);
 	__uint(max_entries, 1);
 } cgroup_map SEC(".maps");
 
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __uint(max_entries, MAX_ENTRIES);
-  __type(key, u32);
-  __type(value, u64);
+struct
+{
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, MAX_ENTRIES);
+	__type(key, u32);
+	__type(value, u64);
 } start SEC(".maps");
 
 static struct hist zero;
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES);
 	__type(key, struct hkey);
@@ -79,8 +82,7 @@ static int trace_enqueue(struct task_struct *p)
 {
 	struct hist *histp;
 	struct hkey hkey;
-	u32 pid,tgid;
-
+	u32 pid, tgid;
 
 	pid = BPF_CORE_READ(p, pid);
 	tgid = BPF_CORE_READ(p, tgid);
@@ -94,17 +96,19 @@ static int trace_enqueue(struct task_struct *p)
 	histp = bpf_map_lookup_or_try_init(&hists, &hkey, &zero);
 	if (!histp)
 		return 0;
-  
-	if (!histp->comm[0]) {
-		bpf_printk("histp->comm null 0x%x",histp->comm[0]);
-		bpf_probe_read_kernel_str(&histp->comm, sizeof(histp->comm), p->comm);
-		bpf_printk("histp->comm %s",histp->comm);
+
+	if (!histp->comm[0])
+	{
+		bpf_printk("histp->comm null 0x%x", histp->comm[0]);
+		bpf_probe_read_kernel_str(&histp->comm, sizeof(histp->comm),
+					  p->comm);
+		bpf_printk("histp->comm %s", histp->comm);
 	}
 
 	__sync_fetch_and_add(&histp->wakeup_count, 1);
 
 	bpf_printk("trace_enqueue tgid=%u pid=%u comm=%s wakeup_count=%llu \n",
-               tgid, pid, histp->comm, histp->wakeup_count);
+		   tgid, pid, histp->comm, histp->wakeup_count);
 
 	return 0;
 }
@@ -115,8 +119,8 @@ int BPF_PROG(sched_wakeup, struct task_struct *p)
 	if (filter_cg && !bpf_current_task_under_cgroup(&cgroup_map, 0))
 		return 0;
 
-    bpf_printk("sched_wakeup tgid=%u pid=%u comm=%s",
-               p->tgid, p->pid, p->comm);
+	bpf_printk("sched_wakeup tgid=%u pid=%u comm=%s", p->tgid, p->pid,
+		   p->comm);
 
 	return trace_enqueue(p);
 }
@@ -127,8 +131,8 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p)
 	if (filter_cg && !bpf_current_task_under_cgroup(&cgroup_map, 0))
 		return 0;
 
-    bpf_printk("sched_wakeup_new tgid=%u pid=%u comm=%s",
-               p->tgid, p->pid, p->comm);
+	bpf_printk("sched_wakeup_new tgid=%u pid=%u comm=%s", p->tgid, p->pid,
+		   p->comm);
 
 	return trace_enqueue(p);
 }

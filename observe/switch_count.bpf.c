@@ -9,8 +9,8 @@
 #include <bpf/bpf_core_read.h>
 #include <asm-generic/errno.h>
 
-#define MAX_ENTRIES	10240
-#define TASK_RUNNING 	0
+#define MAX_ENTRIES 10240
+#define TASK_RUNNING 0
 
 const volatile bool filter_cg = false;
 const volatile bool targ_per_process = false;
@@ -19,23 +19,26 @@ const volatile bool targ_per_pidns = false;
 const volatile bool targ_ms = false;
 const volatile pid_t targ_tgid = 0;
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_CGROUP_ARRAY);
 	__type(key, u32);
 	__type(value, u32);
 	__uint(max_entries, 1);
 } cgroup_map SEC(".maps");
 
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __uint(max_entries, MAX_ENTRIES);
-  __type(key, u32);
-  __type(value, u64);
+struct
+{
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, MAX_ENTRIES);
+	__type(key, u32);
+	__type(value, u64);
 } start SEC(".maps");
 
 static struct hist zero;
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES);
 	__type(key, struct hkey);
@@ -75,11 +78,12 @@ bpf_map_lookup_or_try_init(void *map, const void *key, const void *init)
 	return bpf_map_lookup_elem(map, key);
 }
 
-static int handle_switch(bool preempt, struct task_struct *prev, struct task_struct *next)
+static int handle_switch(bool preempt, struct task_struct *prev,
+			 struct task_struct *next)
 {
 	struct hist *histp;
 	struct hkey hkey;
-	u32 pid,tgid;
+	u32 pid, tgid;
 
 	if (filter_cg && !bpf_current_task_under_cgroup(&cgroup_map, 0))
 		return 0;
@@ -93,21 +97,21 @@ static int handle_switch(bool preempt, struct task_struct *prev, struct task_str
 		goto cleanup;
 	if (!histp->comm[0])
 		bpf_probe_read_kernel_str(&histp->comm, sizeof(histp->comm),
-					next->comm);
+					  next->comm);
 
 	__sync_fetch_and_add(&histp->count, 1);
 
-	bpf_printk("handle_switch tgid=%u pid=%u comm=%s count=%llu \n",
-               tgid, pid, histp->comm, histp->count);
+	bpf_printk("handle_switch tgid=%u pid=%u comm=%s count=%llu \n", tgid,
+		   pid, histp->comm, histp->count);
 
 cleanup:
 	bpf_map_delete_elem(&start, &pid);
 	return 0;
 }
 
-
 SEC("tp_btf/sched_switch")
-int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next)
+int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev,
+	     struct task_struct *next)
 {
 	return handle_switch(preempt, prev, next);
 }

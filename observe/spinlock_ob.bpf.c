@@ -16,7 +16,8 @@ const volatile pid_t targ_pid = 0;
 void *const volatile targ_lock = NULL;
 const volatile int per_thread = 0;
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_STACK_TRACE);
 	__uint(max_entries, MAX_ENTRIES);
 	__uint(key_size, sizeof(u32));
@@ -27,12 +28,14 @@ struct {
  * Uniquely identifies a task grabbing a particular lock; a task can only hold
  * the same lock once (non-recursive mutexes).
  */
-struct task_lock {
+struct task_lock
+{
 	u64 task_id;
 	u64 lock_ptr;
 };
 
-struct lockholder_info {
+struct lockholder_info
+{
 	s32 stack_id;
 	u64 task_id;
 	u64 try_at;
@@ -41,7 +44,8 @@ struct lockholder_info {
 	u64 lock_ptr;
 };
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES);
 	__type(key, struct task_lock);
@@ -55,14 +59,16 @@ struct {
  * stats for a particular stack frame.  Multiple tasks may have the same
  * stackframe.
  */
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES);
 	__type(key, s32);
 	__type(value, struct lock_stat);
 } stat_map SEC(".maps");
 
-struct {
+struct
+{
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES);
 	__type(key, u32);
@@ -84,7 +90,7 @@ static bool tracing_task(u64 task_id)
 static void lock_contended(void *ctx, void *lock)
 {
 	u64 task_id;
-	struct lockholder_info li[1] = {0};
+	struct lockholder_info li[1] = { 0 };
 	struct task_lock tl = {};
 
 	if (targ_lock && targ_lock != lock)
@@ -105,7 +111,8 @@ static void lock_contended(void *ctx, void *lock)
 	 * Note: if you make major changes to this bpf program, double check
 	 * that you aren't skipping too many frames.
 	 */
-	li->stack_id = bpf_get_stackid(ctx, &stack_map, 4 | BPF_F_FAST_STACK_CMP);
+	li->stack_id =
+		bpf_get_stackid(ctx, &stack_map, 4 | BPF_F_FAST_STACK_CMP);
 
 	/* Legit failures include EEXIST */
 	if (li->stack_id < 0)
@@ -172,8 +179,9 @@ static void account(struct lockholder_info *li)
 	 * But it should be ok for per-thread since it's not racy anymore.
 	 */
 	ls = bpf_map_lookup_elem(&stat_map, &key);
-	if (!ls) {
-		struct lock_stat fresh = {0};
+	if (!ls)
+	{
+		struct lock_stat fresh = { 0 };
 
 		bpf_map_update_elem(&stat_map, &key, &fresh, BPF_ANY);
 		ls = bpf_map_lookup_elem(&stat_map, &key);
@@ -187,7 +195,8 @@ static void account(struct lockholder_info *li)
 	delta = li->acq_at - li->try_at;
 	__sync_fetch_and_add(&ls->acq_count, 1);
 	__sync_fetch_and_add(&ls->acq_total_time, delta);
-	if (delta > READ_ONCE(ls->acq_max_time)) {
+	if (delta > READ_ONCE(ls->acq_max_time))
+	{
 		WRITE_ONCE(ls->acq_max_time, delta);
 		WRITE_ONCE(ls->acq_max_id, li->task_id);
 		WRITE_ONCE(ls->acq_max_lock_ptr, li->lock_ptr);
@@ -202,7 +211,8 @@ static void account(struct lockholder_info *li)
 	delta = li->rel_at - li->acq_at;
 	__sync_fetch_and_add(&ls->hld_count, 1);
 	__sync_fetch_and_add(&ls->hld_total_time, delta);
-	if (delta > READ_ONCE(ls->hld_max_time)) {
+	if (delta > READ_ONCE(ls->hld_max_time))
+	{
 		WRITE_ONCE(ls->hld_max_time, delta);
 		WRITE_ONCE(ls->hld_max_id, li->task_id);
 		WRITE_ONCE(ls->hld_max_lock_ptr, li->lock_ptr);
@@ -237,7 +247,7 @@ static void lock_released(void *lock)
 SEC("fentry/_raw_spin_lock")
 int BPF_PROG(_raw_spin_lock, raw_spinlock_t *lock)
 {
-    bpf_printk("_raw_spin_lock enter\n");
+	bpf_printk("_raw_spin_lock enter\n");
 
 	lock_contended(ctx, lock);
 	return 0;
@@ -246,7 +256,7 @@ int BPF_PROG(_raw_spin_lock, raw_spinlock_t *lock)
 SEC("fexit/_raw_spin_lock")
 int BPF_PROG(_raw_spin_lock_exit, raw_spinlock_t *lock, long ret)
 {
-    bpf_printk("_raw_spin_lock exit\n");
+	bpf_printk("_raw_spin_lock exit\n");
 	lock_acquired(lock);
 	return 0;
 }
@@ -254,11 +264,10 @@ int BPF_PROG(_raw_spin_lock_exit, raw_spinlock_t *lock, long ret)
 SEC("fentry/_raw_spin_unlock")
 int BPF_PROG(_raw_spin_unlock, raw_spinlock_t *lock)
 {
-    bpf_printk("_raw_spin_unlock enter\n");
+	bpf_printk("_raw_spin_unlock enter\n");
 	lock_released(lock);
 	return 0;
 }
-
 
 SEC("kprobe/_raw_spin_lock")
 int BPF_KPROBE(kprobe__raw_spin_lock, raw_spinlock_t *lock)

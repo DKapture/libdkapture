@@ -35,14 +35,18 @@ static inline uint32_t dev_old2new(dev_t old)
 	return ((major & 0xfff) << 20) | (minor & 0xfffff);
 }
 
-struct Target {
+struct Target
+{
 	uint32_t dev;
 	ino_t ino;
 };
 
-struct Rule {
-	union {
-		struct {
+struct Rule
+{
+	union
+	{
+		struct
+		{
 			uint32_t not_pid;
 			pid_t pid;
 		};
@@ -52,7 +56,8 @@ struct Rule {
 	struct Target target;
 };
 
-struct BpfData {
+struct BpfData
+{
 	Action act;
 	pid_t pid;
 	char process[];
@@ -71,7 +76,8 @@ static struct option lopts[] = { { "policy-file", required_argument, 0, 'p' },
 				 { 0, 0, 0, 0 } };
 
 // Structure for help messages
-struct HelpMsg {
+struct HelpMsg
+{
 	const char *argparam; // Argument parameter
 	const char *msg; // Help message
 };
@@ -88,7 +94,8 @@ void Usage(const char *arg0)
 	printf("Usage: %s [option]\n", arg0);
 	printf("  protect system files from malicious opening according to the policy file\n\n");
 	printf("Options:\n");
-	for (int i = 0; lopts[i].name; i++) {
+	for (int i = 0; lopts[i].name; i++)
+	{
 		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
 		       help_msg[i].argparam, help_msg[i].msg);
 	}
@@ -98,9 +105,11 @@ void Usage(const char *arg0)
 std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
-	for (int i = 0; lopts[i].name; i++) {
+	for (int i = 0; lopts[i].name; i++)
+	{
 		sopts += lopts[i].val; // Add short option character
-		switch (lopts[i].has_arg) {
+		switch (lopts[i].has_arg)
+		{
 		case no_argument:
 			break;
 		case required_argument:
@@ -124,8 +133,10 @@ void parse_args(int argc, char **argv)
 	std::string sopts = long_opt2short_opt(
 		lopts); // Convert long options to short options
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0) {
-		switch (opt) {
+	       0)
+	{
+		switch (opt)
+		{
 		case 'p': // Process ID
 			policy_file = optarg;
 			break;
@@ -140,7 +151,8 @@ void parse_args(int argc, char **argv)
 		}
 	}
 
-	if (!policy_file) {
+	if (!policy_file)
+	{
 		policy_file = "frtp.pol";
 		pr_info("No policy file specified, use frtp.pol as default");
 	}
@@ -156,7 +168,8 @@ static std::string act2str(Action act)
 	if (act & FMODE_EXEC)
 		str += "exec/";
 
-	if (!str.empty()) {
+	if (!str.empty())
+	{
 		str.pop_back();
 	}
 	return str;
@@ -164,13 +177,15 @@ static std::string act2str(Action act)
 
 static void path2target(const char *path, struct Target *target)
 {
-	if (access(path, F_OK) == -1) {
+	if (access(path, F_OK) == -1)
+	{
 		pr_error("File %s pr_error: %s\n", path, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
 	struct stat st;
-	if (stat(path, &st) != 0) {
+	if (stat(path, &st) != 0)
+	{
 		pr_error("stat %s: %s\n", path, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
@@ -188,14 +203,16 @@ static void add_directories_recursively(const char *dir_path,
 	rules.emplace_back(dir_rule);
 
 	DIR *dir = opendir(dir_path);
-	if (!dir) {
-		pr_error( "Cannot open directory %s: %s", dir_path,
-			strerror(errno));
+	if (!dir)
+	{
+		pr_error("Cannot open directory %s: %s", dir_path,
+			 strerror(errno));
 		return;
 	}
 
 	struct dirent *entry;
-	while ((entry = readdir(dir)) != NULL) {
+	while ((entry = readdir(dir)) != NULL)
+	{
 		if (strcmp(entry->d_name, ".") == 0 ||
 		    strcmp(entry->d_name, "..") == 0)
 			continue;
@@ -205,13 +222,15 @@ static void add_directories_recursively(const char *dir_path,
 			 entry->d_name);
 
 		struct stat st;
-		if (stat(full_path, &st) != 0) {
-			pr_error( "Cannot stat %s: %s", full_path,
-				strerror(errno));
+		if (stat(full_path, &st) != 0)
+		{
+			pr_error("Cannot stat %s: %s", full_path,
+				 strerror(errno));
 			continue;
 		}
 
-		if (S_ISDIR(st.st_mode)) {
+		if (S_ISDIR(st.st_mode))
+		{
 			add_directories_recursively(full_path, base_rule,
 						    rules);
 		}
@@ -224,13 +243,15 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 {
 	std::vector<struct Rule> rules;
 	FILE *file = fopen(filename, "r");
-	if (!file) {
+	if (!file)
+	{
 		pr_error("fopen: %s: %s\n", strerror(errno), filename);
 		exit(EXIT_FAILURE);
 	}
 
 	char line[8192];
-	while (fgets(line, sizeof(line), file)) {
+	while (fgets(line, sizeof(line), file))
+	{
 		char action[3];
 		char type[6];
 		char identifier[4096];
@@ -240,32 +261,45 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 			continue;
 
 		if (sscanf(line, "forbid %5[^=]=%4095s %2s %4095s", type,
-			   identifier, action, target_path) != 4) {
-			pr_error( "Invalid line: %s", line);
+			   identifier, action, target_path) != 4)
+		{
+			pr_error("Invalid line: %s", line);
 			continue;
 		}
 
 		struct Rule rule = { 0 };
 
-		if (strcmp(type, "proc") == 0) {
+		if (strcmp(type, "proc") == 0)
+		{
 			strncpy(rule.process, identifier, sizeof(rule.process));
 			rule.process[sizeof(rule.process) - 1] = 0;
-		} else if (strcmp(type, "pid") == 0) {
+		}
+		else if (strcmp(type, "pid") == 0)
+		{
 			rule.pid = strtol(identifier, NULL, 10);
 			rule.not_pid = 0;
-		} else {
-			pr_error( "Invalid type: %s", type);
+		}
+		else
+		{
+			pr_error("Invalid type: %s", type);
 			continue;
 		}
 
-		if (strcmp(action, "r") == 0) {
+		if (strcmp(action, "r") == 0)
+		{
 			rule.act = FMODE_READ;
-		} else if (strcmp(action, "w") == 0) {
+		}
+		else if (strcmp(action, "w") == 0)
+		{
 			rule.act = FMODE_WRITE;
-		} else if (strcmp(action, "rw") == 0) {
+		}
+		else if (strcmp(action, "rw") == 0)
+		{
 			rule.act = FMODE_READ | FMODE_WRITE;
-		} else {
-			pr_error( "Invalid action: %s", action);
+		}
+		else
+		{
+			pr_error("Invalid action: %s", action);
 			continue;
 		}
 
@@ -273,40 +307,53 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 		size_t path_len = strlen(target_path);
 
 		if (path_len >= 2 &&
-		    strcmp(target_path + path_len - 2, "/*") == 0) {
+		    strcmp(target_path + path_len - 2, "/*") == 0)
+		{
 			target_path[path_len - 2] = '\0';
 			is_dir = true;
-		} else if (path_len > 1 && target_path[path_len - 1] == '/') {
+		}
+		else if (path_len > 1 && target_path[path_len - 1] == '/')
+		{
 			target_path[path_len - 1] = '\0';
 			is_dir = true;
 		}
 
 		struct stat st;
-		if (stat(target_path, &st) != 0) {
-			pr_error("Cannot access path %s: %s",
-				target_path, strerror(errno));
+		if (stat(target_path, &st) != 0)
+		{
+			pr_error("Cannot access path %s: %s", target_path,
+				 strerror(errno));
 			continue;
 		}
 
-		if (is_dir) {
-			if (S_ISDIR(st.st_mode)) {
+		if (is_dir)
+		{
+			if (S_ISDIR(st.st_mode))
+			{
 				pr_info("Rule (diretory): %s %s %s %s", type,
 					identifier, action, target_path);
 				add_directories_recursively(target_path, &rule,
 							    rules);
-			} else {
+			}
+			else
+			{
 				pr_error(
 					"Path %s with wildcard is not a directory",
 					target_path);
 				continue;
 			}
-		} else {
-			if (S_ISREG(st.st_mode)) {
+		}
+		else
+		{
+			if (S_ISREG(st.st_mode))
+			{
 				path2target(target_path, &rule.target);
 				rules.emplace_back(rule);
 				pr_info("Rule (regular file): %s %s %s %s",
 					type, identifier, action, target_path);
-			} else {
+			}
+			else
+			{
 				pr_error("Path %s is not a regular file",
 					 target_path);
 				continue;
@@ -321,9 +368,11 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 void load_rules(const std::vector<struct Rule> &rules)
 {
 	uint32_t key = 0;
-	for (const auto &rule : rules) {
+	for (const auto &rule : rules)
+	{
 		key++;
-		if (bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY) != 0) {
+		if (bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY) != 0)
+		{
 			perror("bpf_map_update_elem");
 			exit(EXIT_FAILURE);
 		}
@@ -343,10 +392,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 void ringbuf_worker(void)
 {
-	while (!exit_flag) {
+	while (!exit_flag)
+	{
 		int err = ring_buffer__poll(rb, 1000 /* timeout in ms */);
 		// Check for errors during polling
-		if (err < 0 && err != -EINTR) {
+		if (err < 0 && err != -EINTR)
+		{
 			pr_error("Error polling ring buffer: %d\n", err);
 			sleep(5); // Sleep before retrying
 		}
@@ -362,7 +413,8 @@ void register_signal()
 	sa.sa_flags = 0; // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
-	if (sigaction(SIGINT, &sa, NULL) == -1) {
+	if (sigaction(SIGINT, &sa, NULL) == -1)
+	{
 		perror("sigaction");
 		exit(EXIT_FAILURE);
 	}

@@ -47,12 +47,13 @@ const char argp_program_doc[] =
 #define OPT_PIDNSS 1 /* --pidnss */
 
 static const struct argp_option opts[] = {
-	{"relative", 'r', NULL, 0, "modify timespec time relatively", 0},
-	{"milliseconds", 'm', NULL, 0, "unit is millisecond ", 0},
-	{"pid", 'p', "PID", 0, "modify this PID only", 0},
-	{"verbose", 'v', NULL, 0, "Verbose debug output", 0},
-	{"cgroup", 'c', "/sys/fs/cgroup/unified", 0, "modify process in cgroup path", 0},
-	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0},
+	{ "relative", 'r', NULL, 0, "modify timespec time relatively", 0 },
+	{ "milliseconds", 'm', NULL, 0, "unit is millisecond ", 0 },
+	{ "pid", 'p', "PID", 0, "modify this PID only", 0 },
+	{ "verbose", 'v', NULL, 0, "Verbose debug output", 0 },
+	{ "cgroup", 'c', "/sys/fs/cgroup/unified", 0,
+	  "modify process in cgroup path", 0 },
+	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0 },
 	{},
 };
 
@@ -102,7 +103,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
+			   va_list args)
 {
 	return vfprintf(stderr, format, args);
 }
@@ -116,7 +118,6 @@ static void sig_int(int signo)
 // ring buffer data process
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-
 	printf("\n");
 
 	return 0;
@@ -185,7 +186,8 @@ int main(int argc, char **argv)
 		cgfd = open(env.cgroupspath, O_RDONLY);
 		if (cgfd < 0)
 		{
-			fprintf(stderr, "Failed opening Cgroup path: %s", env.cgroupspath);
+			fprintf(stderr, "Failed opening Cgroup path: %s",
+				env.cgroupspath);
 			goto cleanup;
 		}
 		if (bpf_map_update_elem(cg_map_fd, &idx, &cgfd, BPF_ANY))
@@ -206,15 +208,17 @@ int main(int argc, char **argv)
 	/* Control-C 停止信号 */
 	if (signal(SIGINT, sig_int) == SIG_ERR)
 	{
-		fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+		fprintf(stderr, "can't set signal handler: %s\n",
+			strerror(errno));
 		goto cleanup;
 	}
 
 	printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` "
-		   "to see output of the BPF programs.\n");
+	       "to see output of the BPF programs.\n");
 
 	/* 设置环形缓冲区轮询 */
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
+	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL,
+			      NULL);
 	if (!rb)
 	{
 		err = -1;

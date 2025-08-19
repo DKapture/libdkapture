@@ -78,31 +78,17 @@ static int iter_fd;
 static std::atomic<bool> exit_flag(false);
 static struct CssId css_ids[16];
 
-const char *titles[] = {
-	"ID",
-	"parent",
-	"LVL",
-	"max-depth",
-	"DDT",
-	"dying-DDT",
-	"max-DDT",
-	"CSet",
-	"D-kids",
-	"t-kids",
-	"T-kids",
-	"sub-ctl",
-	"ctlr",
-	"flags",
-	"name",
-	nullptr};
+const char *titles[] = { "ID",	   "parent",	"LVL",	   "max-depth",
+			 "DDT",	   "dying-DDT", "max-DDT", "CSet",
+			 "D-kids", "t-kids",	"T-kids",  "sub-ctl",
+			 "ctlr",   "flags",	"name",	   nullptr };
 
-static struct option lopts[] = {
-	{"name", required_argument, 0, 'n'},
-	{"id", required_argument, 0, 'i'},
-	{"parent_id", required_argument, 0, 'p'},
-	{"level", required_argument, 0, 'l'},
-	{"help", no_argument, 0, 'h'},
-	{0, 0, 0, 0}};
+static struct option lopts[] = { { "name", required_argument, 0, 'n' },
+				 { "id", required_argument, 0, 'i' },
+				 { "parent_id", required_argument, 0, 'p' },
+				 { "level", required_argument, 0, 'l' },
+				 { "help", no_argument, 0, 'h' },
+				 { 0, 0, 0, 0 } };
 
 struct HelpMsg
 {
@@ -111,15 +97,17 @@ struct HelpMsg
 };
 
 static HelpMsg help_msg[] = {
-	{"[cgroup name]", "the directory name you use to create "
-					  "a new cgroup by calling 'mkdir'.\n"},
-	{"[cgroup id]", "the cgroup inode number, you can check "
-					"this by call 'stat' syscall on a cgroup directory.\n"},
-	{"[parent id]", "similar to id, but of parent.\n"},
-	{"[cgroup level]", "the cgroup rank level in the whole "
-					   "cgroup hierarchy tree. the level of root cgroup is "
-					   "0, and it increases while going down through the tree\n"},
-	{"", "print this help message\n"},
+	{ "[cgroup name]", "the directory name you use to create "
+			   "a new cgroup by calling 'mkdir'.\n" },
+	{ "[cgroup id]",
+	  "the cgroup inode number, you can check "
+	  "this by call 'stat' syscall on a cgroup directory.\n" },
+	{ "[parent id]", "similar to id, but of parent.\n" },
+	{ "[cgroup level]",
+	  "the cgroup rank level in the whole "
+	  "cgroup hierarchy tree. the level of root cgroup is "
+	  "0, and it increases while going down through the tree\n" },
+	{ "", "print this help message\n" },
 };
 
 void Usage(const char *arg0)
@@ -129,11 +117,8 @@ void Usage(const char *arg0)
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n",
-			   lopts[i].val,
-			   lopts[i].name,
-			   help_msg[i].argparam,
-			   help_msg[i].msg);
+		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
+		       help_msg[i].argparam, help_msg[i].msg);
 	}
 }
 
@@ -166,7 +151,8 @@ void parse_args(int argc, char **argv)
 	int opt, opt_idx;
 	optind = 1;
 	std::string sopts = long_opt2short_opt(lopts);
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
+	       0)
 	{
 		switch (opt)
 		{
@@ -182,7 +168,9 @@ void parse_args(int argc, char **argv)
 		case 'n':
 			if (strlen(optarg) >= PAGE_SIZE)
 			{
-				pr_error("the name string is too long, must be less than %d\n", PAGE_SIZE);
+				pr_error(
+					"the name string is too long, must be less than %d\n",
+					PAGE_SIZE);
 				exit(-1);
 			}
 			strncpy(rule.name, optarg, PAGE_SIZE);
@@ -202,8 +190,7 @@ void parse_args(int argc, char **argv)
 void register_signal()
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int)
-	{ exit_flag = true; };
+	sa.sa_handler = [](int) { exit_flag = true; };
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
 
@@ -240,13 +227,18 @@ static void lookup_ksyms(void)
 	void *pcgrp_dfl_threaded_ss_mask;
 	void *pcgrp_dfl_inhibit_ss_mask;
 	pcgrp_dfl_root = kallsyms_lookup("cgrp_dfl_root");
-	pcgrp_dfl_implicit_ss_mask = kallsyms_lookup("cgrp_dfl_implicit_ss_mask");
-	pcgrp_dfl_threaded_ss_mask = kallsyms_lookup("cgrp_dfl_threaded_ss_mask");
+	pcgrp_dfl_implicit_ss_mask =
+		kallsyms_lookup("cgrp_dfl_implicit_ss_mask");
+	pcgrp_dfl_threaded_ss_mask =
+		kallsyms_lookup("cgrp_dfl_threaded_ss_mask");
 	pcgrp_dfl_inhibit_ss_mask = kallsyms_lookup("cgrp_dfl_inhibit_ss_mask");
 	DEBUG(0, "cgrp_dfl_root: 0x%lx\n", (long)pcgrp_dfl_root);
-	DEBUG(0, "cgrp_dfl_implicit_ss_mask: 0x%lx\n", (long)pcgrp_dfl_implicit_ss_mask);
-	DEBUG(0, "cgrp_dfl_threaded_ss_mask: 0x%lx\n", (long)pcgrp_dfl_threaded_ss_mask);
-	DEBUG(0, "cgrp_dfl_inhibit_ss_mask: 0x%lx\n", (long)pcgrp_dfl_inhibit_ss_mask);
+	DEBUG(0, "cgrp_dfl_implicit_ss_mask: 0x%lx\n",
+	      (long)pcgrp_dfl_implicit_ss_mask);
+	DEBUG(0, "cgrp_dfl_threaded_ss_mask: 0x%lx\n",
+	      (long)pcgrp_dfl_threaded_ss_mask);
+	DEBUG(0, "cgrp_dfl_inhibit_ss_mask: 0x%lx\n",
+	      (long)pcgrp_dfl_inhibit_ss_mask);
 
 	if (!pcgrp_dfl_root)
 	{
@@ -295,10 +287,11 @@ static void process_log(char *buf, size_t bsz)
 	printf("\n");
 
 	slen = printf("%6s %6s %4s %10s %6s %10s %10s %6s "
-				  "%6s %6s %6s %8s %4s %8s %s\n",
-				  titles[0], titles[1], titles[2], titles[3], titles[4],
-				  titles[5], titles[6], titles[7], titles[8], titles[9],
-				  titles[10], titles[11], titles[12], titles[13], titles[14]);
+		      "%6s %6s %6s %8s %4s %8s %s\n",
+		      titles[0], titles[1], titles[2], titles[3], titles[4],
+		      titles[5], titles[6], titles[7], titles[8], titles[9],
+		      titles[10], titles[11], titles[12], titles[13],
+		      titles[14]);
 
 	while (slen--)
 	{
@@ -317,8 +310,10 @@ static void process_log(char *buf, size_t bsz)
 		nr_dying_descendants = log->nr_dying_descendants;
 		max_descendants = log->max_descendants;
 		nr_populated_csets = log->nr_populated_csets;
-		nr_populated_domain_children = log->nr_populated_domain_children;
-		nr_populated_threaded_children = log->nr_populated_threaded_children;
+		nr_populated_domain_children =
+			log->nr_populated_domain_children;
+		nr_populated_threaded_children =
+			log->nr_populated_threaded_children;
 		nr_threaded_children = log->nr_threaded_children;
 		subtree_control = log->subtree_control;
 		controller = log->controller;
@@ -335,12 +330,12 @@ static void process_log(char *buf, size_t bsz)
 		buf += log_sz;
 
 		printf("%6llu %6llu %4d %10d %6d %10d %10d %6d "
-			   "%6d %6d %6d     %04x %04x %8lx %s\n",
-			   id, parent_id, level, max_depth, nr_descendants,
-			   nr_dying_descendants, max_descendants, nr_populated_csets,
-			   nr_populated_domain_children, nr_populated_threaded_children,
-			   nr_threaded_children, subtree_control, controller,
-			   flags, name);
+		       "%6d %6d %6d     %04x %04x %8lx %s\n",
+		       id, parent_id, level, max_depth, nr_descendants,
+		       nr_dying_descendants, max_descendants,
+		       nr_populated_csets, nr_populated_domain_children,
+		       nr_populated_threaded_children, nr_threaded_children,
+		       subtree_control, controller, flags, name);
 	}
 }
 

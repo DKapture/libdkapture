@@ -18,89 +18,86 @@
 #define SWITCH_IPV4 (1 << 8)
 #define SWITCH_IPV6 (1 << 9)
 
-#define S_IFMT  00170000
+#define S_IFMT 00170000
 #define S_IFSOCK 0140000
-#define S_ISSOCK(m)	(((m) & S_IFMT) == S_IFSOCK)
+#define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
 
 #define __SO_ACCEPTCON (1 << 16)
-#define MAX_SK_NAME_LEN (sizeof(struct sockaddr_un) - sizeof(__kernel_sa_family_t))
-#define LOG_PATH_BUF_SIZE \
-	(MAX_SK_NAME_LEN % 8 ? MAX_SK_NAME_LEN + 8 - MAX_SK_NAME_LEN % 8 : MAX_SK_NAME_LEN)
+#define MAX_SK_NAME_LEN \
+	(sizeof(struct sockaddr_un) - sizeof(__kernel_sa_family_t))
+#define LOG_PATH_BUF_SIZE                                                  \
+	(MAX_SK_NAME_LEN % 8 ? MAX_SK_NAME_LEN + 8 - MAX_SK_NAME_LEN % 8 : \
+			       MAX_SK_NAME_LEN)
 
 char _license[] SEC("license") = "GPL";
 
 #if ITER_PASS_STRING
-static const char *tcp_titles =
-	"  sl  "
-	"local_address "
-	"rem_address   "
-	"st "
-	"tx_queue "
-	"rx_queue "
-	"tr "
-	"tm->when "
-	"retrnsmt   "
-	"uid  "
-	"timeout "
-	"inode";
+static const char *tcp_titles = "  sl  "
+				"local_address "
+				"rem_address   "
+				"st "
+				"tx_queue "
+				"rx_queue "
+				"tr "
+				"tm->when "
+				"retrnsmt   "
+				"uid  "
+				"timeout "
+				"inode";
 
-static const char *tcp6_titles =
-	"  sl  "
-	"local_address                         "
-	"remote_address                        "
-	"st "
-	"tx_queue "
-	"rx_queue "
-	"tr "
-	"tm->when "
-	"retrnsmt   "
-	"uid  "
-	"timeout "
-	"inode";
+static const char *tcp6_titles = "  sl  "
+				 "local_address                         "
+				 "remote_address                        "
+				 "st "
+				 "tx_queue "
+				 "rx_queue "
+				 "tr "
+				 "tm->when "
+				 "retrnsmt   "
+				 "uid  "
+				 "timeout "
+				 "inode";
 
-static const char *udp_titles =
-	"   sl  "
-	"local_address "
-	"rem_address   "
-	"st "
-	"tx_queue "
-	"rx_queue "
-	"tr "
-	"tm->when "
-	"retrnsmt   "
-	"uid  "
-	"timeout "
-	"inode "
-	"ref "
-	"pointer "
-	"drops";
+static const char *udp_titles = "   sl  "
+				"local_address "
+				"rem_address   "
+				"st "
+				"tx_queue "
+				"rx_queue "
+				"tr "
+				"tm->when "
+				"retrnsmt   "
+				"uid  "
+				"timeout "
+				"inode "
+				"ref "
+				"pointer "
+				"drops";
 
-static const char *udp6_titles =
-	"  sl  "
-	"local_address                         "
-	"remote_address                        "
-	"st "
-	"tx_queue "
-	"rx_queue "
-	"tr "
-	"tm->when "
-	"retrnsmt   "
-	"uid  "
-	"timeout "
-	"inode "
-	"ref "
-	"pointer "
-	"drops";
+static const char *udp6_titles = "  sl  "
+				 "local_address                         "
+				 "remote_address                        "
+				 "st "
+				 "tx_queue "
+				 "rx_queue "
+				 "tr "
+				 "tm->when "
+				 "retrnsmt   "
+				 "uid  "
+				 "timeout "
+				 "inode "
+				 "ref "
+				 "pointer "
+				 "drops";
 
-static const char *unix_titles =
-	"Num               "
-	"RefCount "
-	"Protocol "
-	"Flags    "
-	"Type "
-	"St    "
-	"Inode "
-	"Path";
+static const char *unix_titles = "Num               "
+				 "RefCount "
+				 "Protocol "
+				 "Flags    "
+				 "Type "
+				 "St    "
+				 "Inode "
+				 "Path";
 #endif
 
 struct Rule
@@ -175,15 +172,13 @@ struct BpfData
 	u32 sk_ref;
 	union
 	{
-		int plen;	  // path length for unix socket
+		int plen; // path length for unix socket
 		int ssthresh; // slow start thresh
 	};
 	char path[]; // for unix socket only
 } __attribute__((aligned(8)));
 
-static int ipv6_cmp(
-	const struct in6_addr *ipa,
-	const struct in6_addr *ipb)
+static int ipv6_cmp(const struct in6_addr *ipa, const struct in6_addr *ipb)
 {
 	u32 *a = (u32 *)ipa;
 	u32 *b = (u32 *)ipb;
@@ -210,7 +205,7 @@ struct
 u32 elems = 0;
 u32 socks = 0;
 
-#define PF_INET 2	/* IP protocol family.  */
+#define PF_INET 2 /* IP protocol family.  */
 #define PF_INET6 10 /* IP version 6.  */
 #define USER_HZ 100
 #define NSEC_PER_SEC 1000000000ULL
@@ -252,8 +247,7 @@ static bool ipv6_zero(const struct in6_addr *ip)
 	return true;
 }
 
-static bool rule_match(
-	const struct BpfData *log)
+static bool rule_match(const struct BpfData *log)
 {
 	bool ret = false;
 
@@ -265,11 +259,9 @@ static bool rule_match(
 	}
 
 	ret = (rule.lport == 0 ||
-		   (rule.lport <= log->lport &&
-			log->lport <= rule.lport_end)) &&
-		  (rule.rport == 0 ||
-		   (rule.rport <= log->rport &&
-			log->rport <= rule.rport_end));
+	       (rule.lport <= log->lport && log->lport <= rule.lport_end)) &&
+	      (rule.rport == 0 ||
+	       (rule.rport <= log->rport && log->rport <= rule.rport_end));
 
 	if (!ret)
 	{
@@ -277,24 +269,21 @@ static bool rule_match(
 		return ret;
 	}
 
-	if (log->log_type == LOG_UDP_IPV4 ||
-		log->log_type == LOG_TCP_IPV4)
+	if (log->log_type == LOG_UDP_IPV4 || log->log_type == LOG_TCP_IPV4)
 	{
 		ret = (rule.lip == 0 ||
-			   (rule.lip <= log->lip &&
-				log->lip <= rule.lip_end)) &&
-			  (rule.rip == 0 ||
-			   (rule.rip <= log->rip &&
-				log->rip <= rule.rip_end));
+		       (rule.lip <= log->lip && log->lip <= rule.lip_end)) &&
+		      (rule.rip == 0 ||
+		       (rule.rip <= log->rip && log->rip <= rule.rip_end));
 	}
 	else
 	{
 		ret = (ipv6_zero(&rule.lipv6) ||
-			   (ipv6_cmp(&rule.lipv6, &log->lipv6) <= 0 &&
-				ipv6_cmp(&log->lipv6, &rule.lipv6_end) <= 0)) &&
-			  (ipv6_zero(&rule.ripv6) ||
-			   (ipv6_cmp(&rule.ripv6, &log->ripv6) <= 0 &&
-				ipv6_cmp(&log->ripv6, &rule.ripv6_end) <= 0));
+		       (ipv6_cmp(&rule.lipv6, &log->lipv6) <= 0 &&
+			ipv6_cmp(&log->lipv6, &rule.lipv6_end) <= 0)) &&
+		      (ipv6_zero(&rule.ripv6) ||
+		       (ipv6_cmp(&rule.ripv6, &log->ripv6) <= 0 &&
+			ipv6_cmp(&log->ripv6, &rule.ripv6_end) <= 0));
 	}
 
 	return ret;
@@ -363,8 +352,7 @@ static u64 sock_ino(const struct sock *sk)
 }
 
 #ifndef BUILTIN
-static bool
-pingpong_mode(const struct inet_connection_sock *icsk)
+static bool pingpong_mode(const struct inet_connection_sock *icsk)
 {
 	return icsk->icsk_ack.pingpong >= TCP_PINGPONG_THRESH;
 }
@@ -374,12 +362,8 @@ static bool initial_slowstart(const struct tcp_sock *tcp)
 	return tcp->snd_ssthresh >= TCP_INFINITE_SSTHRESH;
 }
 
-static int dump_tcp_normal(
-	struct seq_file *seq,
-	struct tcp_sock *ts,
-	uid_t uid,
-	u32 seq_num,
-	struct BpfData *log)
+static int dump_tcp_normal(struct seq_file *seq, struct tcp_sock *ts, uid_t uid,
+			   u32 seq_num, struct BpfData *log)
 {
 	const struct inet_connection_sock *icsk;
 	const struct fastopen_queue *fastopenq;
@@ -479,35 +463,23 @@ static int dump_tcp_normal(
 
 #if ITER_PASS_STRING == 1
 
-	BPF_SEQ_PRINTF(seq, "%4d: %08X:%04X %08X:%04X ",
-				   seq_num, lip, lport, rip, rport);
+	BPF_SEQ_PRINTF(seq, "%4d: %08X:%04X %08X:%04X ", seq_num, lip, lport,
+		       rip, rport);
 	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d ",
-				   state,
-				   log->tx_queue, rx_queue,
-				   timer_active,
-				   log->tm_when,
-				   log->retrnsmt, uid,
-				   log->timeout,
-				   log->ino,
-				   log->sk_ref);
-	BPF_SEQ_PRINTF(seq, "%pK %lu %lu %u %u %d\n",
-				   ts,
-				   log->icsk_rto,
-				   log->icsk_ack,
-				   log->bit_flags,
-				   ts->snd_cwnd,
-				   log->ssthresh);
+		       state, log->tx_queue, rx_queue, timer_active,
+		       log->tm_when, log->retrnsmt, uid, log->timeout, log->ino,
+		       log->sk_ref);
+	BPF_SEQ_PRINTF(seq, "%pK %lu %lu %u %u %d\n", ts, log->icsk_rto,
+		       log->icsk_ack, log->bit_flags, ts->snd_cwnd,
+		       log->ssthresh);
 #endif
 
 	return 0;
 }
 
-static int dump_tcp_timewait(
-	struct seq_file *seq,
-	struct tcp_timewait_sock *tws,
-	uid_t uid,
-	u32 seq_num,
-	struct BpfData *log)
+static int dump_tcp_timewait(struct seq_file *seq,
+			     struct tcp_timewait_sock *tws, uid_t uid,
+			     u32 seq_num, struct BpfData *log)
 {
 	struct inet_timewait_sock *itws;
 	u16 rport, lport;
@@ -546,24 +518,20 @@ static int dump_tcp_timewait(
 		return -1;
 
 #if ITER_PASS_STRING == 1
-	BPF_SEQ_PRINTF(seq, "%4d: %08X:%04X %08X:%04X ",
-				   seq_num, lip, lport, rip, rport);
+	BPF_SEQ_PRINTF(seq, "%4d: %08X:%04X %08X:%04X ", seq_num, lip, lport,
+		       rip, rport);
 
-	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
-				   log->state, 0, 0,
-				   3, log->tm_when, 0, 0, 0, 0,
-				   log->sk_ref, itws);
+	BPF_SEQ_PRINTF(seq,
+		       "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
+		       log->state, 0, 0, 3, log->tm_when, 0, 0, 0, 0,
+		       log->sk_ref, itws);
 #endif
 
 	return 0;
 }
 
-static int dump_tcp_request(
-	struct seq_file *seq,
-	struct tcp_request_sock *treq,
-	uid_t uid,
-	u32 seq_num,
-	struct BpfData *log)
+static int dump_tcp_request(struct seq_file *seq, struct tcp_request_sock *treq,
+			    uid_t uid, u32 seq_num, struct BpfData *log)
 {
 	struct inet_request_sock *irsk;
 	struct request_sock *req;
@@ -601,24 +569,19 @@ static int dump_tcp_request(
 		return -1;
 
 #if ITER_PASS_STRING
-	BPF_SEQ_PRINTF(seq, "%4d: %08X:%04X %08X:%04X ",
-				   seq_num, log->lip,
-				   log->lport, log->rip,
-				   log->rport);
-	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
-				   TCP_SYN_RECV, 0, 0, 1, log->tm_when,
-				   log->retrnsmt, uid, 0, 0, 0, req);
+	BPF_SEQ_PRINTF(seq, "%4d: %08X:%04X %08X:%04X ", seq_num, log->lip,
+		       log->lport, log->rip, log->rport);
+	BPF_SEQ_PRINTF(seq,
+		       "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
+		       TCP_SYN_RECV, 0, 0, 1, log->tm_when, log->retrnsmt, uid,
+		       0, 0, 0, req);
 #endif
 
 	return 0;
 }
 
-static int dump_tcp6_normal(
-	struct seq_file *seq,
-	struct tcp6_sock *ts,
-	uid_t uid,
-	u32 seq_num,
-	struct BpfData *log)
+static int dump_tcp6_normal(struct seq_file *seq, struct tcp6_sock *ts,
+			    uid_t uid, u32 seq_num, struct BpfData *log)
 {
 	const struct inet_connection_sock *icsk;
 	const struct fastopen_queue *fastopenq;
@@ -639,8 +602,8 @@ static int dump_tcp6_normal(
 	src = &sp->sk_v6_rcv_saddr;
 
 	if (icsk->icsk_pending == ICSK_TIME_RETRANS ||
-		icsk->icsk_pending == ICSK_TIME_REO_TIMEOUT ||
-		icsk->icsk_pending == ICSK_TIME_LOSS_PROBE)
+	    icsk->icsk_pending == ICSK_TIME_REO_TIMEOUT ||
+	    icsk->icsk_pending == ICSK_TIME_LOSS_PROBE)
 	{
 		timer_active = 1;
 		timer_expires = icsk->icsk_timeout;
@@ -711,42 +674,24 @@ static int dump_tcp6_normal(
 		return -1;
 #if ITER_PASS_STRING == 1
 	BPF_SEQ_PRINTF(seq, "%4d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ",
-				   seq_num,
-				   src->s6_addr32[0], src->s6_addr32[1],
-				   src->s6_addr32[2], src->s6_addr32[3],
-				   log->lport,
-				   dest->s6_addr32[0], dest->s6_addr32[1],
-				   dest->s6_addr32[2], dest->s6_addr32[3],
-				   log->rport);
+		       seq_num, src->s6_addr32[0], src->s6_addr32[1],
+		       src->s6_addr32[2], src->s6_addr32[3], log->lport,
+		       dest->s6_addr32[0], dest->s6_addr32[1],
+		       dest->s6_addr32[2], dest->s6_addr32[3], log->rport);
 	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d ",
-				   state,
-				   log->tx_queue,
-				   rx_queue,
-				   log->tr,
-				   log->tm_when,
-				   log->retrnsmt,
-				   uid,
-				   log->timeout,
-				   log->ino,
-				   log->sk_ref);
-	BPF_SEQ_PRINTF(seq, "%pK %lu %lu %u %u %d\n",
-				   ts,
-				   log->icsk_rto,
-				   log->icsk_ack,
-				   log->bit_flags,
-				   log->snd_cwnd,
-				   log->ssthresh);
+		       state, log->tx_queue, rx_queue, log->tr, log->tm_when,
+		       log->retrnsmt, uid, log->timeout, log->ino, log->sk_ref);
+	BPF_SEQ_PRINTF(seq, "%pK %lu %lu %u %u %d\n", ts, log->icsk_rto,
+		       log->icsk_ack, log->bit_flags, log->snd_cwnd,
+		       log->ssthresh);
 #endif
 
 	return 0;
 }
 
-static int dump_tcp6_timewait(
-	struct seq_file *seq,
-	struct tcp_timewait_sock *ttw,
-	uid_t uid,
-	u32 seq_num,
-	struct BpfData *log)
+static int dump_tcp6_timewait(struct seq_file *seq,
+			      struct tcp_timewait_sock *ttw, uid_t uid,
+			      u32 seq_num, struct BpfData *log)
 {
 	struct inet_timewait_sock *tw = &ttw->tw_sk;
 	const struct in6_addr *dest, *src;
@@ -782,28 +727,22 @@ static int dump_tcp6_timewait(
 
 #if ITER_PASS_STRING == 1
 	BPF_SEQ_PRINTF(seq, "%4d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ",
-				   seq_num,
-				   src->s6_addr32[0], src->s6_addr32[1],
-				   src->s6_addr32[2], src->s6_addr32[3],
-				   log->lport,
-				   dest->s6_addr32[0], dest->s6_addr32[1],
-				   dest->s6_addr32[2], dest->s6_addr32[3],
-				   log->rport);
+		       seq_num, src->s6_addr32[0], src->s6_addr32[1],
+		       src->s6_addr32[2], src->s6_addr32[3], log->lport,
+		       dest->s6_addr32[0], dest->s6_addr32[1],
+		       dest->s6_addr32[2], dest->s6_addr32[3], log->rport);
 
-	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
-				   tw->tw_substate, 0, 0,
-				   3, log->tm_when, 0, 0, 0, 0,
-				   tw->tw_refcnt.refs.counter, tw);
+	BPF_SEQ_PRINTF(seq,
+		       "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
+		       tw->tw_substate, 0, 0, 3, log->tm_when, 0, 0, 0, 0,
+		       tw->tw_refcnt.refs.counter, tw);
 #endif
 	return 0;
 }
 
-static int dump_tcp6_request(
-	struct seq_file *seq,
-	struct tcp_request_sock *treq,
-	uid_t uid,
-	u32 seq_num,
-	struct BpfData *log)
+static int dump_tcp6_request(struct seq_file *seq,
+			     struct tcp_request_sock *treq, uid_t uid,
+			     u32 seq_num, struct BpfData *log)
 {
 	struct inet_request_sock *irsk = &treq->req;
 	struct request_sock *req = &irsk->req;
@@ -843,16 +782,14 @@ static int dump_tcp6_request(
 
 #if ITER_PASS_STRING == 1
 	BPF_SEQ_PRINTF(seq, "%4d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ",
-				   seq_num,
-				   src->s6_addr32[0], src->s6_addr32[1],
-				   src->s6_addr32[2], src->s6_addr32[3],
-				   log->lport,
-				   dest->s6_addr32[0], dest->s6_addr32[1],
-				   dest->s6_addr32[2], dest->s6_addr32[3],
-				   log->rport);
-	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
-				   TCP_SYN_RECV, 0, 0, 1, log->tm_when,
-				   log->retrnsmt, uid, 0, 0, 0, req);
+		       seq_num, src->s6_addr32[0], src->s6_addr32[1],
+		       src->s6_addr32[2], src->s6_addr32[3], log->lport,
+		       dest->s6_addr32[0], dest->s6_addr32[1],
+		       dest->s6_addr32[2], dest->s6_addr32[3], log->rport);
+	BPF_SEQ_PRINTF(seq,
+		       "%02X %08X:%08X %02X:%08lX %08X %5d %8d %d %d %pK\n",
+		       TCP_SYN_RECV, 0, 0, 1, log->tm_when, log->retrnsmt, uid,
+		       0, 0, 0, req);
 #endif
 	return 0;
 }
@@ -942,7 +879,8 @@ int dump_tcp(struct bpf_iter__tcp *ctx)
 		if (itws6)
 		{
 			DEBUG(0, "timewait tcp6 socket dump");
-			ret = dump_tcp6_timewait(seq, itws6, uid, seq_num, &log);
+			ret = dump_tcp6_timewait(seq, itws6, uid, seq_num,
+						 &log);
 			break;
 		}
 
@@ -1031,15 +969,14 @@ static int dump_udp_normal(struct bpf_iter__udp *ctx, struct BpfData *log)
 	seq_num = ctx->meta->seq_num;
 	if (seq_num == 0)
 		BPF_SEQ_PRINTF(seq, "%s\n", udp_titles);
-	BPF_SEQ_PRINTF(seq, "%5d: %08X:%04X %08X:%04X ",
-				   ctx->bucket, lip, lport, rip, rport);
+	BPF_SEQ_PRINTF(seq, "%5d: %08X:%04X %08X:%04X ", ctx->bucket, lip,
+		       lport, rip, rport);
 
-	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d %pK %u\n",
-				   inet->sk.sk_state,
-				   log->tx_queue, rqueue,
-				   0, 0L, 0, ctx->uid, 0, log->ino,
-				   inet->sk.sk_refcnt.refs.counter, udp_sk,
-				   log->icsk_rto);
+	BPF_SEQ_PRINTF(seq,
+		       "%02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d %pK %u\n",
+		       inet->sk.sk_state, log->tx_queue, rqueue, 0, 0L, 0,
+		       ctx->uid, 0, log->ino, inet->sk.sk_refcnt.refs.counter,
+		       udp_sk, log->icsk_rto);
 #endif
 	return 0;
 }
@@ -1104,18 +1041,16 @@ static int dump_udp6_normal(struct bpf_iter__udp *ctx, struct BpfData *log)
 	if (seq_num == 0)
 		BPF_SEQ_PRINTF(seq, "%s\n", udp6_titles);
 	BPF_SEQ_PRINTF(seq, "%5d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ",
-				   ctx->bucket,
-				   lip->s6_addr32[0], lip->s6_addr32[1],
-				   lip->s6_addr32[2], lip->s6_addr32[3], lport,
-				   rip->s6_addr32[0], rip->s6_addr32[1],
-				   rip->s6_addr32[2], rip->s6_addr32[3], rport);
+		       ctx->bucket, lip->s6_addr32[0], lip->s6_addr32[1],
+		       lip->s6_addr32[2], lip->s6_addr32[3], lport,
+		       rip->s6_addr32[0], rip->s6_addr32[1], rip->s6_addr32[2],
+		       rip->s6_addr32[3], rport);
 
-	BPF_SEQ_PRINTF(seq, "%02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d %pK %u\n",
-				   inet->sk.sk_state,
-				   log->tx_queue, rqueue,
-				   0, 0L, 0, ctx->uid, 0, log->ino,
-				   log->sk_ref, udp_sk,
-				   log->icsk_rto);
+	BPF_SEQ_PRINTF(seq,
+		       "%02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d %pK %u\n",
+		       inet->sk.sk_state, log->tx_queue, rqueue, 0, 0L, 0,
+		       ctx->uid, 0, log->ino, log->sk_ref, udp_sk,
+		       log->icsk_rto);
 #endif
 	return 0;
 }
@@ -1171,11 +1106,15 @@ static int dump_unix_normal(struct bpf_iter__unix *ctx, struct BpfData *log)
 	state = sk->sk_state;
 
 	log->log_type = LOG_UNIX;
-	log->lipv6 = (struct in6_addr){0};
+	log->lipv6 = (struct in6_addr){ 0 };
 	log->lport = 0;
-	log->ripv6 = (struct in6_addr){0};
+	log->ripv6 = (struct in6_addr){ 0 };
 	log->rport = 0;
-	log->state = sk->sk_socket ? (state == TCP_ESTABLISHED ? SS_CONNECTED : SS_UNCONNECTED) : (state == TCP_ESTABLISHED ? SS_CONNECTING : SS_DISCONNECTING);
+	log->state = sk->sk_socket ?
+			     (state == TCP_ESTABLISHED ? SS_CONNECTED :
+							 SS_UNCONNECTED) :
+			     (state == TCP_ESTABLISHED ? SS_CONNECTING :
+							 SS_DISCONNECTING);
 	log->tx_queue = 0;
 	log->rx_queue = 0;
 	log->tr = 0;
@@ -1212,10 +1151,9 @@ static int dump_unix_normal(struct bpf_iter__unix *ctx, struct BpfData *log)
 	seq_num = ctx->meta->seq_num;
 	if (seq_num == 0)
 		BPF_SEQ_PRINTF(seq, "%s\n", unix_titles);
-	BPF_SEQ_PRINTF(seq, "%pK: %08X %08X %08X %04X %02X %8lu ",
-				   unix_sk, log->sk_ref,
-				   0, log->bit_flags, log->sk_type,
-				   log->state, log->ino);
+	BPF_SEQ_PRINTF(seq, "%pK: %08X %08X %08X %04X %02X %8lu ", unix_sk,
+		       log->sk_ref, 0, log->bit_flags, log->sk_type, log->state,
+		       log->ino);
 
 	if (path)
 	{
@@ -1252,7 +1190,8 @@ SEC("iter/unix")
 int dump_unix(struct bpf_iter__unix *ctx)
 {
 	long ret;
-	char buf[sizeof(struct BpfData) + LOG_PATH_BUF_SIZE] __attribute__((aligned(8)));
+	char buf[sizeof(struct BpfData) + LOG_PATH_BUF_SIZE]
+		__attribute__((aligned(8)));
 	struct BpfData *log = (struct BpfData *)buf;
 	get_rule();
 	if (!(rule.bit_switch & SWITCH_UNX))
@@ -1275,9 +1214,8 @@ int dump_unix(struct bpf_iter__unix *ctx)
 	if (len > LOG_PATH_BUF_SIZE)
 		len = LOG_PATH_BUF_SIZE;
 	// debug for memory layout checking
-	DEBUG(0, "len: %lu logtype: %ld %d",
-		  len, (long)&log->log_type - (long)log,
-		  log->log_type);
+	DEBUG(0, "len: %lu logtype: %ld %d", len,
+	      (long)&log->log_type - (long)log, log->log_type);
 	ret = bpf_seq_write(seq, log, sizeof(*log) + len);
 	if (ret)
 	{
@@ -1295,22 +1233,22 @@ struct TaskSock
 	u32 fd;
 	char comm[16];
 	u64 ino;
-    unsigned int family; // 套接字协议族，例如 AF_INET, AF_INET6 等
-    unsigned int type;   // 套接字类型，例如 SOCK_STREAM, SOCK_DGRAM 等
+	unsigned int family; // 套接字协议族，例如 AF_INET, AF_INET6 等
+	unsigned int type; // 套接字类型，例如 SOCK_STREAM, SOCK_DGRAM 等
 	unsigned int protocol;
-    unsigned int state;  // 套接字状态，例如 TCP_ESTABLISHED, TCP_LISTEN 等
+	unsigned int state; // 套接字状态，例如 TCP_ESTABLISHED, TCP_LISTEN 等
 	union
-	{	// 本地 IP 地址，使用网络字节序
+	{ // 本地 IP 地址，使用网络字节序
 		u32 lip;
 		struct in6_addr lipv6;
 	};
 	union
-	{	// 远程 IP 地址，使用网络字节序
+	{ // 远程 IP 地址，使用网络字节序
 		u32 rip;
 		struct in6_addr ripv6;
 	};
-    short lport; // 本地端口
-    short rport; // 远端端口
+	short lport; // 本地端口
+	short rport; // 远端端口
 };
 
 SEC("iter/task_file")
@@ -1331,7 +1269,8 @@ int dump_task_ino(struct bpf_iter__task_file *ctx)
 
 	if (task->tgid != task->pid)
 	{
-		bpf_info("task->tgid: %d task->pid: %d\n", task->tgid, task->pid);
+		bpf_info("task->tgid: %d task->pid: %d\n", task->tgid,
+			 task->pid);
 		return 0;
 	}
 
@@ -1377,12 +1316,11 @@ int dump_task_ino(struct bpf_iter__task_file *ctx)
 		ts.rport = BPF_CORE_READ(sk, __sk_common.skc_dport);
 	}
 
-	DEBUG(0, "TaskSock: pid=%d comm=%s family=%u type=%u"
-		" protocol=%u state=%u lip=%u rip=%u lport=%d rport=%d",
-		ts.pid, ts.comm, ts.family,
-		ts.type, ts.protocol, ts.state,
-		ts.lip, ts.rip, ts.lport, ts.rport
-	);
+	DEBUG(0,
+	      "TaskSock: pid=%d comm=%s family=%u type=%u"
+	      " protocol=%u state=%u lip=%u rip=%u lport=%d rport=%d",
+	      ts.pid, ts.comm, ts.family, ts.type, ts.protocol, ts.state,
+	      ts.lip, ts.rip, ts.lport, ts.rport);
 	ret = bpf_seq_write(ctx->meta->seq, &ts, sizeof(ts));
 	if (ret)
 	{

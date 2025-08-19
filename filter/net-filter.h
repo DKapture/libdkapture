@@ -21,12 +21,12 @@
 #define DEBUG_NF_ALL_PKG 8
 #define DEBUG_RULE_MATCH 9
 
-#define NET_DIR_IN (unsigned int)0x100	// only concerned with incoming packets
+#define NET_DIR_IN (unsigned int)0x100 // only concerned with incoming packets
 #define NET_DIR_OUT (unsigned int)0x200 // only concerned with outgoing packets
 #define NET_DIR_MASK (unsigned int)0x300
 
 #define ETH_P_IPV6 0x86DD /* IPv6 over bluebook		*/
-#define ETH_P_IP 0x0800	  /* Internet Protocol packet	*/
+#define ETH_P_IP 0x0800 /* Internet Protocol packet	*/
 
 #define MAX_RULES_LEN 256 // must be order of 2
 
@@ -46,75 +46,76 @@ struct Configs
 
 struct ip_tuple
 {
-    // all host ending, mostly little ending
-    union
-    {
-        unsigned int sip;
-        struct in6_addr sipv6;
-    };
-    union
-    {
-        unsigned int dip;
-        struct in6_addr dipv6;
-    };
-    unsigned short sport;
-    unsigned short dport;
-    unsigned char ip_proto; // ip layer protocol
-    unsigned char tl_proto; // transport layer protocol
-    struct
-    {
-        unsigned char pkg_dir : 2; // package direction: PKG_DIR_IN: input PKG_DIR_OUT: output
-        unsigned char reseverd : 6;
-    };
-    char comm[16];
+	// all host ending, mostly little ending
+	union
+	{
+		unsigned int sip;
+		struct in6_addr sipv6;
+	};
+	union
+	{
+		unsigned int dip;
+		struct in6_addr dipv6;
+	};
+	unsigned short sport;
+	unsigned short dport;
+	unsigned char ip_proto; // ip layer protocol
+	unsigned char tl_proto; // transport layer protocol
+	struct
+	{
+		unsigned char
+			pkg_dir : 2; // package direction: PKG_DIR_IN: input PKG_DIR_OUT: output
+		unsigned char reseverd : 6;
+	};
+	char comm[16];
 };
 
 struct BpfData
 {
-    unsigned int data_len; // including protocol headers
-    int pid;
-    unsigned long long timestamp;
-    unsigned long long start_time;
-    unsigned char action;
-    struct ip_tuple tuple;
+	unsigned int data_len; // including protocol headers
+	int pid;
+	unsigned long long timestamp;
+	unsigned long long start_time;
+	unsigned char action;
+	struct ip_tuple tuple;
 };
 struct Rule
 {
-    // struct bpf_spin_lock lock;
-    struct
-    {
-        unsigned int action : 8;
-        unsigned int pkg_dir : 2;
-        unsigned int reserved : 22;
-    };
-    union
-    {
-        unsigned int sip;
-        struct in6_addr sipv6;
-    };
-    union
-    {
-        unsigned int dip;
-        struct in6_addr dipv6;
-    };
-    union
-    {
-        unsigned int sip_end;
-        struct in6_addr sipv6_end;
-    };
-    union
-    {
-        unsigned int dip_end;
-        struct in6_addr dipv6_end;
-    };
+	// struct bpf_spin_lock lock;
+	struct
+	{
+		unsigned int action : 8;
+		unsigned int pkg_dir : 2;
+		unsigned int reserved : 22;
+	};
+	union
+	{
+		unsigned int sip;
+		struct in6_addr sipv6;
+	};
+	union
+	{
+		unsigned int dip;
+		struct in6_addr dipv6;
+	};
+	union
+	{
+		unsigned int sip_end;
+		struct in6_addr sipv6_end;
+	};
+	union
+	{
+		unsigned int dip_end;
+		struct in6_addr dipv6_end;
+	};
 
-    unsigned short sport;
-    unsigned short dport;
-    unsigned short sport_end;
-    unsigned short dport_end;
-    unsigned char ip_proto;
-    unsigned char tl_proto;
-    char comm[16]; // process comm
+	unsigned short sport;
+	unsigned short dport;
+	unsigned short sport_end;
+	unsigned short dport_end;
+	unsigned char ip_proto;
+	unsigned char tl_proto;
+	char comm[16]; // process comm
 };
 
 #ifdef __cplusplus
@@ -123,14 +124,14 @@ struct Rule
 #include <vector>
 class NetFilter
 {
-public:
+    public:
 	typedef void (*LogCallback)(const BpfData &log);
 
 	/**
 	 * @brief 初始化
 	 * @param cb 日志回调函数，用于接收bpf程序产生的日志信息
 	 */
-	int init( LogCallback cb = nullptr);
+	int init(LogCallback cb = nullptr);
 	void deinit(void);
 	/**
 	 * @brief 添加规则
@@ -185,7 +186,7 @@ public:
 	 * @param fp 指向目标输出文件，为空是指向标准输出
 	 * @return 这个函数从不返回，直到有其他线程调用NetFilter.exit() 
 	 */
-	static void read_trace_pipe(FILE* fp = nullptr);
+	static void read_trace_pipe(FILE *fp = nullptr);
 	/**
 	 * @brief 完成net-monitor工作的死循环
 	 */
@@ -196,13 +197,13 @@ public:
 	void exit(void);
 	LogCallback log_cb;
 
-private:	// 私有变量，请勿修改
+    private: // 私有变量，请勿修改
 	int rules_map_fd;
 	int log_map_fd;
 	int conf_map_fd;
 	net_filter_bpf *obj;
 	std::vector<int> link_fds;
-	std::vector<struct bpf_link *>bpf_links;
+	std::vector<struct bpf_link *> bpf_links;
 	struct ring_buffer *rb = NULL;
 	unsigned int key_cnt = 1;
 	volatile bool loop_flag;
