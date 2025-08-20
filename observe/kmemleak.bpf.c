@@ -55,8 +55,12 @@ struct RuleCallBckCtx
 	int ret;
 };
 
-static long rule_filter_callback(struct bpf_map *map, const void *key,
-				 void *value, void *ctx)
+static long rule_filter_callback(
+	struct bpf_map *map,
+	const void *key,
+	void *value,
+	void *ctx
+)
 {
 	struct RuleCallBckCtx *cbctx;
 	cbctx = (struct RuleCallBckCtx *)ctx;
@@ -91,19 +95,23 @@ static int filter_pid(void)
 	return 0;
 }
 
-static void *bpf_map_lookup_or_try_init(void *map, const void *key,
-					const void *init)
+static void *
+bpf_map_lookup_or_try_init(void *map, const void *key, const void *init)
 {
 	void *val;
 	int err;
 
 	val = bpf_map_lookup_elem(map, key);
 	if (val)
+	{
 		return val;
+	}
 
 	err = bpf_map_update_elem(map, key, init, BPF_NOEXIST);
 	if (err && err != -EEXIST)
+	{
 		return 0;
+	}
 
 	return bpf_map_lookup_elem(map, key);
 }
@@ -112,13 +120,16 @@ static void update_statistics_add(u64 stack_id, u64 sz)
 {
 	union combined_alloc_info *existing_cinfo;
 
-	existing_cinfo = bpf_map_lookup_or_try_init(&combined_allocs, &stack_id,
-						    &initial_cinfo);
+	existing_cinfo =
+		bpf_map_lookup_or_try_init(&combined_allocs, &stack_id, &initial_cinfo);
 	if (!existing_cinfo)
+	{
 		return;
+	}
 
 	const union combined_alloc_info incremental_cinfo = {
-		.total_size = sz, .number_of_allocs = 1
+		.total_size = sz,
+		.number_of_allocs = 1
 	};
 
 	__sync_fetch_and_add(&existing_cinfo->bits, incremental_cinfo.bits);
@@ -137,7 +148,8 @@ static void update_statistics_del(u64 stack_id, u64 sz)
 	}
 
 	const union combined_alloc_info decremental_cinfo = {
-		.total_size = sz, .number_of_allocs = 1
+		.total_size = sz,
+		.number_of_allocs = 1
 	};
 
 	__sync_fetch_and_sub(&existing_cinfo->bits, decremental_cinfo.bits);
@@ -147,12 +159,16 @@ static int trace_alloc(size_t size, void *ctx, u64 address)
 {
 	struct alloc_info info;
 	if (size < min_size || size > max_size)
+	{
 		return 0;
+	}
 
 	if (sample_rate > 1)
 	{
 		if (bpf_ktime_get_ns() % sample_rate != 0)
+		{
 			return 0;
+		}
 	}
 
 	__builtin_memset(&info, 0, sizeof(info));
@@ -162,16 +178,18 @@ static int trace_alloc(size_t size, void *ctx, u64 address)
 	if (address != 0)
 	{
 		info.timestamp_ns = bpf_ktime_get_ns();
-		info.stack_id =
-			bpf_get_stackid(ctx, &stack_traces, stack_flags);
+		info.stack_id = bpf_get_stackid(ctx, &stack_traces, stack_flags);
 		bpf_map_update_elem(&allocs, &address, &info, BPF_ANY);
 		update_statistics_add(info.stack_id, info.size);
 	}
 
 	if (trace_all)
 	{
-		bpf_printk("alloc exited, size = %lu, result = %lx\n",
-			   info.size, address);
+		bpf_printk(
+			"alloc exited, size = %lu, result = %lx\n",
+			info.size,
+			address
+		);
 	}
 
 	return 0;
@@ -183,15 +201,20 @@ static int trace_free_enter(const void *address)
 
 	const struct alloc_info *info = bpf_map_lookup_elem(&allocs, &addr);
 	if (!info)
+	{
 		return 0;
+	}
 
 	bpf_map_delete_elem(&allocs, &addr);
 	update_statistics_del(info->stack_id, info->size);
 
 	if (trace_all)
 	{
-		bpf_printk("free entered, address = %lx, size = %lu\n", address,
-			   info->size);
+		bpf_printk(
+			"free entered, address = %lx, size = %lu\n",
+			address,
+			info->size
+		);
 	}
 
 	return 0;
@@ -204,14 +227,18 @@ int tp_kmalloc(void *ctx)
 	size_t bytes_alloc;
 
 	if (!filter_pid())
+	{
 		return 0;
+	}
 
 	struct trace_event_raw_kmalloc *args = ctx;
 	ptr = BPF_CORE_READ(args, ptr);
 	bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
 
 	if (wa_missing_free)
+	{
 		trace_free_enter(ptr);
+	}
 
 	return trace_alloc(bytes_alloc, ctx, (u64)ptr);
 }
@@ -222,7 +249,9 @@ int tp_kfree(void *ctx)
 	const void *ptr;
 
 	if (!filter_pid())
+	{
 		return 0;
+	}
 
 	struct trace_event_raw_kfree *args = ctx;
 	ptr = BPF_CORE_READ(args, ptr);
@@ -237,14 +266,18 @@ int tp_kmem_cache_alloc(void *ctx)
 	size_t bytes_alloc;
 
 	if (!filter_pid())
+	{
 		return 0;
+	}
 
 	struct trace_event_raw_kmem_cache_alloc *args = ctx;
 	ptr = BPF_CORE_READ(args, ptr);
 	bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
 
 	if (wa_missing_free)
+	{
 		trace_free_enter(ptr);
+	}
 
 	return trace_alloc(bytes_alloc, ctx, (u64)ptr);
 }
@@ -255,7 +288,9 @@ int tp_kmem_cache_free(void *ctx)
 	const void *ptr;
 
 	if (!filter_pid())
+	{
 		return 0;
+	}
 
 	struct trace_event_raw_kmem_cache_free *args = ctx;
 	ptr = BPF_CORE_READ(args, ptr);
@@ -267,7 +302,9 @@ SEC("tracepoint/kmem/mm_page_alloc")
 int tp_mm_page_alloc(struct trace_event_raw_mm_page_alloc *ctx)
 {
 	if (!filter_pid())
+	{
 		return 0;
+	}
 	return trace_alloc(page_size << ctx->order, ctx, ctx->pfn);
 }
 
@@ -275,7 +312,9 @@ SEC("tracepoint/kmem/mm_page_free")
 int tp_mm_page_free(struct trace_event_raw_mm_page_free *ctx)
 {
 	if (!filter_pid())
+	{
 		return 0;
+	}
 	return trace_free_enter((void *)ctx->pfn);
 }
 
@@ -283,7 +322,9 @@ SEC("tracepoint/percpu/percpu_alloc_percpu")
 int tp_percpu_alloc_percpu(struct trace_event_raw_percpu_alloc_percpu *ctx)
 {
 	if (!filter_pid())
+	{
 		return 0;
+	}
 	return trace_alloc(ctx->bytes_alloc, ctx, (u64)(ctx->ptr));
 }
 
@@ -291,7 +332,9 @@ SEC("tracepoint/percpu/percpu_free_percpu")
 int tp_percpu_free_percpu(struct trace_event_raw_percpu_free_percpu *ctx)
 {
 	if (!filter_pid())
+	{
 		return 0;
+	}
 	return trace_free_enter(ctx->ptr);
 }
 

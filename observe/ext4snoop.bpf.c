@@ -1165,8 +1165,13 @@ int tp_ext4_alloc_da_blocks(struct tp_ext4_alloc_da_blocks_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0, "dev: %d, ino: %lu, data_blocks: %u", ctx->dev, ctx->ino,
-	      ctx->data_blocks);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, data_blocks: %u",
+		ctx->dev,
+		ctx->ino,
+		ctx->data_blocks
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.data_blocks = ctx->data_blocks;
@@ -1189,8 +1194,13 @@ int tp_ext4_begin_ordered_truncate(struct tp_ext4_begin_ordered_truncate_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0, "dev: %d, ino: %lu, new_size: %llu", ctx->dev, ctx->ino,
-	      ctx->new_size);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, new_size: %llu",
+		ctx->dev,
+		ctx->ino,
+		ctx->new_size
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.new_size = ctx->new_size;
@@ -1213,8 +1223,14 @@ int tp_ext4_collapse_range(struct tp_ext4_collapse_range_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0, "dev: %d, ino: %lu, offset: %llu, len: %llu", ctx->dev,
-	      ctx->ino, ctx->offset, ctx->len);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, offset: %llu, len: %llu",
+		ctx->dev,
+		ctx->ino,
+		ctx->offset,
+		ctx->len
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.offset = ctx->offset;
@@ -1238,11 +1254,17 @@ int ext4_da_release_space(struct tp_ext4_da_release_space_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0,
-	      "dev: %d, ino: %lu i_blocks: %llu, freed_blocks: %d"
-	      " reserved_data_blocks: %d, mode: %d",
-	      ctx->dev, ctx->ino, ctx->i_blocks, ctx->freed_blocks,
-	      ctx->reserved_data_blocks, ctx->mode);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu i_blocks: %llu, freed_blocks: %d"
+		" reserved_data_blocks: %d, mode: %d",
+		ctx->dev,
+		ctx->ino,
+		ctx->i_blocks,
+		ctx->freed_blocks,
+		ctx->reserved_data_blocks,
+		ctx->mode
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.i_blocks = ctx->i_blocks;
@@ -1268,10 +1290,15 @@ int tp_ext4_da_reserve_space(struct tp_ext4_da_reserve_space_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0,
-	      "dev: %d, ino: %lu, i_blocks: %llu, reserved_data_blocks: %d, mode: %u",
-	      ctx->dev, ctx->ino, ctx->i_blocks, ctx->reserved_data_blocks,
-	      ctx->mode);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, i_blocks: %llu, reserved_data_blocks: %d, mode: %u",
+		ctx->dev,
+		ctx->ino,
+		ctx->i_blocks,
+		ctx->reserved_data_blocks,
+		ctx->mode
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.i_blocks = ctx->i_blocks;
@@ -1296,10 +1323,15 @@ int tp_ext4_da_write_pages(struct tp_ext4_da_write_pages_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0,
-	      "dev: %d, ino: %lu, first_page: %lu, nr_to_write: %ld, sync_mode: %d",
-	      ctx->dev, ctx->ino, ctx->first_page, ctx->nr_to_write,
-	      ctx->sync_mode);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, first_page: %lu, nr_to_write: %ld, sync_mode: %d",
+		ctx->dev,
+		ctx->ino,
+		ctx->first_page,
+		ctx->nr_to_write,
+		ctx->sync_mode
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.first_page = ctx->first_page;
@@ -1324,8 +1356,15 @@ int tp_ext4_allocate_blocks(struct tp_ext4_allocate_blocks_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0, "dev: %d, ino: %lu, block: %llu, len: %u, logical: %u",
-	      ctx->dev, ctx->ino, ctx->block, ctx->len, ctx->logical);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, block: %llu, len: %u, logical: %u",
+		ctx->dev,
+		ctx->ino,
+		ctx->block,
+		ctx->len,
+		ctx->logical
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.block = ctx->block;
@@ -1356,8 +1395,14 @@ int tp_ext4_da_write_begin(struct tp_ext4_da_write_begin_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0, "dev: %d, ino: %lu, pos: %lld, len: %u", ctx->dev, ctx->ino,
-	      ctx->pos, ctx->len);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, pos: %lld, len: %u",
+		ctx->dev,
+		ctx->ino,
+		ctx->pos,
+		ctx->len
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.pos = ctx->pos;
@@ -1381,8 +1426,15 @@ int tp_ext4_da_write_end(struct tp_ext4_da_write_end_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0, "dev: %d, ino: %lu, pos: %lld, len: %u, copied: %u", ctx->dev,
-	      ctx->ino, ctx->pos, ctx->len, ctx->copied);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, pos: %lld, len: %u, copied: %u",
+		ctx->dev,
+		ctx->ino,
+		ctx->pos,
+		ctx->len,
+		ctx->copied
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.pos = ctx->pos;
@@ -1407,8 +1459,14 @@ int tp_ext4_allocate_inode(struct tp_ext4_allocate_inode_t *ctx)
 	event.base.pid = bpf_get_current_pid_tgid() >> 32;
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
-	DEBUG(0, "dev: %d, ino: %lu, dir: %lu, mode: %o", ctx->dev, ctx->ino,
-	      ctx->dir, ctx->mode);
+	DEBUG(
+		0,
+		"dev: %d, ino: %lu, dir: %lu, mode: %o",
+		ctx->dev,
+		ctx->ino,
+		ctx->dir,
+		ctx->mode
+	);
 	event.dev = ctx->dev;
 	event.ino = ctx->ino;
 	event.dir = ctx->dir;
@@ -1426,7 +1484,8 @@ int tp_ext4_allocate_inode(struct tp_ext4_allocate_inode_t *ctx)
 
 SEC("tracepoint/ext4/ext4_da_update_reserve_space")
 int tp_ext4_da_update_reserve_space(
-	struct tp_ext4_da_update_reserve_space_t *ctx)
+	struct tp_ext4_da_update_reserve_space_t *ctx
+)
 {
 	struct ext4_da_update_reserve_space_t event = {};
 
@@ -1577,7 +1636,8 @@ int tp_ext4_es_cache_extent(struct tp_ext4_es_cache_extent_t *ctx)
 
 SEC("racepoint/ext4/es_find_extent_range_enter")
 int tp_ext4_es_find_extent_range_enter(
-	struct tp_ext4_es_find_extent_range_enter_t *ctx)
+	struct tp_ext4_es_find_extent_range_enter_t *ctx
+)
 {
 	struct ext4_es_find_extent_range_enter_t event = {};
 
@@ -1598,7 +1658,8 @@ int tp_ext4_es_find_extent_range_enter(
 
 SEC("racepoint/ext4/es_find_extent_range_exit")
 int tp_ext4_es_find_extent_range_exit(
-	struct tp_ext4_es_find_extent_range_exit_t *ctx)
+	struct tp_ext4_es_find_extent_range_exit_t *ctx
+)
 {
 	struct ext4_es_find_extent_range_exit_t event = {};
 
@@ -1622,7 +1683,8 @@ int tp_ext4_es_find_extent_range_exit(
 
 SEC("racepoint/ext4/es_insert_delayed_block")
 int tp_ext4_es_insert_delayed_block(
-	struct tp_ext4_es_insert_delayed_block_t *ctx)
+	struct tp_ext4_es_insert_delayed_block_t *ctx
+)
 {
 	struct ext4_es_insert_delayed_block_t event = {};
 
@@ -1837,7 +1899,8 @@ int tp_ext4_evict_inode(struct tp_ext4_evict_inode_t *ctx)
 
 SEC("racepoint/ext4/ext_convert_to_initialized_enter")
 int tp_ext4_ext_convert_to_initialized_enter(
-	struct tp_ext4_ext_convert_to_initialized_enter_t *ctx)
+	struct tp_ext4_ext_convert_to_initialized_enter_t *ctx
+)
 {
 	struct ext4_ext_convert_to_initialized_enter_t event = {};
 
@@ -1862,7 +1925,8 @@ int tp_ext4_ext_convert_to_initialized_enter(
 
 SEC("racepoint/ext4/ext_convert_to_initialized_fastpath")
 int tp_ext4_ext_convert_to_initialized_fastpath(
-	struct tp_ext4_ext_convert_to_initialized_fastpath_t *ctx)
+	struct tp_ext4_ext_convert_to_initialized_fastpath_t *ctx
+)
 {
 	struct ext4_ext_convert_to_initialized_fastpath_t event = {};
 
@@ -1890,7 +1954,8 @@ int tp_ext4_ext_convert_to_initialized_fastpath(
 
 SEC("racepoint/ext4/ext_handle_unwritten_extents")
 int tp_ext4_ext_handle_unwritten_extents(
-	struct tp_ext4_ext_handle_unwritten_extents_t *ctx)
+	struct tp_ext4_ext_handle_unwritten_extents_t *ctx
+)
 {
 	struct ext4_ext_handle_unwritten_extents_t event = {};
 
@@ -2520,7 +2585,8 @@ int tp_ext4_fsmap_mapping(struct tp_ext4_fsmap_mapping_t *ctx)
 
 SEC("racepoint/ext4/get_implied_cluster_alloc_exit")
 int tp_ext4_get_implied_cluster_alloc_exit(
-	struct tp_ext4_get_implied_cluster_alloc_exit_t *ctx)
+	struct tp_ext4_get_implied_cluster_alloc_exit_t *ctx
+)
 {
 	struct ext4_get_implied_cluster_alloc_exit_t event = {};
 
@@ -2770,7 +2836,8 @@ int tp_ext4_journal_start_sb(struct tp_ext4_journal_start_sb_t *ctx)
 
 SEC("racepoint/ext4/journalled_invalidate_folio")
 int tp_ext4_journalled_invalidate_folio(
-	struct tp_ext4_journalled_invalidate_folio_t *ctx)
+	struct tp_ext4_journalled_invalidate_folio_t *ctx
+)
 {
 	struct ext4_journalled_invalidate_folio_t event = {};
 
@@ -2930,7 +2997,8 @@ int tp_ext4_mb_buddy_bitmap_load(struct tp_ext4_mb_buddy_bitmap_load_t *ctx)
 
 SEC("racepoint/ext4/mb_discard_preallocations")
 int tp_ext4_mb_discard_preallocations(
-	struct tp_ext4_mb_discard_preallocations_t *ctx)
+	struct tp_ext4_mb_discard_preallocations_t *ctx
+)
 {
 	struct ext4_mb_discard_preallocations_t event = {};
 
@@ -3162,7 +3230,8 @@ int tp_ext4_nfs_commit_metadata(struct tp_ext4_nfs_commit_metadata_t *ctx)
 
 SEC("racepoint/ext4/other_inode_update_time")
 int tp_ext4_other_inode_update_time(
-	struct tp_ext4_other_inode_update_time_t *ctx)
+	struct tp_ext4_other_inode_update_time_t *ctx
+)
 {
 	struct ext4_other_inode_update_time_t event = {};
 

@@ -55,8 +55,8 @@ struct
 	__uint(max_entries, 1024 * 1024); // 1 MB
 } logs SEC(".maps");
 
-static void audit_log(uid_t uid, pid_t pid, int is_binary,
-		      struct Target *target)
+static void
+audit_log(uid_t uid, pid_t pid, int is_binary, struct Target *target)
 {
 	struct BpfData log;
 	log.uid = uid;
@@ -77,8 +77,8 @@ struct Event
 	struct Target *target;
 };
 
-static long match_callback(struct bpf_map *map, const void *key, void *value,
-			   void *ctx)
+static long
+match_callback(struct bpf_map *map, const void *key, void *value, void *ctx)
 {
 	struct Event *event = ctx;
 	struct Rule *rule = value;
@@ -89,7 +89,7 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 		return 1;
 	}
 	if (rule->target.dev == event->target->dev &&
-	    rule->target.ino == event->target->ino)
+		rule->target.ino == event->target->ino)
 	{
 		event->allow = true;
 		return 1;
@@ -122,44 +122,72 @@ static int check_permission(const struct dentry *d, int is_binary)
 	pid_t pid = bpf_get_current_pid_tgid() & 0xffffffff;
 
 	if (rules_filter(&target, uid))
+	{
 		return 0;
+	}
 	if (rules_filter(&parent_target, uid))
+	{
 		return 0;
+	}
 
 	audit_log(uid, pid, is_binary, &target);
 	return -EACCES;
 }
 
 SEC("lsm/mmap_file")
-int BPF_PROG(mmap_file, struct file *file, unsigned long reqprot,
-	     unsigned long prot, unsigned long flags, int ret)
+int BPF_PROG(
+	mmap_file,
+	struct file *file,
+	unsigned long reqprot,
+	unsigned long prot,
+	unsigned long flags,
+	int ret
+)
 {
 	if (ret)
+	{
 		return ret;
+	}
 	if (file && (prot & PROT_EXEC) && (flags & MAP_PRIVATE))
+	{
 		return check_permission(file->f_path.dentry, 1);
+	}
 	else
+	{
 		return 0;
+	}
 }
 
 SEC("lsm/bprm_creds_for_exec")
 int BPF_PROG(bprm_creds_for_exec, struct linux_binprm *bprm, int ret)
 {
 	if (ret)
+	{
 		return ret;
+	}
 	if (bprm && bprm->file)
+	{
 		return check_permission(bprm->file->f_path.dentry, 0);
+	}
 	else
+	{
 		return 0;
+	}
 }
 
 SEC("lsm/bprm_check_security")
 int BPF_PROG(bprm_check_security, struct linux_binprm *bprm, int ret)
 {
 	if (ret)
+	{
 		return ret;
+	}
 	if (bprm && bprm->file)
+	{
 		return check_permission(bprm->file->f_path.dentry, 0);
+	}
 	else
+	{
 		return 0;
+	}
 }

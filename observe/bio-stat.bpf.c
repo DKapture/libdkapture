@@ -157,8 +157,7 @@ static int __trace_pid_start(struct hash_key key)
 SEC("fentry")
 int BPF_PROG(trace_pid_start, struct request *req)
 {
-	struct hash_key key = { .dev = ddevt(req->q->disk),
-				.sector = req->__sector };
+	struct hash_key key = {.dev = ddevt(req->q->disk), .sector = req->__sector};
 
 	return __trace_pid_start(key);
 }
@@ -166,7 +165,7 @@ int BPF_PROG(trace_pid_start, struct request *req)
 SEC("tracepoint/block/block_io_start")
 int trace_pid_start_tp(struct tp_args *args)
 {
-	struct hash_key key = { .dev = args->dev, .sector = args->sector };
+	struct hash_key key = {.dev = args->dev, .sector = args->sector};
 
 	return __trace_pid_start(key);
 }
@@ -176,11 +175,12 @@ SEC("fentry/blk_mq_start_request")
 int BPF_PROG(trace_req_start, struct request *req)
 {
 	long ret;
-	struct hash_key key = { .dev = ddevt(req->q->disk),
-				.sector = req->__sector };
-	struct start_req_t start_req = { .ts = bpf_ktime_get_ns(),
-					 .data_len = req->__data_len,
-					 .cmd_flags = req->cmd_flags };
+	struct hash_key key = {.dev = ddevt(req->q->disk), .sector = req->__sector};
+	struct start_req_t start_req = {
+		.ts = bpf_ktime_get_ns(),
+		.data_len = req->__data_len,
+		.cmd_flags = req->cmd_flags
+	};
 	ret = bpf_map_update_elem(&start, &key, &start_req, BPF_ANY);
 	if (ret)
 	{
@@ -194,7 +194,9 @@ static int rule_filter(pid_t pid, const char *comm, dev_t dev)
 	struct Rule *rule = get_rule();
 
 	if (!rule)
+	{
 		return 1;
+	}
 
 	if (rule->pid && pid != rule->pid)
 	{
@@ -319,8 +321,7 @@ static int __trace_req_completion(struct hash_key key)
 SEC("fexit")
 int trace_req_completion(struct pt_regs *ctx, struct request *req)
 {
-	struct hash_key key = { .dev = ddevt(req->q->disk),
-				.sector = req->__sector };
+	struct hash_key key = {.dev = ddevt(req->q->disk), .sector = req->__sector};
 
 	return __trace_req_completion(key);
 }
@@ -328,7 +329,7 @@ int trace_req_completion(struct pt_regs *ctx, struct request *req)
 SEC("tracepoint/block/block_io_done")
 int trace_req_completion_tp(struct tp_args *args)
 {
-	struct hash_key key = { .dev = args->dev, .sector = args->sector };
+	struct hash_key key = {.dev = args->dev, .sector = args->sector};
 
 	return __trace_req_completion(key);
 }
@@ -383,8 +384,12 @@ struct
 } start2 SEC(".maps");
 
 SEC("tp_btf/block_rq_complete")
-int BPF_PROG(block_rq_complete, struct request *rq, int error,
-	     unsigned int nr_bytes)
+int BPF_PROG(
+	block_rq_complete,
+	struct request *rq,
+	int error,
+	unsigned int nr_bytes
+)
 {
 	long ret;
 	u64 ts = bpf_ktime_get_ns();
@@ -416,17 +421,20 @@ int BPF_PROG(block_rq_complete, struct request *rq, int error,
 	}
 	else
 	{
-		__builtin_memcpy(&event.comm, piddatap->comm,
-				 sizeof(event.comm));
+		__builtin_memcpy(&event.comm, piddatap->comm, sizeof(event.comm));
 		event.pid = piddatap->pid;
 	}
 	event.delta = delta;
 	if (BPF_CORE_READ(rq, q, elevator))
 	{
 		if (!stagep->insert)
+		{
 			event.qdelta = -1; /* missed or don't insert entry */
+		}
 		else
+		{
 			event.qdelta = stagep->issue - stagep->insert;
+		}
 	}
 	event.ts = ts;
 	event.sector = BPF_CORE_READ(rq, __sector);
@@ -439,8 +447,13 @@ int BPF_PROG(block_rq_complete, struct request *rq, int error,
 		goto cleanup;
 	}
 
-	ret = bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
-				    sizeof(event));
+	ret = bpf_perf_event_output(
+		ctx,
+		&events,
+		BPF_F_CURRENT_CPU,
+		&event,
+		sizeof(event)
+	);
 
 	if (ret)
 	{
@@ -449,8 +462,15 @@ int BPF_PROG(block_rq_complete, struct request *rq, int error,
 
 	if (event.qdelta == -1)
 	{
-		DEBUG(0, "ts:%lu sec:%lu len:%lu cmd:%u dev%u", event.ts,
-		      event.sector, event.len, event.cmd_flags, event.dev);
+		DEBUG(
+			0,
+			"ts:%lu sec:%lu len:%lu cmd:%u dev%u",
+			event.ts,
+			event.sector,
+			event.len,
+			event.cmd_flags,
+			event.dev
+		);
 	}
 	DEBUG(0, "BIO data perf reached");
 
@@ -468,7 +488,9 @@ static int trace_rq_start(struct request *rq, bool insert)
 
 	stagep = bpf_map_lookup_elem(&start2, &rq);
 	if (!stagep)
+	{
 		stagep = &stage;
+	}
 
 	if (insert)
 	{
@@ -482,9 +504,11 @@ static int trace_rq_start(struct request *rq, bool insert)
 	if (stagep == &stage)
 	{
 		disk = get_disk(rq);
-		stage.dev = disk ? MKDEV(BPF_CORE_READ(disk, major),
-					 BPF_CORE_READ(disk, first_minor)) :
-				   0;
+		stage.dev = disk ? MKDEV(
+							   BPF_CORE_READ(disk, major),
+							   BPF_CORE_READ(disk, first_minor)
+						   )
+						 : 0;
 		bpf_map_update_elem(&start2, &rq, stagep, 0);
 	}
 

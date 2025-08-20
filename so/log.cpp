@@ -3,19 +3,25 @@
 void Log::set_level(int level)
 {
 	if (level < ERROR || level > MAX)
+	{
 		level = WARN;
+	}
 	m_level = level;
 }
 void Log::set_file(FILE *file)
 {
 	if (file == nullptr)
+	{
 		file = stderr;
+	}
 	m_file = file;
 }
 void Log::info(const char *fmt, ...)
 {
 	if (m_level < INFO)
+	{
 		return;
+	}
 	va_list args;
 	va_start(args, fmt);
 	vfprintf(m_file, fmt, args);
@@ -24,7 +30,9 @@ void Log::info(const char *fmt, ...)
 void Log::debug(const char *fmt, ...)
 {
 	if (m_level < DEBUG)
+	{
 		return;
+	}
 	va_list args;
 	va_start(args, fmt);
 	vfprintf(m_file, fmt, args);
@@ -33,7 +41,9 @@ void Log::debug(const char *fmt, ...)
 void Log::warn(const char *fmt, ...)
 {
 	if (m_level < WARN)
+	{
 		return;
+	}
 	va_list args;
 	va_start(args, fmt);
 	vfprintf(m_file, fmt, args);

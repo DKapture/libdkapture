@@ -22,7 +22,7 @@ struct rcu_event
 		struct
 		{
 			char rcuname[16]; // rcu_stall_warning的rcuname字段
-			char msg[64]; // rcu_stall_warning的msg字段
+			char msg[64];	  // rcu_stall_warning的msg字段
 		} stall;
 	};
 };
@@ -66,13 +66,19 @@ static struct rcu_filter *get_filter(void)
 static bool should_trace(struct rcu_filter *filter, u32 pid, u32 cpu)
 {
 	if (!filter || !filter->enabled)
+	{
 		return true;
+	}
 
 	if (filter->target_pid && filter->target_pid != pid)
+	{
 		return false;
+	}
 
 	if (filter->target_cpu && filter->target_cpu != cpu)
+	{
 		return false;
+	}
 
 	return true;
 }
@@ -86,15 +92,20 @@ int trace_rcu_utilization(struct trace_event_raw_rcu_utilization *ctx)
 	u32 cpu = bpf_get_smp_processor_id();
 
 	if (!should_trace(filter, pid, cpu))
+	{
 		return 0;
+	}
 
 	if (filter && !filter->monitor_utilization)
+	{
 		return 0;
+	}
 
-	struct rcu_event *event =
-		bpf_ringbuf_reserve(&events, sizeof(*event), 0);
+	struct rcu_event *event = bpf_ringbuf_reserve(&events, sizeof(*event), 0);
 	if (!event)
+	{
 		return 0;
+	}
 
 	event->timestamp = bpf_ktime_get_ns();
 	event->pid = pid;
@@ -117,15 +128,20 @@ int trace_rcu_stall_warning(struct trace_event_raw_rcu_stall_warning *ctx)
 	u32 cpu = bpf_get_smp_processor_id();
 
 	if (!should_trace(filter, pid, cpu))
+	{
 		return 0;
+	}
 
 	if (filter && !filter->monitor_stall)
+	{
 		return 0;
+	}
 
-	struct rcu_event *event =
-		bpf_ringbuf_reserve(&events, sizeof(*event), 0);
+	struct rcu_event *event = bpf_ringbuf_reserve(&events, sizeof(*event), 0);
 	if (!event)
+	{
 		return 0;
+	}
 
 	event->timestamp = bpf_ktime_get_ns();
 	event->pid = pid;
@@ -133,10 +149,12 @@ int trace_rcu_stall_warning(struct trace_event_raw_rcu_stall_warning *ctx)
 	event->event_type = 1; // stall_warning
 
 	// 从tracepoint中提取rcuname和msg字段
-	bpf_probe_read_str(event->stall.rcuname, sizeof(event->stall.rcuname),
-			   ctx->rcuname);
-	bpf_probe_read_str(event->stall.msg, sizeof(event->stall.msg),
-			   ctx->msg);
+	bpf_probe_read_str(
+		event->stall.rcuname,
+		sizeof(event->stall.rcuname),
+		ctx->rcuname
+	);
+	bpf_probe_read_str(event->stall.msg, sizeof(event->stall.msg), ctx->msg);
 
 	bpf_ringbuf_submit(event, 0);
 	return 0;

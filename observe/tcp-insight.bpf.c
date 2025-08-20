@@ -48,11 +48,11 @@ struct
 } global_stats SEC(".maps");
 
 /* Helper functions */
-static __always_inline __u64 generate_conn_id(__u32 saddr, __u16 sport,
-					      __u32 daddr, __u16 dport)
+static __always_inline __u64
+generate_conn_id(__u32 saddr, __u16 sport, __u32 daddr, __u16 dport)
 {
-	return ((__u64)saddr << 32) | ((__u64)sport << 16) |
-	       ((__u64)daddr >> 16) | dport;
+	return ((__u64)saddr << 32) | ((__u64)sport << 16) | ((__u64)daddr >> 16) |
+		   dport;
 }
 
 static __always_inline bool should_trace_pid(__u32 pid)
@@ -62,29 +62,41 @@ static __always_inline bool should_trace_pid(__u32 pid)
 
 	rule = bpf_map_lookup_elem(&rules_map, &key);
 	if (!rule)
+	{
 		return true;
+	}
 
 	return rule->pid == 0 || rule->pid == pid;
 }
 
-static __always_inline bool should_trace_addr(__u32 saddr, __u32 daddr,
-					      __u16 sport, __u16 dport)
+static __always_inline bool
+should_trace_addr(__u32 saddr, __u32 daddr, __u16 sport, __u16 dport)
 {
 	struct tcp_filter_rule *rule;
 	__u32 key = 0;
 
 	rule = bpf_map_lookup_elem(&rules_map, &key);
 	if (!rule)
+	{
 		return true;
+	}
 
 	if (rule->addr.ipv4.saddr && rule->addr.ipv4.saddr != saddr)
+	{
 		return false;
+	}
 	if (rule->addr.ipv4.daddr && rule->addr.ipv4.daddr != daddr)
+	{
 		return false;
+	}
 	if (rule->sport && rule->sport != sport)
+	{
 		return false;
+	}
 	if (rule->dport && rule->dport != dport)
+	{
 		return false;
+	}
 
 	return true;
 }
@@ -96,7 +108,9 @@ static __always_inline void update_global_stats(enum tcp_event_type type)
 
 	stats = bpf_map_lookup_elem(&global_stats, &key);
 	if (!stats)
+	{
 		return;
+	}
 
 	__sync_fetch_and_add(&stats->total_events, 1);
 
@@ -154,7 +168,9 @@ int trace_inet_sock_set_state(struct tp_inet_sock_set_state *ctx)
 
 	/* Filter by protocol - only TCP */
 	if (ctx->protocol != IPPROTO_TCP)
+	{
 		return 0;
+	}
 
 	/* Extract address info */
 	__u32 saddr = 0, daddr = 0;
@@ -166,9 +182,13 @@ int trace_inet_sock_set_state(struct tp_inet_sock_set_state *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -199,8 +219,7 @@ int trace_inet_sock_set_state(struct tp_inet_sock_set_state *ctx)
 
 	/* Update connection tracking */
 	__u64 conn_id = generate_conn_id(saddr, ctx->sport, daddr, ctx->dport);
-	struct tcp_connection *conn =
-		bpf_map_lookup_elem(&connections, &conn_id);
+	struct tcp_connection *conn = bpf_map_lookup_elem(&connections, &conn_id);
 	if (!conn)
 	{
 		struct tcp_connection new_conn = {};
@@ -208,8 +227,7 @@ int trace_inet_sock_set_state(struct tp_inet_sock_set_state *ctx)
 		new_conn.start_time = event.timestamp;
 		new_conn.last_seen = event.timestamp;
 		new_conn.pid = pid;
-		__builtin_memcpy(new_conn.comm, event.comm,
-				 sizeof(new_conn.comm));
+		__builtin_memcpy(new_conn.comm, event.comm, sizeof(new_conn.comm));
 		new_conn.family = ctx->family;
 		new_conn.sport = event.sport;
 		new_conn.dport = event.dport;
@@ -226,8 +244,9 @@ int trace_inet_sock_set_state(struct tp_inet_sock_set_state *ctx)
 			struct tcp_global_stats *stats =
 				bpf_map_lookup_elem(&global_stats, &key);
 			if (stats)
-				__sync_fetch_and_add(&stats->connections_opened,
-						     1);
+			{
+				__sync_fetch_and_add(&stats->connections_opened, 1);
+			}
 		}
 	}
 	else
@@ -243,8 +262,9 @@ int trace_inet_sock_set_state(struct tp_inet_sock_set_state *ctx)
 			struct tcp_global_stats *stats =
 				bpf_map_lookup_elem(&global_stats, &key);
 			if (stats)
-				__sync_fetch_and_add(&stats->connections_closed,
-						     1);
+			{
+				__sync_fetch_and_add(&stats->connections_closed, 1);
+			}
 		}
 	}
 
@@ -268,9 +288,13 @@ int trace_tcp_probe(struct tp_tcp_probe *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -308,8 +332,7 @@ int trace_tcp_probe(struct tp_tcp_probe *ctx)
 
 	/* Update connection performance data */
 	__u64 conn_id = generate_conn_id(saddr, ctx->sport, daddr, ctx->dport);
-	struct tcp_connection *conn =
-		bpf_map_lookup_elem(&connections, &conn_id);
+	struct tcp_connection *conn = bpf_map_lookup_elem(&connections, &conn_id);
 	if (conn)
 	{
 		conn->snd_cwnd = ctx->snd_cwnd;
@@ -340,9 +363,13 @@ int trace_tcp_retransmit_skb(struct tp_tcp_retransmit_skb *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -373,8 +400,7 @@ int trace_tcp_retransmit_skb(struct tp_tcp_retransmit_skb *ctx)
 
 	/* Update connection retransmit count */
 	__u64 conn_id = generate_conn_id(saddr, ctx->sport, daddr, ctx->dport);
-	struct tcp_connection *conn =
-		bpf_map_lookup_elem(&connections, &conn_id);
+	struct tcp_connection *conn = bpf_map_lookup_elem(&connections, &conn_id);
 	if (conn)
 	{
 		conn->retransmits++;
@@ -402,9 +428,13 @@ int trace_tcp_send_reset(struct tp_tcp_send_reset *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -436,8 +466,7 @@ int trace_tcp_send_reset(struct tp_tcp_send_reset *ctx)
 
 	/* Update connection reset count */
 	__u64 conn_id = generate_conn_id(saddr, ctx->sport, daddr, ctx->dport);
-	struct tcp_connection *conn =
-		bpf_map_lookup_elem(&connections, &conn_id);
+	struct tcp_connection *conn = bpf_map_lookup_elem(&connections, &conn_id);
 	if (conn)
 	{
 		conn->resets_sent++;
@@ -465,9 +494,13 @@ int trace_tcp_receive_reset(struct tp_tcp_receive_reset *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -499,8 +532,7 @@ int trace_tcp_receive_reset(struct tp_tcp_receive_reset *ctx)
 
 	/* Update connection reset count */
 	__u64 conn_id = generate_conn_id(saddr, ctx->sport, daddr, ctx->dport);
-	struct tcp_connection *conn =
-		bpf_map_lookup_elem(&connections, &conn_id);
+	struct tcp_connection *conn = bpf_map_lookup_elem(&connections, &conn_id);
 	if (conn)
 	{
 		conn->resets_received++;
@@ -520,11 +552,15 @@ int trace_sock_send_length(struct tp_sock_send_length *ctx)
 
 	/* Filter by protocol - only TCP */
 	if (ctx->protocol != IPPROTO_TCP)
+	{
 		return 0;
+	}
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -553,11 +589,15 @@ int trace_sock_recv_length(struct tp_sock_recv_length *ctx)
 
 	/* Filter by protocol - only TCP */
 	if (ctx->protocol != IPPROTO_TCP)
+	{
 		return 0;
+	}
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -594,9 +634,13 @@ int trace_tcp_destroy_sock(struct tp_tcp_destroy_sock *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -648,9 +692,13 @@ int trace_tcp_cong_state_set(struct tp_tcp_cong_state_set *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -698,9 +746,13 @@ int trace_tcp_rcv_space_adjust(struct tp_tcp_rcv_space_adjust *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 	if (!should_trace_addr(saddr, daddr, ctx->sport, ctx->dport))
+	{
 		return 0;
+	}
 
 	/* Fill event */
 	event.timestamp = bpf_ktime_get_ns();
@@ -744,7 +796,9 @@ int trace_tcp_send(struct pt_regs *ctx)
 	__u32 pid = bpf_get_current_pid_tgid() >> 32;
 
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 
 	event.timestamp = bpf_ktime_get_ns();
 	event.pid = pid;
@@ -770,7 +824,9 @@ int trace_tcp_receive(struct pt_regs *ctx)
 	__u32 pid = bpf_get_current_pid_tgid() >> 32;
 
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 
 	event.timestamp = bpf_ktime_get_ns();
 	event.pid = pid;
@@ -795,7 +851,9 @@ int trace_tcp_retransmit(struct pt_regs *ctx)
 	__u32 pid = bpf_get_current_pid_tgid() >> 32;
 
 	if (!should_trace_pid(pid))
+	{
 		return 0;
+	}
 
 	event.timestamp = bpf_ktime_get_ns();
 	event.pid = pid;

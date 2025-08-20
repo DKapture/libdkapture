@@ -86,19 +86,19 @@ struct net_event
 	uint32_t flags;
 
 	// 新增L3层信息
-	uint8_t ip_version; // 4 or 6
-	uint32_t src_ip; // IPv4源地址
-	uint32_t dst_ip; // IPv4目标地址
+	uint8_t ip_version;	 // 4 or 6
+	uint32_t src_ip;	 // IPv4源地址
+	uint32_t dst_ip;	 // IPv4目标地址
 	uint8_t ip_protocol; // TCP/UDP/ICMP等
-	uint8_t tos; // Type of Service
-	uint8_t ttl; // Time to Live
+	uint8_t tos;		 // Type of Service
+	uint8_t ttl;		 // Time to Live
 
 	// 新增L4层信息
-	uint16_t src_port; // 源端口
-	uint16_t dst_port; // 目标端口
-	uint16_t tcp_flags; // TCP标志位
-	uint32_t seq_num; // TCP序列号
-	uint32_t ack_num; // TCP确认号
+	uint16_t src_port;	  // 源端口
+	uint16_t dst_port;	  // 目标端口
+	uint16_t tcp_flags;	  // TCP标志位
+	uint32_t seq_num;	  // TCP序列号
+	uint32_t ack_num;	  // TCP确认号
 	uint16_t window_size; // TCP窗口大小
 };
 
@@ -115,10 +115,10 @@ struct net_rule
 
 	// 新增过滤字段
 	uint8_t l4_protocol_filter; // 0=all, 1=tcp, 2=udp, 3=icmp
-	uint16_t port_filter; // 0=all, >0=specific port
-	uint32_t ip_filter; // 0=all, >0=specific IP
-	bool show_details; // 是否显示协议详细信息
-	bool show_stats; // 是否显示协议统计信息
+	uint16_t port_filter;		// 0=all, >0=specific port
+	uint32_t ip_filter;			// 0=all, >0=specific IP
+	bool show_details;			// 是否显示协议详细信息
+	bool show_stats;			// 是否显示协议统计信息
 } rule;
 
 static net_snoop_bpf *obj;
@@ -127,22 +127,23 @@ static int filter_fd;
 static int interval = 1;
 static std::atomic<bool> exit_flag(false);
 
-static struct option lopts[] = { { "pid", required_argument, 0, 'p' },
-				 { "comm", required_argument, 0, 'c' },
-				 { "dev", required_argument, 0, 'd' },
-				 { "min-len", required_argument, 0, 'm' },
-				 { "max-len", required_argument, 0, 'M' },
-				 { "protocol", required_argument, 0, 'P' },
-				 { "events", required_argument, 0, 'e' },
-				 { "interval", required_argument, 0, 'i' },
-				 { "protocol-filter", required_argument, 0,
-				   'f' },
-				 { "port-filter", required_argument, 0, 'o' },
-				 { "ip-filter", required_argument, 0, 'a' },
-				 { "show-details", no_argument, 0, 's' },
-				 { "protocol-stats", no_argument, 0, 't' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"pid",			 required_argument, 0, 'p'},
+	{"comm",			 required_argument, 0, 'c'},
+	{"dev",			 required_argument, 0, 'd'},
+	{"min-len",			required_argument, 0, 'm'},
+	{"max-len",			required_argument, 0, 'M'},
+	{"protocol",		 required_argument, 0, 'P'},
+	{"events",		   required_argument, 0, 'e'},
+	{"interval",		 required_argument, 0, 'i'},
+	{"protocol-filter", required_argument, 0, 'f'},
+	{"port-filter",		required_argument, 0, 'o'},
+	{"ip-filter",		  required_argument, 0, 'a'},
+	{"show-details",	 no_argument,		  0, 's'},
+	{"protocol-stats",  no_argument,		0, 't'},
+	{"help",			 no_argument,		  0, 'h'},
+	{0,				 0,				 0, 0  }
+};
 
 struct HelpMsg
 {
@@ -151,34 +152,42 @@ struct HelpMsg
 };
 
 static HelpMsg help_msg[] = {
-	{ "[pid]", "filter output by the pid\n" },
-	{ "[comm]", "filter output by the process comm.\n" },
-	{ "[dev]", "filter output by network device name (e.g., eth0, lo)\n" },
-	{ "[len]", "filter output by minimum packet length\n" },
-	{ "[len]", "filter output by maximum packet length\n" },
-	{ "[protocol]",
-	  "filter output by protocol number (e.g., 0x0800 for IPv4)\n" },
-	{ "[mask]",
-	  "event mask: 1=queue, 2=start_xmit, 4=xmit, 8=receive (default: 15=all)\n" },
-	{ "[interval]", "statistic interval\n" },
-	{ "[tcp|udp|icmp]", "filter output by L4 protocol type\n" },
-	{ "[port]", "filter output by source or destination port\n" },
-	{ "[ip]", "filter output by source or destination IP address\n" },
-	{ "", "show detailed protocol information\n" },
-	{ "", "show protocol statistics summary\n" },
-	{ "", "print this help message\n" },
+	{"[pid]",		  "filter output by the pid\n"								  },
+	{"[comm]",		   "filter output by the process comm.\n"						 },
+	{"[dev]",		  "filter output by network device name (e.g., eth0, lo)\n"   },
+	{"[len]",		  "filter output by minimum packet length\n"					},
+	{"[len]",		  "filter output by maximum packet length\n"					},
+	{"[protocol]",	   "filter output by protocol number (e.g., 0x0800 for IPv4)\n"
+	},
+	{"[mask]",
+	 "event mask: 1=queue, 2=start_xmit, 4=xmit, 8=receive (default: 15=all)\n"
+	},
+	{"[interval]",	   "statistic interval\n"										 },
+	{"[tcp|udp|icmp]", "filter output by L4 protocol type\n"						},
+	{"[port]",		   "filter output by source or destination port\n"			  },
+	{"[ip]",			 "filter output by source or destination IP address\n"		  },
+	{"",			   "show detailed protocol information\n"					   },
+	{"",			   "show protocol statistics summary\n"						 },
+	{"",			   "print this help message\n"									},
 };
 
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
-	printf("  To monitor network packet transmission events with deep protocol analysis.\n");
-	printf("  Enhanced with L3/L4 protocol parsing and application layer identification.\n\n");
+	printf("  To monitor network packet transmission events with deep protocol "
+		   "analysis.\n");
+	printf("  Enhanced with L3/L4 protocol parsing and application layer "
+		   "identification.\n\n");
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 
 	printf("\nExamples:\n");
@@ -220,8 +229,7 @@ void parse_args(int argc, char **argv)
 	rule.event_mask = 15; // 默认监控所有事件类型
 
 	std::string sopts = long_opt2short_opt(lopts);
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -266,19 +274,24 @@ void parse_args(int argc, char **argv)
 			}
 			else
 			{
-				fprintf(stderr,
+				fprintf(
+					stderr,
 					"Invalid protocol filter: %s. Must be tcp, udp, or icmp.\n",
-					optarg);
+					optarg
+				);
 				exit(-1);
 			}
 			break;
-		case 'o': {
+		case 'o':
+		{
 			long port = strtol(optarg, NULL, 10);
 			if (port <= 0 || port > 65535)
 			{
-				fprintf(stderr,
+				fprintf(
+					stderr,
 					"Invalid port number: %s. Must be between 1 and 65535.\n",
-					optarg);
+					optarg
+				);
 				exit(-1);
 			}
 			rule.port_filter = (uint16_t)port;
@@ -288,8 +301,7 @@ void parse_args(int argc, char **argv)
 			rule.ip_filter = inet_addr(optarg);
 			if (rule.ip_filter == INADDR_NONE)
 			{
-				fprintf(stderr, "Invalid IP address: %s\n",
-					optarg);
+				fprintf(stderr, "Invalid IP address: %s\n", optarg);
 				exit(-1);
 			}
 			break;
@@ -382,8 +394,8 @@ static std::string format_ip_info(const struct net_event *e)
 			return "IP: Invalid addresses";
 		}
 
-		struct in_addr src_addr = { e->src_ip };
-		struct in_addr dst_addr = { e->dst_ip };
+		struct in_addr src_addr = {e->src_ip};
+		struct in_addr dst_addr = {e->dst_ip};
 
 		char *src_str = inet_ntoa(src_addr);
 		if (!src_str)
@@ -419,8 +431,7 @@ static std::string format_ip_info(const struct net_event *e)
 		default:
 			if (e->ip_protocol > 0 && e->ip_protocol < 256)
 			{
-				result += " (Proto:" +
-					  std::to_string(e->ip_protocol) + ")";
+				result += " (Proto:" + std::to_string(e->ip_protocol) + ")";
 			}
 			else
 			{
@@ -445,8 +456,7 @@ static std::string format_ip_info(const struct net_event *e)
 	}
 	else
 	{
-		result += "Invalid IP version (" +
-			  std::to_string(e->ip_version) + ")";
+		result += "Invalid IP version (" + std::to_string(e->ip_version) + ")";
 	}
 
 	return result;
@@ -474,8 +484,8 @@ static std::string format_tcp_info(const struct net_event *e)
 	std::string result = "TCP: ";
 
 	// 端口信息
-	result += std::to_string(e->src_port) + " -> " +
-		  std::to_string(e->dst_port);
+	result +=
+		std::to_string(e->src_port) + " -> " + std::to_string(e->dst_port);
 
 	// TCP标志位信息
 	if (e->tcp_flags != 0)
@@ -484,8 +494,8 @@ static std::string format_tcp_info(const struct net_event *e)
 		bool first = true;
 
 		// 检查标志位是否在有效范围内
-		if (e->tcp_flags & ~(TCP_FLAG_SYN | TCP_FLAG_ACK |
-				     TCP_FLAG_FIN | TCP_FLAG_RST))
+		if (e->tcp_flags &
+			~(TCP_FLAG_SYN | TCP_FLAG_ACK | TCP_FLAG_FIN | TCP_FLAG_RST))
 		{
 			result += "INVALID_FLAGS";
 		}
@@ -499,21 +509,27 @@ static std::string format_tcp_info(const struct net_event *e)
 			if (e->tcp_flags & TCP_FLAG_ACK)
 			{
 				if (!first)
+				{
 					result += ",";
+				}
 				result += "ACK";
 				first = false;
 			}
 			if (e->tcp_flags & TCP_FLAG_FIN)
 			{
 				if (!first)
+				{
 					result += ",";
+				}
 				result += "FIN";
 				first = false;
 			}
 			if (e->tcp_flags & TCP_FLAG_RST)
 			{
 				if (!first)
+				{
 					result += ",";
+				}
 				result += "RST";
 				first = false;
 			}
@@ -552,8 +568,8 @@ static std::string format_udp_info(const struct net_event *e)
 	std::string result = "UDP: ";
 
 	// 端口信息
-	result += std::to_string(e->src_port) + " -> " +
-		  std::to_string(e->dst_port);
+	result +=
+		std::to_string(e->src_port) + " -> " + std::to_string(e->dst_port);
 
 	// UDP相对简单，主要显示端口信息
 	// 可以根据端口推断常见的应用协议
@@ -561,8 +577,7 @@ static std::string format_udp_info(const struct net_event *e)
 	{
 		result += " (DNS)";
 	}
-	else if (e->src_port == 67 || e->dst_port == 67 || e->src_port == 68 ||
-		 e->dst_port == 68)
+	else if (e->src_port == 67 || e->dst_port == 67 || e->src_port == 68 || e->dst_port == 68)
 	{
 		result += " (DHCP)";
 	}
@@ -584,8 +599,8 @@ static app_protocol identify_application_protocol(const struct net_event *e)
 	if (e->ip_protocol == IPPROTO_TCP)
 	{
 		// TCP协议的常见应用识别
-		if (e->src_port == 80 || e->dst_port == 80 ||
-		    e->src_port == 8080 || e->dst_port == 8080)
+		if (e->src_port == 80 || e->dst_port == 80 || e->src_port == 8080 ||
+			e->dst_port == 8080)
 		{
 			return APP_HTTP;
 		}
@@ -613,24 +628,29 @@ static app_protocol identify_application_protocol(const struct net_event *e)
 // 检查是否为HTTP流量
 static bool __attribute__((unused)) is_http_traffic(const struct net_event *e)
 {
-	return (e->ip_protocol == IPPROTO_TCP &&
-		(e->src_port == 80 || e->dst_port == 80 ||
-		 e->src_port == 8080 || e->dst_port == 8080 ||
-		 e->src_port == 443 || e->dst_port == 443));
+	return (
+		e->ip_protocol == IPPROTO_TCP &&
+		(e->src_port == 80 || e->dst_port == 80 || e->src_port == 8080 ||
+		 e->dst_port == 8080 || e->src_port == 443 || e->dst_port == 443)
+	);
 }
 
 // 检查是否为DNS流量
 static bool __attribute__((unused)) is_dns_traffic(const struct net_event *e)
 {
-	return (e->ip_protocol == IPPROTO_UDP &&
-		(e->src_port == 53 || e->dst_port == 53));
+	return (
+		e->ip_protocol == IPPROTO_UDP &&
+		(e->src_port == 53 || e->dst_port == 53)
+	);
 }
 
 // 检查是否为SSH流量
 static bool __attribute__((unused)) is_ssh_traffic(const struct net_event *e)
 {
-	return (e->ip_protocol == IPPROTO_TCP &&
-		(e->src_port == 22 || e->dst_port == 22));
+	return (
+		e->ip_protocol == IPPROTO_TCP &&
+		(e->src_port == 22 || e->dst_port == 22)
+	);
 }
 
 // 获取应用协议名称
@@ -685,18 +705,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	// L4协议过滤
 	if (rule.l4_protocol_filter != 0)
 	{
-		if (rule.l4_protocol_filter == 1 &&
-		    e->ip_protocol != IPPROTO_TCP)
+		if (rule.l4_protocol_filter == 1 && e->ip_protocol != IPPROTO_TCP)
 		{
 			return 0; // 过滤非TCP包
 		}
-		if (rule.l4_protocol_filter == 2 &&
-		    e->ip_protocol != IPPROTO_UDP)
+		if (rule.l4_protocol_filter == 2 && e->ip_protocol != IPPROTO_UDP)
 		{
 			return 0; // 过滤非UDP包
 		}
-		if (rule.l4_protocol_filter == 3 &&
-		    e->ip_protocol != IPPROTO_ICMP)
+		if (rule.l4_protocol_filter == 3 && e->ip_protocol != IPPROTO_ICMP)
 		{
 			return 0; // 过滤非ICMP包
 		}
@@ -705,8 +722,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	// 端口过滤
 	if (rule.port_filter != 0)
 	{
-		if (e->src_port != rule.port_filter &&
-		    e->dst_port != rule.port_filter)
+		if (e->src_port != rule.port_filter && e->dst_port != rule.port_filter)
 		{
 			return 0; // 过滤不匹配端口的包
 		}
@@ -729,22 +745,37 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	tm = localtime(&ct.tv_sec);
 	strftime(time_buf, sizeof(time_buf), "%H:%M:%S", tm);
 
-	printf("%-8s %-16s %-6d %-6d %-10s %-8s %-6u", time_buf, e->comm,
-	       e->pid, e->tid, event_type_str(e->event_type), e->dev_name,
-	       e->len);
+	printf(
+		"%-8s %-16s %-6d %-6d %-10s %-8s %-6u",
+		time_buf,
+		e->comm,
+		e->pid,
+		e->tid,
+		event_type_str(e->event_type),
+		e->dev_name,
+		e->len
+	);
 
 	if (e->event_type == 1)
 	{ // start_xmit 显示更多详细信息
-		printf(" %-8s Q:%-3u GSO:%-4u", protocol_str(e->protocol),
-		       e->queue_id, e->gso_size);
+		printf(
+			" %-8s Q:%-3u GSO:%-4u",
+			protocol_str(e->protocol),
+			e->queue_id,
+			e->gso_size
+		);
 		if (e->vlan_tagged)
+		{
 			printf(" VLAN:%04x", e->vlan_proto);
+		}
 	}
 	else if (e->event_type == 2)
 	{ // xmit 显示返回码和延迟
 		printf(" RC:%-2d", e->return_code);
 		if (e->flags > 0)
+		{
 			printf(" LAT:%u us", e->flags);
+		}
 	}
 
 	// 显示协议详细信息（如果启用）
@@ -775,8 +806,18 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 static void print_header()
 {
-	printf("%-8s %-16s %-6s %-6s %-10s %-8s %-6s %-20s %-12s\n", "TIME",
-	       "COMM", "PID", "TID", "EVENT", "DEV", "LEN", "DETAILS", "SKB");
+	printf(
+		"%-8s %-16s %-6s %-6s %-10s %-8s %-6s %-20s %-12s\n",
+		"TIME",
+		"COMM",
+		"PID",
+		"TID",
+		"EVENT",
+		"DEV",
+		"LEN",
+		"DETAILS",
+		"SKB"
+	);
 }
 
 int main(int argc, char *args[])
@@ -819,8 +860,12 @@ int main(int argc, char *args[])
 	}
 
 	// 设置ring buffer
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.events), handle_event, NULL,
-			      NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.events),
+		handle_event,
+		NULL,
+		NULL
+	);
 	if (!rb)
 	{
 		err = -1;

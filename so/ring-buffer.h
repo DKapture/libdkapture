@@ -11,14 +11,15 @@
 class RingBuffer
 {
 #ifdef __GTEST__
-    public:
+  public:
 #else
-    private:
+  private:
 #endif
 	long type = 0;
 	/**
-     * totle buffer size, it must be a power of 2 and a multiple of the page size
-     */
+	 * totle buffer size, it must be a power of 2 and a multiple of the page
+	 * size
+	 */
 	size_t bsz = 0;
 	int page_size;
 	union
@@ -46,7 +47,7 @@ class RingBuffer
 	SpinLock *spinlock = nullptr;
 	volatile long *rb_ref_cnt = 0;
 
-    public:
+  public:
 	RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx);
 	~RingBuffer();
 	int poll(int timeout);

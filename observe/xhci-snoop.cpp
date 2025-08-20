@@ -398,12 +398,13 @@ static struct env
 };
 
 const char *argp_program_version = "xhci-snoop 1.0";
-const char *argp_program_bug_address =
-	"https://github.com/iovisor/bcc/tree/master/libbpf-tools";
+const char *argp_program_bug_address = "https://github.com/iovisor/bcc/tree/"
+									   "master/libbpf-tools";
 const char argp_program_doc[] =
 	"Trace xHCI (USB 3.0) host controller operations.\n"
 	"\n"
-	"USAGE: xhci-snoop [-h] [-v] [-t] [-p PID] [-T TID] [-c COMM] [-D DURATION]\n"
+	"USAGE: xhci-snoop [-h] [-v] [-t] [-p PID] [-T TID] [-c COMM] [-D "
+	"DURATION]\n"
 	"\n"
 	"EXAMPLES:\n"
 	"    xhci-snoop             # trace all xHCI operations\n"
@@ -412,14 +413,13 @@ const char argp_program_doc[] =
 	"    xhci-snoop -c kworker  # only trace command containing 'kworker'\n";
 
 static const struct argp_option opts[] = {
-	{ "verbose", 'v', NULL, 0, "Verbose debug output" },
-	{ "timestamp", 't', NULL, 0, "Include timestamp on output" },
-	{ "pid", 'p', "PID", 0, "Trace process with this PID only" },
-	{ "tid", 'T', "TID", 0, "Trace thread with this TID only" },
-	{ "comm", 'c', "COMM", 0, "Trace command containing this string" },
-	{ "duration", 'D', "DURATION", 0,
-	  "Total duration of trace in seconds" },
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help" },
+	{"verbose", 'v', NULL, 0, "Verbose debug output"},
+	{"timestamp", 't', NULL, 0, "Include timestamp on output"},
+	{"pid", 'p', "PID", 0, "Trace process with this PID only"},
+	{"tid", 'T', "TID", 0, "Trace thread with this TID only"},
+	{"comm", 'c', "COMM", 0, "Trace command containing this string"},
+	{"duration", 'D', "DURATION", 0, "Total duration of trace in seconds"},
+	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help"},
 	{}
 };
 
@@ -478,11 +478,13 @@ static const struct argp argp = {
 	.doc = argp_program_doc,
 };
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -496,9 +498,17 @@ static void sig_handler(int sig)
 static void print_header()
 {
 	if (env.timestamp)
+	{
 		printf("%-14s ", "TIME(s)");
-	printf("%-16s %-7s %-7s %-20s %s\n", "COMM", "PID", "TID", "EVENT",
-	       "DETAILS");
+	}
+	printf(
+		"%-16s %-7s %-7s %-20s %s\n",
+		"COMM",
+		"PID",
+		"TID",
+		"EVENT",
+		"DETAILS"
+	);
 }
 
 static const char *get_usb_type_string(int type)
@@ -531,238 +541,479 @@ static void print_timestamp()
 static bool should_filter_event(pid_t pid, pid_t tid, const char *comm)
 {
 	if (env.target_pid && pid != env.target_pid)
+	{
 		return true;
+	}
 	if (env.target_tid && tid != env.target_tid)
+	{
 		return true;
+	}
 	if (env.target_comm && !strstr(comm, env.target_comm))
+	{
 		return true;
+	}
 	return false;
 }
 
 static void print_event_alloc_dev(struct xhci_alloc_dev_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
-	       e->comm, e->pid, e->tid, "xhci_alloc_dev", e->info, e->info2,
-	       e->tt_info, e->state);
+	printf(
+		"%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_alloc_dev",
+		e->info,
+		e->info2,
+		e->tt_info,
+		e->state
+	);
 }
 
 static void print_event_free_dev(struct xhci_free_dev_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
-	       e->comm, e->pid, e->tid, "xhci_free_dev", e->info, e->info2,
-	       e->tt_info, e->state);
+	printf(
+		"%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_free_dev",
+		e->info,
+		e->info2,
+		e->tt_info,
+		e->state
+	);
 }
 
 static void print_event_urb_enqueue(struct xhci_urb_enqueue_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s urb=0x%llx ep%d%s-%s slot=%d len=%d/%d stream=%u\n",
-	       e->comm, e->pid, e->tid, "xhci_urb_enqueue", e->urb, e->epnum,
-	       e->dir_in ? "in" : "out", get_usb_type_string(e->type),
-	       e->slot_id, e->actual, e->length, e->stream);
+	printf(
+		"%-16s %-7d %-7d %-20s urb=0x%llx ep%d%s-%s slot=%d len=%d/%d "
+		"stream=%u\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_urb_enqueue",
+		e->urb,
+		e->epnum,
+		e->dir_in ? "in" : "out",
+		get_usb_type_string(e->type),
+		e->slot_id,
+		e->actual,
+		e->length,
+		e->stream
+	);
 }
 
 static void print_event_urb_giveback(struct xhci_urb_giveback_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s urb=0x%llx ep%d%s-%s slot=%d len=%d/%d status=%d\n",
-	       e->comm, e->pid, e->tid, "xhci_urb_giveback", e->urb, e->epnum,
-	       e->dir_in ? "in" : "out", get_usb_type_string(e->type),
-	       e->slot_id, e->actual, e->length, e->status);
+	printf(
+		"%-16s %-7d %-7d %-20s urb=0x%llx ep%d%s-%s slot=%d len=%d/%d "
+		"status=%d\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_urb_giveback",
+		e->urb,
+		e->epnum,
+		e->dir_in ? "in" : "out",
+		get_usb_type_string(e->type),
+		e->slot_id,
+		e->actual,
+		e->length,
+		e->status
+	);
 }
 
 static void print_event_handle_event(struct xhci_handle_event_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s type=%u trb=0x%x,0x%x,0x%x,0x%x\n",
-	       e->comm, e->pid, e->tid, "xhci_handle_event", e->type, e->field0,
-	       e->field1, e->field2, e->field3);
+	printf(
+		"%-16s %-7d %-7d %-20s type=%u trb=0x%x,0x%x,0x%x,0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_handle_event",
+		e->type,
+		e->field0,
+		e->field1,
+		e->field2,
+		e->field3
+	);
 }
 
 static void print_event_handle_transfer(struct xhci_handle_transfer_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s type=%u trb=0x%x,0x%x,0x%x,0x%x\n",
-	       e->comm, e->pid, e->tid, "xhci_handle_transfer", e->type,
-	       e->field0, e->field1, e->field2, e->field3);
+	printf(
+		"%-16s %-7d %-7d %-20s type=%u trb=0x%x,0x%x,0x%x,0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_handle_transfer",
+		e->type,
+		e->field0,
+		e->field1,
+		e->field2,
+		e->field3
+	);
 }
 
 static void print_event_queue_trb(struct xhci_queue_trb_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s type=%u trb=0x%x,0x%x,0x%x,0x%x\n",
-	       e->comm, e->pid, e->tid, "xhci_queue_trb", e->type, e->field0,
-	       e->field1, e->field2, e->field3);
+	printf(
+		"%-16s %-7d %-7d %-20s type=%u trb=0x%x,0x%x,0x%x,0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_queue_trb",
+		e->type,
+		e->field0,
+		e->field1,
+		e->field2,
+		e->field3
+	);
 }
 
 static void print_event_setup_device(struct xhci_setup_device_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s vdev=0x%llx devnum=%d state=%d speed=%d port=%d level=%d slot=%d\n",
-	       e->comm, e->pid, e->tid, "xhci_setup_device", e->vdev, e->devnum,
-	       e->state, e->speed, e->portnum, e->level, e->slot_id);
+	printf(
+		"%-16s %-7d %-7d %-20s vdev=0x%llx devnum=%d state=%d speed=%d port=%d "
+		"level=%d slot=%d\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_setup_device",
+		e->vdev,
+		e->devnum,
+		e->state,
+		e->speed,
+		e->portnum,
+		e->level,
+		e->slot_id
+	);
 }
 
 static void print_event_ring_alloc(struct xhci_ring_alloc_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s type=%u ring=0x%llx segs=%u stream=%u cycle=%u bounce=%u\n",
-	       e->comm, e->pid, e->tid, "xhci_ring_alloc", e->type, e->ring,
-	       e->num_segs, e->stream_id, e->cycle_state, e->bounce_buf_len);
+	printf(
+		"%-16s %-7d %-7d %-20s type=%u ring=0x%llx segs=%u stream=%u cycle=%u "
+		"bounce=%u\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_ring_alloc",
+		e->type,
+		e->ring,
+		e->num_segs,
+		e->stream_id,
+		e->cycle_state,
+		e->bounce_buf_len
+	);
 }
 
 // New print functions
 static void print_event_add_endpoint(struct xhci_add_endpoint_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s info=0x%x info2=0x%x deq=0x%llx tx_info=0x%x\n",
-	       e->comm, e->pid, e->tid, "xhci_add_endpoint", e->info, e->info2,
-	       e->deq, e->tx_info);
+	printf(
+		"%-16s %-7d %-7d %-20s info=0x%x info2=0x%x deq=0x%llx tx_info=0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_add_endpoint",
+		e->info,
+		e->info2,
+		e->deq,
+		e->tx_info
+	);
 }
 
 static void print_event_address_ctx(struct xhci_address_ctx_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s ctx_64=%d type=%u dma=0x%llx va=0x%llx ep_num=%u\n",
-	       e->comm, e->pid, e->tid, "xhci_address_ctx", e->ctx_64,
-	       e->ctx_type, e->ctx_dma, e->ctx_va, e->ctx_ep_num);
+	printf(
+		"%-16s %-7d %-7d %-20s ctx_64=%d type=%u dma=0x%llx va=0x%llx "
+		"ep_num=%u\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_address_ctx",
+		e->ctx_64,
+		e->ctx_type,
+		e->ctx_dma,
+		e->ctx_va,
+		e->ctx_ep_num
+	);
 }
 
 static void
 print_event_alloc_virt_device(struct xhci_alloc_virt_device_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s vdev=0x%llx devnum=%d state=%d speed=%d port=%d level=%d slot=%d\n",
-	       e->comm, e->pid, e->tid, "xhci_alloc_virt_device", e->vdev,
-	       e->devnum, e->state, e->speed, e->portnum, e->level, e->slot_id);
+	printf(
+		"%-16s %-7d %-7d %-20s vdev=0x%llx devnum=%d state=%d speed=%d port=%d "
+		"level=%d slot=%d\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_alloc_virt_device",
+		e->vdev,
+		e->devnum,
+		e->state,
+		e->speed,
+		e->portnum,
+		e->level,
+		e->slot_id
+	);
 }
 
 static void print_event_configure_endpoint(struct xhci_slot_ctx_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
-	       e->comm, e->pid, e->tid, "xhci_configure_endpoint", e->info,
-	       e->info2, e->tt_info, e->state);
+	printf(
+		"%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_configure_endpoint",
+		e->info,
+		e->info2,
+		e->tt_info,
+		e->state
+	);
 }
 
 static void print_event_ring_free(struct xhci_ring_free_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s type=%u ring=0x%llx segs=%u stream=%u cycle=%u bounce=%u\n",
-	       e->comm, e->pid, e->tid, "xhci_ring_free", e->type, e->ring,
-	       e->num_segs, e->stream_id, e->cycle_state, e->bounce_buf_len);
+	printf(
+		"%-16s %-7d %-7d %-20s type=%u ring=0x%llx segs=%u stream=%u cycle=%u "
+		"bounce=%u\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_ring_free",
+		e->type,
+		e->ring,
+		e->num_segs,
+		e->stream_id,
+		e->cycle_state,
+		e->bounce_buf_len
+	);
 }
 
 static void print_event_inc_deq(struct xhci_inc_deq_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s type=%u ring=0x%llx enq=0x%llx deq=0x%llx segs=%u stream=%u\n",
-	       e->comm, e->pid, e->tid, "xhci_inc_deq", e->type, e->ring,
-	       e->enq, e->deq, e->num_segs, e->stream_id);
+	printf(
+		"%-16s %-7d %-7d %-20s type=%u ring=0x%llx enq=0x%llx deq=0x%llx "
+		"segs=%u stream=%u\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_inc_deq",
+		e->type,
+		e->ring,
+		e->enq,
+		e->deq,
+		e->num_segs,
+		e->stream_id
+	);
 }
 
 static void print_event_inc_enq(struct xhci_inc_enq_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s type=%u ring=0x%llx enq=0x%llx deq=0x%llx segs=%u stream=%u\n",
-	       e->comm, e->pid, e->tid, "xhci_inc_enq", e->type, e->ring,
-	       e->enq, e->deq, e->num_segs, e->stream_id);
+	printf(
+		"%-16s %-7d %-7d %-20s type=%u ring=0x%llx enq=0x%llx deq=0x%llx "
+		"segs=%u stream=%u\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_inc_enq",
+		e->type,
+		e->ring,
+		e->enq,
+		e->deq,
+		e->num_segs,
+		e->stream_id
+	);
 }
 
-static void
-print_event_ring_ep_doorbell(struct xhci_ring_ep_doorbell_event_t *e)
+static void print_event_ring_ep_doorbell(struct xhci_ring_ep_doorbell_event_t *e
+)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s slot=%u doorbell=0x%x\n", e->comm, e->pid,
-	       e->tid, "xhci_ring_ep_doorbell", e->slot, e->doorbell);
+	printf(
+		"%-16s %-7d %-7d %-20s slot=%u doorbell=0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_ring_ep_doorbell",
+		e->slot,
+		e->doorbell
+	);
 }
 
 static void print_event_urb_dequeue(struct xhci_urb_dequeue_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s urb=0x%llx ep%d%s-%s slot=%d len=%d/%d status=%d stream=%u\n",
-	       e->comm, e->pid, e->tid, "xhci_urb_dequeue", e->urb, e->epnum,
-	       e->dir_in ? "in" : "out", get_usb_type_string(e->type),
-	       e->slot_id, e->actual, e->length, e->status, e->stream);
+	printf(
+		"%-16s %-7d %-7d %-20s urb=0x%llx ep%d%s-%s slot=%d len=%d/%d "
+		"status=%d stream=%u\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_urb_dequeue",
+		e->urb,
+		e->epnum,
+		e->dir_in ? "in" : "out",
+		get_usb_type_string(e->type),
+		e->slot_id,
+		e->actual,
+		e->length,
+		e->status,
+		e->stream
+	);
 }
 
 static void print_event_dbg_address(struct xhci_dbg_address_event_t *e)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s msg=\"%s\"\n", e->comm, e->pid, e->tid,
-	       "xhci_dbg_address", e->msg);
+	printf(
+		"%-16s %-7d %-7d %-20s msg=\"%s\"\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		"xhci_dbg_address",
+		e->msg
+	);
 }
 
 // Generic print function for slot context events
-static void print_event_slot_ctx(struct xhci_slot_ctx_event_t *e,
-				 const char *event_name)
+static void
+print_event_slot_ctx(struct xhci_slot_ctx_event_t *e, const char *event_name)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
-	       e->comm, e->pid, e->tid, event_name, e->info, e->info2,
-	       e->tt_info, e->state);
+	printf(
+		"%-16s %-7d %-7d %-20s info=0x%x info2=0x%x tt_info=0x%x state=0x%x\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		event_name,
+		e->info,
+		e->info2,
+		e->tt_info,
+		e->state
+	);
 }
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
@@ -779,46 +1030,40 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		print_event_free_dev((struct xhci_free_dev_event_t *)data);
 		break;
 	case XHCI_URB_ENQUEUE:
-		print_event_urb_enqueue(
-			(struct xhci_urb_enqueue_event_t *)data);
+		print_event_urb_enqueue((struct xhci_urb_enqueue_event_t *)data);
 		break;
 	case XHCI_URB_GIVEBACK:
-		print_event_urb_giveback(
-			(struct xhci_urb_giveback_event_t *)data);
+		print_event_urb_giveback((struct xhci_urb_giveback_event_t *)data);
 		break;
 	case XHCI_HANDLE_EVENT:
-		print_event_handle_event(
-			(struct xhci_handle_event_event_t *)data);
+		print_event_handle_event((struct xhci_handle_event_event_t *)data);
 		break;
 	case XHCI_HANDLE_TRANSFER:
-		print_event_handle_transfer(
-			(struct xhci_handle_transfer_event_t *)data);
+		print_event_handle_transfer((struct xhci_handle_transfer_event_t *)data
+		);
 		break;
 	case XHCI_QUEUE_TRB:
 		print_event_queue_trb((struct xhci_queue_trb_event_t *)data);
 		break;
 	case XHCI_SETUP_DEVICE:
-		print_event_setup_device(
-			(struct xhci_setup_device_event_t *)data);
+		print_event_setup_device((struct xhci_setup_device_event_t *)data);
 		break;
 	case XHCI_RING_ALLOC:
 		print_event_ring_alloc((struct xhci_ring_alloc_event_t *)data);
 		break;
 	case XHCI_ADD_ENDPOINT:
-		print_event_add_endpoint(
-			(struct xhci_add_endpoint_event_t *)data);
+		print_event_add_endpoint((struct xhci_add_endpoint_event_t *)data);
 		break;
 	case XHCI_ADDRESS_CTX:
-		print_event_address_ctx(
-			(struct xhci_address_ctx_event_t *)data);
+		print_event_address_ctx((struct xhci_address_ctx_event_t *)data);
 		break;
 	case XHCI_ALLOC_VIRT_DEVICE:
 		print_event_alloc_virt_device(
-			(struct xhci_alloc_virt_device_event_t *)data);
+			(struct xhci_alloc_virt_device_event_t *)data
+		);
 		break;
 	case XHCI_CONFIGURE_ENDPOINT:
-		print_event_configure_endpoint(
-			(struct xhci_slot_ctx_event_t *)data);
+		print_event_configure_endpoint((struct xhci_slot_ctx_event_t *)data);
 		break;
 	case XHCI_RING_FREE:
 		print_event_ring_free((struct xhci_ring_free_event_t *)data);
@@ -831,82 +1076,110 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		break;
 	case XHCI_RING_EP_DOORBELL:
 		print_event_ring_ep_doorbell(
-			(struct xhci_ring_ep_doorbell_event_t *)data);
+			(struct xhci_ring_ep_doorbell_event_t *)data
+		);
 		break;
 	case XHCI_URB_DEQUEUE:
-		print_event_urb_dequeue(
-			(struct xhci_urb_dequeue_event_t *)data);
+		print_event_urb_dequeue((struct xhci_urb_dequeue_event_t *)data);
 		break;
 	case XHCI_DBG_ADDRESS:
-		print_event_dbg_address(
-			(struct xhci_dbg_address_event_t *)data);
+		print_event_dbg_address((struct xhci_dbg_address_event_t *)data);
 		break;
 	case XHCI_SETUP_ADDRESSABLE_VIRT_DEVICE:
 		print_event_alloc_virt_device(
-			(struct xhci_alloc_virt_device_event_t *)data);
+			(struct xhci_alloc_virt_device_event_t *)data
+		);
 		break;
 	case XHCI_FREE_VIRT_DEVICE:
 		print_event_alloc_virt_device(
-			(struct xhci_alloc_virt_device_event_t *)data);
+			(struct xhci_alloc_virt_device_event_t *)data
+		);
 		break;
 	case XHCI_SETUP_DEVICE_SLOT:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_setup_device_slot");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_setup_device_slot"
+		);
 		break;
 	case XHCI_HANDLE_CMD_ADDR_DEV:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_addr_dev");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_addr_dev"
+		);
 		break;
 	case XHCI_HANDLE_CMD_CONFIG_EP:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_config_ep");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_config_ep"
+		);
 		break;
 	case XHCI_HANDLE_CMD_DISABLE_SLOT:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_disable_slot");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_disable_slot"
+		);
 		break;
 	case XHCI_HANDLE_CMD_RESET_DEV:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_reset_dev");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_reset_dev"
+		);
 		break;
 	case XHCI_HANDLE_CMD_RESET_EP:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_reset_ep");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_reset_ep"
+		);
 		break;
 	case XHCI_HANDLE_CMD_SET_DEQ:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_set_deq");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_set_deq"
+		);
 		break;
 	case XHCI_HANDLE_CMD_SET_DEQ_EP:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_set_deq_ep");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_set_deq_ep"
+		);
 		break;
 	case XHCI_HANDLE_CMD_STOP_EP:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_handle_cmd_stop_ep");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_handle_cmd_stop_ep"
+		);
 		break;
 	case XHCI_CONFIGURE_ENDPOINT_CTRL_CTX:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_configure_endpoint_ctrl_ctx");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_configure_endpoint_ctrl_ctx"
+		);
 		break;
 	case XHCI_ADDRESS_CTRL_CTX:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_address_ctrl_ctx");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_address_ctrl_ctx"
+		);
 		break;
 	case XHCI_DISCOVER_OR_RESET_DEVICE:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_discover_or_reset_device");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_discover_or_reset_device"
+		);
 		break;
 	case XHCI_STOP_DEVICE:
-		print_event_slot_ctx((struct xhci_slot_ctx_event_t *)data,
-				     "xhci_stop_device");
+		print_event_slot_ctx(
+			(struct xhci_slot_ctx_event_t *)data,
+			"xhci_stop_device"
+		);
 		break;
 	case XHCI_RING_EXPANSION:
 		print_event_ring_free((struct xhci_ring_free_event_t *)data);
 		break;
 	case XHCI_RING_HOST_DOORBELL:
 		print_event_ring_ep_doorbell(
-			(struct xhci_ring_ep_doorbell_event_t *)data);
+			(struct xhci_ring_ep_doorbell_event_t *)data
+		);
 		break;
 	case XHCI_DBG_CANCEL_URB:
 	case XHCI_DBG_CONTEXT_CHANGE:
@@ -914,24 +1187,19 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	case XHCI_DBG_QUIRKS:
 	case XHCI_DBG_RESET_EP:
 	case XHCI_DBG_RING_EXPANSION:
-		print_event_dbg_address(
-			(struct xhci_dbg_address_event_t *)data);
+		print_event_dbg_address((struct xhci_dbg_address_event_t *)data);
 		break;
 	case XHCI_HANDLE_COMMAND:
-		print_event_handle_event(
-			(struct xhci_handle_event_event_t *)data);
+		print_event_handle_event((struct xhci_handle_event_event_t *)data);
 		break;
 	case XHCI_HANDLE_PORT_STATUS:
-		print_event_handle_event(
-			(struct xhci_handle_event_event_t *)data);
+		print_event_handle_event((struct xhci_handle_event_event_t *)data);
 		break;
 	case XHCI_HUB_STATUS_DATA:
-		print_event_handle_event(
-			(struct xhci_handle_event_event_t *)data);
+		print_event_handle_event((struct xhci_handle_event_event_t *)data);
 		break;
 	case XHCI_GET_PORT_STATUS:
-		print_event_handle_event(
-			(struct xhci_handle_event_event_t *)data);
+		print_event_handle_event((struct xhci_handle_event_event_t *)data);
 		break;
 	case XHCI_DBC_ALLOC_REQUEST:
 	case XHCI_DBC_FREE_REQUEST:
@@ -940,12 +1208,10 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	case XHCI_DBC_HANDLE_EVENT:
 	case XHCI_DBC_HANDLE_TRANSFER:
 	case XHCI_DBC_QUEUE_REQUEST:
-		print_event_handle_event(
-			(struct xhci_handle_event_event_t *)data);
+		print_event_handle_event((struct xhci_handle_event_event_t *)data);
 		break;
 	default:
-		printf("Unknown event type=%u size=%zu\n", *event_type,
-		       data_sz);
+		printf("Unknown event type=%u size=%zu\n", *event_type, data_sz);
 		break;
 	}
 
@@ -962,7 +1228,9 @@ int main(int argc, char **argv)
 	/* Parse command line arguments */
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	/* Set up libbpf */
 	libbpf_set_print(libbpf_print_fn);
@@ -992,8 +1260,12 @@ int main(int argc, char **argv)
 	}
 
 	/* Set up ring buffer polling */
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event,
-			      NULL, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.events),
+		handle_event,
+		NULL,
+		NULL
+	);
 	if (!rb)
 	{
 		err = -1;

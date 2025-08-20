@@ -8,15 +8,15 @@
 #include "Kstr-utils.h"
 
 _Pragma("GCC diagnostic push")
-	_Pragma("GCC diagnostic ignored \"-Wunused-function\"")
+_Pragma("GCC diagnostic ignored \"-Wunused-function\"")
 
-	/**
-	* commit 2f064a59a1 ("sched: Change task_struct::state") changes
-	* the name of task_struct::state to task_struct::__state
-	* see:
-	*     https://github.com/torvalds/linux/commit/2f064a59a1
-	*/
-	struct task_struct___o
+/**
+ * commit 2f064a59a1 ("sched: Change task_struct::state") changes
+ * the name of task_struct::state to task_struct::__state
+ * see:
+ *     https://github.com/torvalds/linux/commit/2f064a59a1
+ */
+struct task_struct___o
 {
 	volatile long int state;
 } __attribute__((preserve_access_index));
@@ -31,7 +31,9 @@ static __always_inline __s64 get_task_state(void *task)
 	struct task_struct___x *t = task;
 
 	if (bpf_core_field_exists(t->__state))
+	{
 		return BPF_CORE_READ(t, __state);
+	}
 	return BPF_CORE_READ((struct task_struct___o *)task, state);
 }
 

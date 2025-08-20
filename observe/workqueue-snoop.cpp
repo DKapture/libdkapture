@@ -110,7 +110,7 @@ static struct
 	time_t start_time;
 } stats;
 
-static const char *event_names[] = { "QUEUE", "ACTIVATE", "START", "END" };
+static const char *event_names[] = {"QUEUE", "ACTIVATE", "START", "END"};
 
 // Function to resolve kernel symbol
 static char *resolve_kernel_symbol(uint64_t addr)
@@ -133,8 +133,7 @@ static char *resolve_kernel_symbol(uint64_t addr)
 
 	while (fgets(line, sizeof(line), fp))
 	{
-		if (sscanf(line, "%" PRIx64 " %*c %255s", &sym_addr,
-			   sym_name) == 2)
+		if (sscanf(line, "%" PRIx64 " %*c %255s", &sym_addr, sym_name) == 2)
 		{
 			if (sym_addr <= addr && sym_addr > best_addr)
 			{
@@ -153,8 +152,13 @@ static char *resolve_kernel_symbol(uint64_t addr)
 		}
 		else
 		{
-			snprintf(symbol, sizeof(symbol), "%s+0x%" PRIx64,
-				 best_match, (uint64_t)(addr - best_addr));
+			snprintf(
+				symbol,
+				sizeof(symbol),
+				"%s+0x%" PRIx64,
+				best_match,
+				(uint64_t)(addr - best_addr)
+			);
 		}
 		free(best_match);
 	}
@@ -176,14 +180,25 @@ static char *format_timestamp(uint64_t ns)
 	if (env.timestamp)
 	{
 		struct tm *tm = localtime(&sec);
-		snprintf(ts_str, sizeof(ts_str), "%02d:%02d:%02d.%06" PRIu64,
-			 tm->tm_hour, tm->tm_min, tm->tm_sec,
-			 (uint64_t)(nsec / 1000));
+		snprintf(
+			ts_str,
+			sizeof(ts_str),
+			"%02d:%02d:%02d.%06" PRIu64,
+			tm->tm_hour,
+			tm->tm_min,
+			tm->tm_sec,
+			(uint64_t)(nsec / 1000)
+		);
 	}
 	else
 	{
-		snprintf(ts_str, sizeof(ts_str), "%ld.%06" PRIu64, (long)sec,
-			 (uint64_t)(nsec / 1000));
+		snprintf(
+			ts_str,
+			sizeof(ts_str),
+			"%ld.%06" PRIu64,
+			(long)sec,
+			(uint64_t)(nsec / 1000)
+		);
 	}
 
 	return ts_str;
@@ -196,8 +211,7 @@ static char *format_duration(uint64_t ns)
 
 	if (ns < 1000)
 	{
-		snprintf(dur_str, sizeof(dur_str), "%" PRIu64 "ns",
-			 (uint64_t)ns);
+		snprintf(dur_str, sizeof(dur_str), "%" PRIu64 "ns", (uint64_t)ns);
 	}
 	else if (ns < 1000000)
 	{
@@ -234,10 +248,14 @@ static void update_stats(const struct workqueue_event *e)
 		{
 			stats.queue_stats.total_delay += e->delay_ns;
 			if (stats.queue_stats.min_delay == 0 ||
-			    e->delay_ns < stats.queue_stats.min_delay)
+				e->delay_ns < stats.queue_stats.min_delay)
+			{
 				stats.queue_stats.min_delay = e->delay_ns;
+			}
 			if (e->delay_ns > stats.queue_stats.max_delay)
+			{
 				stats.queue_stats.max_delay = e->delay_ns;
+			}
 		}
 		break;
 	case WQ_EVENT_END:
@@ -245,10 +263,14 @@ static void update_stats(const struct workqueue_event *e)
 		{ // execution time
 			stats.execute_stats.total_exec_time += e->delay_ns;
 			if (stats.execute_stats.min_exec_time == 0 ||
-			    e->delay_ns < stats.execute_stats.min_exec_time)
+				e->delay_ns < stats.execute_stats.min_exec_time)
+			{
 				stats.execute_stats.min_exec_time = e->delay_ns;
+			}
 			if (e->delay_ns > stats.execute_stats.max_exec_time)
+			{
 				stats.execute_stats.max_exec_time = e->delay_ns;
+			}
 		}
 		break;
 	}
@@ -265,33 +287,39 @@ static void print_statistics()
 	printf("Total Events: %" PRIu64 "\n", (uint64_t)stats.total_events);
 	printf("\nEvent Counts:\n");
 	printf("  QUEUE:    %8" PRIu64 "\n", (uint64_t)stats.queue_stats.count);
-	printf("  ACTIVATE: %8" PRIu64 "\n",
-	       (uint64_t)stats.activate_stats.count);
-	printf("  START:    %8" PRIu64 "\n",
-	       (uint64_t)stats.execute_stats.count);
+	printf("  ACTIVATE: %8" PRIu64 "\n", (uint64_t)stats.activate_stats.count);
+	printf("  START:    %8" PRIu64 "\n", (uint64_t)stats.execute_stats.count);
 
 	if (stats.queue_stats.total_delay > 0)
 	{
 		printf("\nQueue Delays:\n");
-		printf("  Average: %s\n",
-		       format_duration(stats.queue_stats.total_delay /
-				       stats.execute_stats.count));
-		printf("  Minimum: %s\n",
-		       format_duration(stats.queue_stats.min_delay));
-		printf("  Maximum: %s\n",
-		       format_duration(stats.queue_stats.max_delay));
+		printf(
+			"  Average: %s\n",
+			format_duration(
+				stats.queue_stats.total_delay / stats.execute_stats.count
+			)
+		);
+		printf("  Minimum: %s\n", format_duration(stats.queue_stats.min_delay));
+		printf("  Maximum: %s\n", format_duration(stats.queue_stats.max_delay));
 	}
 
 	if (stats.execute_stats.total_exec_time > 0)
 	{
 		printf("\nExecution Times:\n");
-		printf("  Average: %s\n",
-		       format_duration(stats.execute_stats.total_exec_time /
-				       stats.execute_stats.count));
-		printf("  Minimum: %s\n",
-		       format_duration(stats.execute_stats.min_exec_time));
-		printf("  Maximum: %s\n",
-		       format_duration(stats.execute_stats.max_exec_time));
+		printf(
+			"  Average: %s\n",
+			format_duration(
+				stats.execute_stats.total_exec_time / stats.execute_stats.count
+			)
+		);
+		printf(
+			"  Minimum: %s\n",
+			format_duration(stats.execute_stats.min_exec_time)
+		);
+		printf(
+			"  Maximum: %s\n",
+			format_duration(stats.execute_stats.max_exec_time)
+		);
 	}
 
 	printf("\nEvent Rate: %.1f events/sec\n", stats.total_events / elapsed);
@@ -343,10 +371,16 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	if (env.json_output)
 	{
 		// JSON output format
-		printf("{\"timestamp\":\"%s\",\"pid\":%u,\"cpu\":%u,\"comm\":\"%s\","
-		       "\"event\":\"%s\",\"work\":\"0x%" PRIx64 "\"",
-		       format_timestamp(e->timestamp), e->pid, e->cpu, e->comm,
-		       event_names[e->event_type], e->work_ptr);
+		printf(
+			"{\"timestamp\":\"%s\",\"pid\":%u,\"cpu\":%u,\"comm\":\"%s\","
+			"\"event\":\"%s\",\"work\":\"0x%" PRIx64 "\"",
+			format_timestamp(e->timestamp),
+			e->pid,
+			e->cpu,
+			e->comm,
+			event_names[e->event_type],
+			e->work_ptr
+		);
 
 		if (function_name)
 		{
@@ -367,13 +401,11 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		{
 			if (e->event_type == WQ_EVENT_START)
 			{
-				printf(",\"queue_delay_ns\":%" PRIu64,
-				       e->delay_ns);
+				printf(",\"queue_delay_ns\":%" PRIu64, e->delay_ns);
 			}
 			else if (e->event_type == WQ_EVENT_END)
 			{
-				printf(",\"exec_time_ns\":%" PRIu64,
-				       e->delay_ns);
+				printf(",\"exec_time_ns\":%" PRIu64, e->delay_ns);
 			}
 		}
 
@@ -382,9 +414,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	else
 	{
 		// Human readable output
-		printf("%-18s %-6u %-3u %-16s %-8s 0x%-12" PRIx64,
-		       format_timestamp(e->timestamp), e->pid, e->cpu, e->comm,
-		       event_names[e->event_type], e->work_ptr);
+		printf(
+			"%-18s %-6u %-3u %-16s %-8s 0x%-12" PRIx64,
+			format_timestamp(e->timestamp),
+			e->pid,
+			e->cpu,
+			e->comm,
+			event_names[e->event_type],
+			e->work_ptr
+		);
 
 		if (function_name)
 		{
@@ -473,7 +511,8 @@ static void usage(const char *prog)
 	printf("    -p, --pid PID           Trace this PID only\n");
 	printf("    -c, --cpu CPU           Trace this CPU only\n");
 	printf("    -w, --workqueue NAME    Trace this workqueue only\n");
-	printf("    -f, --function FUNC     Trace functions containing this string\n");
+	printf("    -f, --function FUNC     Trace functions containing this "
+		   "string\n");
 	printf("    -d, --duration SECONDS  Duration to trace\n");
 	printf("        --timeout SECONDS   Same as --duration\n");
 	printf("    -s, --statistics        Show statistics summary only\n");
@@ -482,21 +521,21 @@ static void usage(const char *prog)
 	printf("    -v, --verbose           Verbose debug output\n");
 	printf("    -h, --help              Show this help message\n");
 	printf("\nEXAMPLES:\n");
-	printf("    %s                      # Trace all workqueue events\n",
-	       prog);
+	printf("    %s                      # Trace all workqueue events\n", prog);
 	printf("    %s -p 1234              # Trace PID 1234 only\n", prog);
 	printf("    %s -c 0                 # Trace CPU 0 only\n", prog);
-	printf("    %s -w events            # Trace 'events' workqueue only\n",
-	       prog);
-	printf("    %s -s -d 10             # Show 10 second statistics\n",
-	       prog);
+	printf(
+		"    %s -w events            # Trace 'events' workqueue only\n",
+		prog
+	);
+	printf("    %s -s -d 10             # Show 10 second statistics\n", prog);
 	printf("    %s -j                   # JSON output\n", prog);
 }
 
 // Setup filters
 static int setup_filters()
 {
-	struct filter_config cfg = { 0 };
+	struct filter_config cfg = {0};
 	int map_fd, key = 0;
 
 	// Configure filters based on command line options
@@ -515,15 +554,21 @@ static int setup_filters()
 	if (env.target_workqueue)
 	{
 		cfg.filter_workqueue = 1;
-		strncpy(cfg.target_workqueue, env.target_workqueue,
-			WORKQUEUE_NAME_LEN - 1);
+		strncpy(
+			cfg.target_workqueue,
+			env.target_workqueue,
+			WORKQUEUE_NAME_LEN - 1
+		);
 	}
 
 	if (env.target_function)
 	{
 		cfg.filter_function = 1;
-		strncpy(cfg.target_function, env.target_function,
-			sizeof(cfg.target_function) - 1);
+		strncpy(
+			cfg.target_function,
+			env.target_function,
+			sizeof(cfg.target_function) - 1
+		);
 	}
 
 	// Update the config map
@@ -536,8 +581,7 @@ static int setup_filters()
 
 	if (bpf_map_update_elem(map_fd, &key, &cfg, BPF_ANY))
 	{
-		fprintf(stderr, "Failed to update config map: %s\n",
-			strerror(errno));
+		fprintf(stderr, "Failed to update config map: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -548,24 +592,23 @@ static int setup_filters()
 static int parse_args(int argc, char **argv)
 {
 	static const struct option long_options[] = {
-		{ "pid", required_argument, NULL, 'p' },
-		{ "cpu", required_argument, NULL, 'c' },
-		{ "workqueue", required_argument, NULL, 'w' },
-		{ "function", required_argument, NULL, 'f' },
-		{ "duration", required_argument, NULL, 'd' },
-		{ "timeout", required_argument, NULL,
-		  'd' }, // alias for duration
-		{ "statistics", no_argument, NULL, 's' },
-		{ "timestamp", no_argument, NULL, 't' },
-		{ "json", no_argument, NULL, 'j' },
-		{ "verbose", no_argument, NULL, 'v' },
-		{ "help", no_argument, NULL, 'h' },
-		{ NULL, 0, NULL, 0 }
+		{"pid",		required_argument, NULL, 'p'},
+		{"cpu",		required_argument, NULL, 'c'},
+		{"workqueue",  required_argument, NULL, 'w'},
+		{"function",	 required_argument, NULL, 'f'},
+		{"duration",	 required_argument, NULL, 'd'},
+		{"timeout",	required_argument, NULL, 'd'}, // alias for duration
+		{"statistics", no_argument,		NULL, 's'},
+		{"timestamp",  no_argument,	   NULL, 't'},
+		{"json",		 no_argument,		  NULL, 'j'},
+		{"verbose",	no_argument,		 NULL, 'v'},
+		{"help",		 no_argument,		  NULL, 'h'},
+		{NULL,		   0,				  NULL, 0	 }
 	};
 	int opt;
 
-	while ((opt = getopt_long(argc, argv, "p:c:w:f:d:stjvh", long_options,
-				  NULL)) != -1)
+	while ((opt = getopt_long(argc, argv, "p:c:w:f:d:stjvh", long_options, NULL)
+		   ) != -1)
 	{
 		switch (opt)
 		{
@@ -595,8 +638,7 @@ static int parse_args(int argc, char **argv)
 			env.duration = atoi(optarg);
 			if (env.duration <= 0)
 			{
-				fprintf(stderr, "Invalid duration: %s\n",
-					optarg);
+				fprintf(stderr, "Invalid duration: %s\n", optarg);
 				return -1;
 			}
 			break;
@@ -683,8 +725,12 @@ int main(int argc, char **argv)
 	}
 
 	// Setup ring buffer
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.events), handle_event, NULL,
-			      NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.events),
+		handle_event,
+		NULL,
+		NULL
+	);
 	if (!rb)
 	{
 		err = -1;
@@ -714,9 +760,19 @@ int main(int argc, char **argv)
 	// Print header for human readable output
 	if (!env.json_output && !env.statistics_mode)
 	{
-		printf("%-18s %-6s %-3s %-16s %-8s %-14s %-30s %-20s %-3s %12s\n",
-		       "TIME", "PID", "CPU", "COMM", "EVENT", "WORK",
-		       "FUNCTION", "WORKQUEUE", "REQ", "DELAY/EXEC");
+		printf(
+			"%-18s %-6s %-3s %-16s %-8s %-14s %-30s %-20s %-3s %12s\n",
+			"TIME",
+			"PID",
+			"CPU",
+			"COMM",
+			"EVENT",
+			"WORK",
+			"FUNCTION",
+			"WORKQUEUE",
+			"REQ",
+			"DELAY/EXEC"
+		);
 	}
 
 	// Initialize statistics
@@ -725,19 +781,30 @@ int main(int argc, char **argv)
 	if (env.verbose)
 	{
 		printf("Starting workqueue tracing...\n");
-		printf("Self PID: %d (events from this process will be filtered)\n",
-		       self_pid);
+		printf(
+			"Self PID: %d (events from this process will be filtered)\n",
+			self_pid
+		);
 		if (env.target_pid > 0)
+		{
 			printf("Filtering PID: %d\n", env.target_pid);
+		}
 		if (env.target_cpu >= 0)
+		{
 			printf("Filtering CPU: %d\n", env.target_cpu);
+		}
 		if (env.target_workqueue)
-			printf("Filtering workqueue: %s\n",
-			       env.target_workqueue);
+		{
+			printf("Filtering workqueue: %s\n", env.target_workqueue);
+		}
 		if (env.target_function)
+		{
 			printf("Filtering function: %s\n", env.target_function);
+		}
 		if (env.duration > 0)
+		{
 			printf("Duration: %d seconds\n", env.duration);
+		}
 	}
 
 	// Create epoll instance for monitoring both ring buffer and signal pipe
@@ -757,8 +824,7 @@ int main(int argc, char **argv)
 	ring_fd = ring_buffer__epoll_fd(rb);
 	if (ring_fd < 0)
 	{
-		fprintf(stderr, "Failed to get ring buffer epoll fd: %d\n",
-			ring_fd);
+		fprintf(stderr, "Failed to get ring buffer epoll fd: %d\n", ring_fd);
 		err = -1;
 		close(epoll_fd);
 		goto cleanup;
@@ -803,8 +869,12 @@ int main(int argc, char **argv)
 			}
 		}
 
-		int nfds = epoll_wait(epoll_fd, events, 2,
-				      10); // 10ms timeout for faster response
+		int nfds = epoll_wait(
+			epoll_fd,
+			events,
+			2,
+			10
+		); // 10ms timeout for faster response
 
 		if (nfds == -1)
 		{
@@ -838,25 +908,23 @@ int main(int argc, char **argv)
 			{
 				// Ring buffer has data - limit processing to prevent blocking
 				int consume_count = 0;
-				const int MAX_CONSUME_PER_LOOP =
-					10; // Reduced to exit faster
+				const int MAX_CONSUME_PER_LOOP = 10; // Reduced to exit faster
 
-				while (consume_count < MAX_CONSUME_PER_LOOP &&
-				       !exiting)
+				while (consume_count < MAX_CONSUME_PER_LOOP && !exiting)
 				{
 					err = ring_buffer__consume(rb);
 					if (err <= 0)
 					{
 						if (err < 0)
 						{
-							printf("Error consuming ring buffer: %d\n",
-							       err);
+							printf("Error consuming ring buffer: %d\n", err);
 						}
 						break; // No more events or error
 					}
 					consume_count++;
 
-					// Check exit condition more frequently during heavy processing
+					// Check exit condition more frequently during heavy
+					// processing
 					if (consume_count % 5 == 0 && exiting)
 					{
 						break;
@@ -873,7 +941,7 @@ int main(int argc, char **argv)
 				// Signal received
 				char buf[256];
 				read(signal_pipe[0], buf,
-				     sizeof(buf)); // Drain the pipe
+					 sizeof(buf)); // Drain the pipe
 				printf("\nSignal received, exiting gracefully...\n");
 				exiting = true;
 				break;
@@ -893,9 +961,13 @@ loop_exit:
 cleanup:
 	// Close signal pipe
 	if (signal_pipe[0] != -1)
+	{
 		close(signal_pipe[0]);
+	}
 	if (signal_pipe[1] != -1)
+	{
 		close(signal_pipe[1]);
+	}
 
 	ring_buffer__free(rb);
 	workqueue_snoop_bpf__destroy(obj);

@@ -10,8 +10,8 @@ void write_example(const char *filename)
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (fd == -1)
 	{
-		std::cerr << "Failed to open file for writing: "
-			  << strerror(errno) << std::endl;
+		std::cerr << "Failed to open file for writing: " << strerror(errno)
+				  << std::endl;
 		return;
 	}
 
@@ -27,12 +27,12 @@ void write_example(const char *filename)
 	if (nwritten == -1)
 	{
 		std::cerr << "Failed to write to file: " << strerror(errno)
-			  << std::endl;
+				  << std::endl;
 	}
 	else
 	{
-		std::cout << "Wrote " << nwritten << " bytes to file "
-			  << filename << std::endl;
+		std::cout << "Wrote " << nwritten << " bytes to file " << filename
+				  << std::endl;
 	}
 
 	close(fd);
@@ -43,8 +43,8 @@ void read_example(const char *filename)
 	int fd = open(filename, O_RDONLY);
 	if (fd == -1)
 	{
-		std::cerr << "Failed to open file for reading: "
-			  << strerror(errno) << std::endl;
+		std::cerr << "Failed to open file for reading: " << strerror(errno)
+				  << std::endl;
 		return;
 	}
 
@@ -60,14 +60,14 @@ void read_example(const char *filename)
 	if (nread == -1)
 	{
 		std::cerr << "Failed to read from file: " << strerror(errno)
-			  << std::endl;
+				  << std::endl;
 	}
 	else
 	{
 		buf1[iov[0].iov_len] = '\0';
 		buf2[iov[1].iov_len] = '\0';
 		std::cout << "Read " << nread << " bytes from file " << filename
-			  << std::endl;
+				  << std::endl;
 		std::cout << "Content: " << buf1 << buf2 << std::endl;
 	}
 

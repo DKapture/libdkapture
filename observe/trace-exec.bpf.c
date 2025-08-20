@@ -5,22 +5,22 @@
 #include "Kstr-utils.h"
 #include "Kcom.h"
 
-#define PATH_MAX 4096 // Maximum path length
+#define PATH_MAX 4096  // Maximum path length
 #define MAX_ENTRY 1000 // Maximum number of entries in the maps
 
 // Structure to hold buffer information
 struct Buf
 {
 	char path[PATH_MAX]; // Path of the file
-	char log[PATH_MAX]; // Log information
+	char log[PATH_MAX];	 // Log information
 };
 
 // Map to hold memory pool for buffers
 struct
 {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, u32); // Key type
-	__type(value, struct Buf); // Value type
+	__type(key, u32);				// Key type
+	__type(value, struct Buf);		// Value type
 	__uint(max_entries, MAX_ENTRY); // Maximum entries
 } mem_pool SEC(".maps");
 
@@ -28,17 +28,17 @@ struct
 struct Args
 {
 	struct linux_binprm *bprm; // Binary parameter
-	int fd; // File descriptor
+	int fd;					   // File descriptor
 	struct filename *filename; // Filename structure
-	int flags; // Flags
+	int flags;				   // Flags
 };
 
 // Map to hold arguments for execve
 struct
 {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, u32); // Key type
-	__type(value, struct Args); // Value type
+	__type(key, u32);				// Key type
+	__type(value, struct Args);		// Value type
 	__uint(max_entries, MAX_ENTRY); // Maximum entries
 } args_map SEC(".maps");
 
@@ -46,17 +46,17 @@ struct
 struct Rule
 {
 	char target_path[PATH_MAX]; // Target path to filter
-	u32 depth; // Depth for parent process tracking
-	u32 uid; // User ID for filtering
+	u32 depth;					// Depth for parent process tracking
+	u32 uid;					// User ID for filtering
 };
 
 // Map to hold filtering rules
 struct
 {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, u32); // Key type
+	__type(key, u32);			// Key type
 	__type(value, struct Rule); // Value type
-	__uint(max_entries, 1); // Maximum entries
+	__uint(max_entries, 1);		// Maximum entries
 } filter SEC(".maps");
 
 struct
@@ -74,7 +74,9 @@ static inline void strncat(void *dst, long dsz, const void *src, long ssz)
 	while (ssz > 0 && dsz > 0)
 	{
 		if (*s == 0)
+		{
 			return; // Stop if end of source string is reached
+		}
 		*d++ = *s++; // Copy character
 		ssz--;
 		dsz--; // Decrement sizes
@@ -86,20 +88,31 @@ static struct Buf buf_mirror = {};
 
 // Kernel probe for execve
 SEC("kprobe/bprm_execve")
-int BPF_KPROBE(bprm_execve, struct linux_binprm *bprm, int fd,
-	       struct filename *filename, int flags)
+int BPF_KPROBE(
+	bprm_execve,
+	struct linux_binprm *bprm,
+	int fd,
+	struct filename *filename,
+	int flags
+)
 {
 	long ret = 0;
-	struct Args args = {
-		.bprm = bprm, .fd = fd, .filename = filename, .flags = flags
-	};
+	struct Args args =
+		{.bprm = bprm, .fd = fd, .filename = filename, .flags = flags};
 	pid_t pid = bpf_get_current_pid_tgid(); // Get current process ID
-	ret = bpf_map_update_elem(&args_map, &pid, &args,
-				  BPF_ANY); // Update args map
+	ret = bpf_map_update_elem(
+		&args_map,
+		&pid,
+		&args,
+		BPF_ANY
+	); // Update args map
 	if (ret != 0)
 	{
-		bpf_printk("error: bpf_map_update_elem(%ld): %d", pid,
-			   ret); // Log error
+		bpf_printk(
+			"error: bpf_map_update_elem(%ld): %d",
+			pid,
+			ret
+		); // Log error
 	}
 	return 0; // Return success
 }
@@ -119,23 +132,32 @@ int BPF_KRETPROBE(bprm_execve_ret, int _ret)
 		bpf_printk("fail to call bpf_map_lookup_elem"); // Log error
 		goto exit;
 	}
-	ret = bpf_map_update_elem(&mem_pool, &key, &buf_mirror,
-				  BPF_ANY); // Update memory pool
+	ret = bpf_map_update_elem(
+		&mem_pool,
+		&key,
+		&buf_mirror,
+		BPF_ANY
+	); // Update memory pool
 	if (ret != 0)
 	{
-		bpf_printk("error: fail to call bpf_map_update_elem: %d",
-			   ret); // Log error
+		bpf_printk(
+			"error: fail to call bpf_map_update_elem: %d",
+			ret
+		); // Log error
 		goto exit;
 	}
 	struct Buf *buf = bpf_map_lookup_elem(&mem_pool, &key); // Lookup buffer
 	if (buf == NULL)
 	{
 		bpf_printk("fail to call bpf_map_lookup_elem: %d",
-			   ret); // Log error
+				   ret); // Log error
 		goto exit;
 	}
-	ret = bpf_probe_read_kernel(buf->path, PATH_MAX,
-				    args->filename->iname); // Read filename
+	ret = bpf_probe_read_kernel(
+		buf->path,
+		PATH_MAX,
+		args->filename->iname
+	); // Read filename
 	if (ret)
 	{
 		bpf_printk("error: bpf_probe_read_kernel %d", ret); // Log error
@@ -143,7 +165,7 @@ int BPF_KRETPROBE(bprm_execve_ret, int _ret)
 	}
 
 	char *filepath = buf->path; // Get file path
-	key = 0; // Reset key for rule lookup
+	key = 0;					// Reset key for rule lookup
 	struct task_struct *current;
 	struct Rule *rule;
 	rule = bpf_map_lookup_elem(&filter, &key); // Lookup filtering rule
@@ -152,25 +174,28 @@ int BPF_KRETPROBE(bprm_execve_ret, int _ret)
 		goto exit; // No rule found
 	}
 	// Check if the file path matches the target path in the rule
-	if (rule->target_path[0] &&
-	    strncmp(filepath, rule->target_path, PATH_MAX))
+	if (rule->target_path[0] && strncmp(filepath, rule->target_path, PATH_MAX))
 	{
 		goto exit; // Path does not match rule
 	}
 
 	u32 depth = rule->depth; // Get depth from rule
 	if (depth > 128)
+	{
 		depth = 128; // Limit depth to 50
+	}
 	u32 uid = bpf_get_current_uid_gid(); // Get current user ID
 	if (rule->uid != (u32)(-1) && uid != rule->uid)
 	{
 		goto exit; // User ID does not match rule
 	}
 
-	current = (struct task_struct *)
-		bpf_get_current_task(); // Get current task
-	ret = bpf_probe_read_kernel(filepath, 16,
-				    &current->comm); // Read command name
+	current = (struct task_struct *)bpf_get_current_task(); // Get current task
+	ret = bpf_probe_read_kernel(
+		filepath,
+		16,
+		&current->comm
+	); // Read command name
 	if (ret)
 	{
 		bpf_printk("fail to read comm: %d", ret); // Log error
@@ -178,9 +203,9 @@ int BPF_KRETPROBE(bprm_execve_ret, int _ret)
 	}
 
 	// Prepare logging data
-	u64 data[] = { (u64)filepath, (u64)pid };
-	char *pbuf = buf->path; // Buffer for path
-	char *log = buf->log; // Buffer for log
+	u64 data[] = {(u64)filepath, (u64)pid};
+	char *pbuf = buf->path;	  // Buffer for path
+	char *log = buf->log;	  // Buffer for log
 	long log_left = PATH_MAX; // Remaining space in log
 
 	// Format the log message
@@ -191,41 +216,50 @@ int BPF_KRETPROBE(bprm_execve_ret, int _ret)
 		goto exit;
 	}
 	if (ret > 32)
+	{
 		goto exit; // Overflow check
+	}
 	strncat(log, log_left, pbuf, 32); // Concatenate to log
-	log_left -= ret - 1; // Update remaining space
-	log += ret - 1; // Move log pointer
+	log_left -= ret - 1;			  // Update remaining space
+	log += ret - 1;					  // Move log pointer
 
 	// Traverse parent tasks to build log
 	int loop_limit = 0; // Limit for loops
 	do
 	{
 		ret = bpf_probe_read_kernel(
-			&current, sizeof(current),
-			&current->real_parent); // Read parent task
+			&current,
+			sizeof(current),
+			&current->real_parent
+		); // Read parent task
 		if (ret)
 		{
 			bpf_printk("fail to read parent: %d", ret); // Log error
 			break;
 		}
-		ret = bpf_probe_read_kernel(&pid, sizeof(pid),
-					    &current->pid); // Read parent PID
+		ret = bpf_probe_read_kernel(
+			&pid,
+			sizeof(pid),
+			&current->pid
+		); // Read parent PID
 		if (ret)
 		{
 			bpf_printk("fail to read pid: %d", ret); // Log error
 			break;
 		}
-		char comm[16] = { 0 }; // Buffer for command
+		char comm[16] = {0}; // Buffer for command
 		ret = bpf_probe_read_kernel(
-			comm, sizeof(comm),
-			&current->comm); // Read command name
+			comm,
+			sizeof(comm),
+			&current->comm
+		); // Read command name
 		if (ret)
 		{
 			bpf_printk("fail to read comm: %d", ret); // Log error
 			break;
 		}
 		// Format parent task log entry
-		u64 data[] = { (u64)comm, (u64)pid };
+		u64 data[] = {(u64)comm, (u64)pid};
 		ret = bpf_snprintf(pbuf, 32, "<-%s(%lu)", data, sizeof(data));
 		if (ret < 1)
 		{
@@ -238,16 +272,18 @@ int BPF_KRETPROBE(bprm_execve_ret, int _ret)
 			break; // Overflow check
 		}
 		strncat(log, log_left, pbuf, 32); // Concatenate to log
-		log_left -= ret - 1; // Update remaining space
-		log += ret - 1; // Move log pointer
+		log_left -= ret - 1;			  // Update remaining space
+		log += ret - 1;					  // Move log pointer
 		if (pid == 1 || loop_limit++ >= depth)
+		{
 			break; // Stop if reached root or limit
+		}
 	} while (1);
 
 	DEBUG(0, "%s", buf->log);
 	// log_left not include the terminating character
-	ret = bpf_ringbuf_output(&logs, buf->log,
-				 sizeof(buf->log) - log_left + 1, 0);
+	ret =
+		bpf_ringbuf_output(&logs, buf->log, sizeof(buf->log) - log_left + 1, 0);
 	if (ret)
 	{
 		bpf_err("ringbuf output: %ld", ret);

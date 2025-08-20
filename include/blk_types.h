@@ -43,7 +43,7 @@
 #define BIO_ISSUE_RES_SHIFT (64 - BIO_ISSUE_RES_BITS)
 #define BIO_ISSUE_SIZE_SHIFT (BIO_ISSUE_RES_SHIFT - BIO_ISSUE_SIZE_BITS)
 #define BIO_ISSUE_TIME_MASK ((1ULL << BIO_ISSUE_SIZE_SHIFT) - 1)
-#define BIO_ISSUE_SIZE_MASK \
+#define BIO_ISSUE_SIZE_MASK                                                    \
 	(((1ULL << BIO_ISSUE_SIZE_BITS) - 1) << BIO_ISSUE_SIZE_SHIFT)
 #define BIO_ISSUE_RES_MASK (~((1ULL << BIO_ISSUE_RES_SHIFT) - 1))
 
@@ -99,21 +99,21 @@ enum req_opf
 enum req_flag_bits
 {
 	__REQ_FAILFAST_DEV = /* no driver retries of device errors */
-	REQ_OP_BITS,
+		REQ_OP_BITS,
 	__REQ_FAILFAST_TRANSPORT, /* no driver retries of transport errors */
-	__REQ_FAILFAST_DRIVER, /* no driver retries of driver errors */
-	__REQ_SYNC, /* request is sync (sync write or read) */
-	__REQ_META, /* metadata io request */
-	__REQ_PRIO, /* boost priority in cfq */
-	__REQ_NOMERGE, /* don't touch this for merging */
-	__REQ_IDLE, /* anticipate more IO after this one */
-	__REQ_INTEGRITY, /* I/O includes block integrity payload */
-	__REQ_FUA, /* forced unit access */
-	__REQ_PREFLUSH, /* request for cache flush */
-	__REQ_RAHEAD, /* read ahead, can fail anytime */
-	__REQ_BACKGROUND, /* background IO */
-	__REQ_NOWAIT, /* Don't wait if request will block */
-	__REQ_NOWAIT_INLINE, /* Return would-block error inline */
+	__REQ_FAILFAST_DRIVER,	  /* no driver retries of driver errors */
+	__REQ_SYNC,				  /* request is sync (sync write or read) */
+	__REQ_META,				  /* metadata io request */
+	__REQ_PRIO,				  /* boost priority in cfq */
+	__REQ_NOMERGE,			  /* don't touch this for merging */
+	__REQ_IDLE,				  /* anticipate more IO after this one */
+	__REQ_INTEGRITY,		  /* I/O includes block integrity payload */
+	__REQ_FUA,				  /* forced unit access */
+	__REQ_PREFLUSH,			  /* request for cache flush */
+	__REQ_RAHEAD,			  /* read ahead, can fail anytime */
+	__REQ_BACKGROUND,		  /* background IO */
+	__REQ_NOWAIT,			  /* Don't wait if request will block */
+	__REQ_NOWAIT_INLINE,	  /* Return would-block error inline */
 	/*
 	 * When a shared kthread needs to issue a bio for a cgroup, doing
 	 * so synchronously can lead to priority inversions as the kthread
@@ -130,7 +130,7 @@ enum req_flag_bits
 
 	/* for driver use */
 	__REQ_DRV,
-	__REQ_SWAP, /* swapping request. */
+	__REQ_SWAP,	   /* swapping request. */
 	__REQ_NR_BITS, /* stops here */
 };
 #endif
@@ -158,7 +158,7 @@ enum req_flag_bits
 #define REQ_DRV (1ULL << __REQ_DRV)
 #define REQ_SWAP (1ULL << __REQ_SWAP)
 
-#define REQ_FAILFAST_MASK \
+#define REQ_FAILFAST_MASK                                                      \
 	(REQ_FAILFAST_DEV | REQ_FAILFAST_TRANSPORT | REQ_FAILFAST_DRIVER)
 
 #define REQ_NOMERGE_FLAGS (REQ_NOMERGE | REQ_PREFLUSH | REQ_FUA)

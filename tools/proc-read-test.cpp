@@ -9,7 +9,7 @@
 
 class CalculateRunTime
 {
-    public:
+  public:
 	struct timespec _start;
 	void start()
 	{
@@ -21,7 +21,7 @@ class CalculateRunTime
 		struct timespec _end;
 		clock_gettime(CLOCK_MONOTONIC, &_end);
 		return (_end.tv_sec - _start.tv_sec) * 1000000000 +
-		       (_end.tv_nsec - _start.tv_nsec);
+			   (_end.tv_nsec - _start.tv_nsec);
 	}
 };
 
@@ -75,17 +75,18 @@ void traverse_proc()
 	{
 		// 检查是否是数字目录（即 PID）
 		if (entry->d_type == DT_DIR &&
-		    std::all_of(entry->d_name,
+			std::all_of(
+				entry->d_name,
 				entry->d_name + std::strlen(entry->d_name),
-				::isdigit))
+				::isdigit
+			))
 		{
 			std::string pid = std::string(entry->d_name);
 			std::string task = "/proc/" + pid + "/task";
 			DIR *task_dir = opendir(task.c_str());
 			if (!task_dir)
 			{
-				printf("Failed to open %s directory\n",
-				       task.c_str());
+				printf("Failed to open %s directory\n", task.c_str());
 				continue;
 			}
 			struct dirent *task_entry;

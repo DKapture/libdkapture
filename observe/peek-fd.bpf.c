@@ -6,21 +6,21 @@
 
 // max support
 #define MAX_VEC_SIZE 32 // vector max buffer count in iovec
-#define MAX_MSG_CNT 8 // max message count in mmsghdr
+#define MAX_MSG_CNT 8	// max message count in mmsghdr
 
 #define LOG_SIZE_4K 4096
 #define LOG_SIZE_1M 1048576
 
 // flag bits
-#define FD_READ 1 // Flag for read operation
+#define FD_READ 1  // Flag for read operation
 #define FD_WRITE 2 // Flag for write operation
 
 // Structure to define a rule for filtering
 struct Rule
 {
 	pid_t pid; // Process ID
-	int fd; // File descriptor
-	int rw; // Read/Write flag
+	int fd;	   // File descriptor
+	int rw;	   // Read/Write flag
 };
 
 // Structure to log data
@@ -130,9 +130,9 @@ struct RwCtx
 	int common_pid;
 	int __syscall_nr;
 	int __algin8;
-	long fd; // File descriptor
+	long fd;		 // File descriptor
 	const char *buf; // Buffer for data
-	size_t count; // Size of data
+	size_t count;	 // Size of data
 };
 
 struct SyscallExitCtx
@@ -261,10 +261,14 @@ static void free_log(struct LogHdr loghdr)
 static struct LogHdr remalloc_log(struct LogHdr loghdr, size_t new_sz)
 {
 	if (!loghdr.log)
+	{
 		return malloc_log(new_sz);
+	}
 
 	if (new_sz <= loghdr.sz)
+	{
 		return loghdr;
+	}
 
 	free_log(loghdr);
 	return malloc_log(new_sz);
@@ -303,8 +307,8 @@ static long send_log(struct BpfData *log, const char *buf, size_t sz)
 static int fd_rw_watch(struct Args *args)
 {
 	const char *buf = args->buf; // Get buffer from context
-	size_t count = args->count; // Get count from context
-	long ret = args->ret; // Get return value from context
+	size_t count = args->count;	 // Get count from context
+	long ret = args->ret;		 // Get return value from context
 
 	if (count > ret)
 	{
@@ -323,7 +327,7 @@ static int fd_rw_watch(struct Args *args)
 		return 0; // Exit if allocation fails
 	}
 	send_log(loghdr.log, buf, count); // Send log data
-	free_log(loghdr); // Free the log entry
+	free_log(loghdr);				  // Free the log entry
 
 	return 0; // Exit successfully
 }
@@ -361,12 +365,16 @@ static int fd_rwv_watch(struct Args *args)
 	long real_len = args->ret;
 
 	if (vlen > MAX_VEC_SIZE)
+	{
 		vlen = MAX_VEC_SIZE;
+	}
 
 	for (u32 i = 0; i < vlen; i++)
 	{
 		if (real_len <= 0)
+		{
 			break;
+		}
 
 		bpf_read_umem_ret(&_vec, &vec[i], break);
 		iov_len = _vec.iov_len;
@@ -387,7 +395,9 @@ static int fd_rwv_watch(struct Args *args)
 #ifdef USE_REMALLOC
 		loghdr = remalloc_log(loghdr, iov_len);
 		if (!loghdr.log)
+		{
 			continue;
+		}
 #endif
 
 		send_log(loghdr.log, iov_base, iov_len);
@@ -457,8 +467,8 @@ static int save_rw_args(long fd, const char *buf, size_t count, long rw)
 	return 0;
 }
 
-static int save_rwv_args(long fd, const struct iovec *vec, unsigned long vlen,
-			 long rw)
+static int
+save_rwv_args(long fd, const struct iovec *vec, unsigned long vlen, long rw)
 {
 	long ret;
 	pid_t pid;
@@ -723,8 +733,8 @@ int trace_sys_exit_pwritev2(struct SyscallExitCtx *ctx)
  *   };
  *
  *   this is tracepoint context struct of syscalls/sys_enter_sendto,
- *   we only need fd, buff, len, whose memory layout is the same as 'struct RwCtx',
- *   so we can reuse 'struct RwCtx' to parse the context.
+ *   we only need fd, buff, len, whose memory layout is the same as 'struct
+ * RwCtx', so we can reuse 'struct RwCtx' to parse the context.
  */
 
 SEC("?tracepoint/syscalls/sys_enter_sendto")
@@ -860,8 +870,8 @@ struct SendmmsgCtx
 	unsigned int flags;
 };
 
-static int save_mmsg_args(long fd, struct mmsghdr *msg, unsigned long vlen,
-			  long rw)
+static int
+save_mmsg_args(long fd, struct mmsghdr *msg, unsigned long vlen, long rw)
 {
 	long ret;
 	pid_t pid;
@@ -902,7 +912,9 @@ static int fd_mmsg_watch(struct Args *args)
 	}
 
 	if (mvlen > MAX_MSG_CNT)
+	{
 		mvlen = MAX_MSG_CNT;
+	}
 
 	struct Args args_2;
 	struct iovec *msg_iov;
@@ -914,8 +926,7 @@ static int fd_mmsg_watch(struct Args *args)
 	{
 		bpf_read_umem_ret(&msg_iov, &msg[i].msg_hdr.msg_iov, break);
 
-		bpf_read_umem_ret(&msg_iovlen, &msg[i].msg_hdr.msg_iovlen,
-				  break);
+		bpf_read_umem_ret(&msg_iovlen, &msg[i].msg_hdr.msg_iovlen, break);
 
 		bpf_read_umem_ret(&msg_len, &msg[i].msg_len, break);
 		args_2.vec = msg_iov;

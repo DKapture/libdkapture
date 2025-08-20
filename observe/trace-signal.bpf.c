@@ -170,11 +170,19 @@ exit:
 }
 
 SEC("lsm/task_kill")
-int BPF_PROG(task_kill, struct task_struct *p, struct kernel_siginfo *info,
-	     int sig, const struct cred *cred, int ret)
+int BPF_PROG(
+	task_kill,
+	struct task_struct *p,
+	struct kernel_siginfo *info,
+	int sig,
+	const struct cred *cred,
+	int ret
+)
 {
 	if (ret)
+	{
 		return ret;
+	}
 
 	struct BpfData *log = (typeof(log))lookup_page(lkey);
 	if (!log)
@@ -182,8 +190,8 @@ int BPF_PROG(task_kill, struct task_struct *p, struct kernel_siginfo *info,
 		return 0;
 	}
 
-	ret = bpf_probe_read_kernel(&log->recv_comm, sizeof(log->recv_comm),
-				    p->comm);
+	ret =
+		bpf_probe_read_kernel(&log->recv_comm, sizeof(log->recv_comm), p->comm);
 	if (ret)
 	{
 		bpf_err("fail to read comm: %d", ret);
@@ -225,8 +233,13 @@ exit:
 }
 
 SEC("fexit/bprm_execve")
-int BPF_PROG(bprm_execve, struct linux_binprm *bprm, int fd,
-	     struct filename *filename, int flags)
+int BPF_PROG(
+	bprm_execve,
+	struct linux_binprm *bprm,
+	int fd,
+	struct filename *filename,
+	int flags
+)
 { // used for creating map from pid to pathhash
 	long ret = 0;
 	pid_t pid;
@@ -275,7 +288,9 @@ int BPF_PROG(bprm_execve, struct linux_binprm *bprm, int fd,
 
 exit:
 	if (path)
+	{
 		free_page(pkey);
+	}
 
 	return 0;
 }
@@ -336,17 +351,23 @@ int dump_task(struct bpf_iter__task *ctx)
 
 	task = ctx->task;
 	if (!task)
+	{
 		return 0;
+	}
 
 	// if (task->pid != task->tgid)    // Only dump the main thread
 	//     return 0;
 
 	mm = task->mm;
 	if (!mm)
+	{
 		return 0;
+	}
 	file = mm->exe_file;
 	if (!file)
+	{
 		return 0;
+	}
 
 	long ret = 0;
 	pid_t pid;
@@ -405,7 +426,9 @@ int dump_task(struct bpf_iter__task *ctx)
 
 exit:
 	if (path)
+	{
 		free_page(pkey);
+	}
 
 	return 0;
 }

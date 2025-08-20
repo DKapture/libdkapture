@@ -70,10 +70,12 @@ const char argp_program_doc[] =
 	"    power-snoop                           # Trace all power events\n"
 	"    power-snoop -p 1234                   # Trace specific process\n"
 	"    power-snoop -c 0                      # Trace specific CPU\n"
-	"    power-snoop -e 0x03                   # Trace CPU freq and idle events\n"
+	"    power-snoop -e 0x03                   # Trace CPU freq and idle "
+	"events\n"
 	"    power-snoop --min-freq 1000000        # Trace frequencies >= 1GHz\n"
 	"    power-snoop --min-idle 1000000        # Trace idle durations >= 1ms\n"
-	"    power-snoop -v -t                     # Verbose output with timestamps\n"
+	"    power-snoop -v -t                     # Verbose output with "
+	"timestamps\n"
 	"    power-snoop -s                        # Show statistics\n"
 	"\n"
 	"Event types (for -e bitmask):\n"
@@ -85,23 +87,19 @@ const char argp_program_doc[] =
 	"    32  RPM             Runtime PM\n";
 
 static const struct argp_option opts[] = {
-	{ "pid", 'p', "PID", 0, "Process ID to trace", 0 },
-	{ "cpu", 'c', "CPU", 0, "CPU ID to trace", 0 },
-	{ "comm", 'C', "COMM", 0, "Process name to trace", 0 },
-	{ "events", 'e', "MASK", 0, "Event types to trace (bitmask)", 0 },
-	{ "min-freq", ARG_MIN_FREQ, "FREQ", 0, "Minimum CPU frequency to trace",
-	  0 },
-	{ "max-freq", ARG_MAX_FREQ, "FREQ", 0, "Maximum CPU frequency to trace",
-	  0 },
-	{ "min-idle", ARG_MIN_IDLE, "NS", 0, "Minimum idle duration to trace",
-	  0 },
-	{ "max-idle", ARG_MAX_IDLE, "NS", 0, "Maximum idle duration to trace",
-	  0 },
-	{ "verbose", 'v', NULL, 0, "Verbose output", 0 },
-	{ "timestamp", 't', NULL, 0, "Show timestamps", 0 },
-	{ "stats", 's', NULL, 0, "Show statistics", 0 },
-	{ "summary", 'S', NULL, 0, "Show summary at exit", 0 },
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0 },
+	{"pid", 'p', "PID", 0, "Process ID to trace", 0},
+	{"cpu", 'c', "CPU", 0, "CPU ID to trace", 0},
+	{"comm", 'C', "COMM", 0, "Process name to trace", 0},
+	{"events", 'e', "MASK", 0, "Event types to trace (bitmask)", 0},
+	{"min-freq", ARG_MIN_FREQ, "FREQ", 0, "Minimum CPU frequency to trace", 0},
+	{"max-freq", ARG_MAX_FREQ, "FREQ", 0, "Maximum CPU frequency to trace", 0},
+	{"min-idle", ARG_MIN_IDLE, "NS", 0, "Minimum idle duration to trace", 0},
+	{"max-idle", ARG_MAX_IDLE, "NS", 0, "Maximum idle duration to trace", 0},
+	{"verbose", 'v', NULL, 0, "Verbose output", 0},
+	{"timestamp", 't', NULL, 0, "Show timestamps", 0},
+	{"stats", 's', NULL, 0, "Show statistics", 0},
+	{"summary", 'S', NULL, 0, "Show summary at exit", 0},
+	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0},
 	{},
 };
 
@@ -215,8 +213,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		}
 		else
 		{
-			fprintf(stderr,
-				"unrecognized positional argument: %s\n", arg);
+			fprintf(stderr, "unrecognized positional argument: %s\n", arg);
 			argp_usage(state);
 		}
 		pos_args++;
@@ -227,11 +224,13 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -292,22 +291,26 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.cpu_freq_events++;
 		if (env.verbose)
 		{
-			printf("%s[%s] CPU%d: %d -> %dHz (pid=%d comm=%s)\n",
-			       timestamp_str,
-			       power_event_type_str(
-				       (enum power_event_type)
-					       e->header.event_type),
-			       e->data.cpu_freq.cpu_id,
-			       e->data.cpu_freq.old_freq,
-			       e->data.cpu_freq.new_freq, e->header.pid,
-			       e->header.comm);
+			printf(
+				"%s[%s] CPU%d: %d -> %dHz (pid=%d comm=%s)\n",
+				timestamp_str,
+				power_event_type_str((enum power_event_type)e->header.event_type
+				),
+				e->data.cpu_freq.cpu_id,
+				e->data.cpu_freq.old_freq,
+				e->data.cpu_freq.new_freq,
+				e->header.pid,
+				e->header.comm
+			);
 		}
 		else
 		{
-			printf("CPU%d frequency: %d -> %dHz\n",
-			       e->data.cpu_freq.cpu_id,
-			       e->data.cpu_freq.old_freq,
-			       e->data.cpu_freq.new_freq);
+			printf(
+				"CPU%d frequency: %d -> %dHz\n",
+				e->data.cpu_freq.cpu_id,
+				e->data.cpu_freq.old_freq,
+				e->data.cpu_freq.new_freq
+			);
 		}
 		break;
 
@@ -315,18 +318,24 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.cpu_idle_events++;
 		if (env.verbose)
 		{
-			printf("%s[%s] CPU%d: state=%d (pid=%d comm=%s)\n",
-			       timestamp_str,
-			       power_event_type_str(
-				       (enum power_event_type)
-					       e->header.event_type),
-			       e->data.cpu_idle.cpu_id, e->data.cpu_idle.state,
-			       e->header.pid, e->header.comm);
+			printf(
+				"%s[%s] CPU%d: state=%d (pid=%d comm=%s)\n",
+				timestamp_str,
+				power_event_type_str((enum power_event_type)e->header.event_type
+				),
+				e->data.cpu_idle.cpu_id,
+				e->data.cpu_idle.state,
+				e->header.pid,
+				e->header.comm
+			);
 		}
 		else
 		{
-			printf("CPU%d idle state: %d\n",
-			       e->data.cpu_idle.cpu_id, e->data.cpu_idle.state);
+			printf(
+				"CPU%d idle state: %d\n",
+				e->data.cpu_idle.cpu_id,
+				e->data.cpu_idle.state
+			);
 		}
 		break;
 
@@ -335,22 +344,27 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.device_pm_events++;
 		if (env.verbose)
 		{
-			printf("%s[%s] Device: %s event=%d duration=%lluns ret=%d (pid=%d comm=%s)\n",
-			       timestamp_str,
-			       power_event_type_str(
-				       (enum power_event_type)
-					       e->header.event_type),
-			       e->data.device_pm.device_name,
-			       e->data.device_pm.pm_event,
-			       e->data.device_pm.duration_ns,
-			       e->data.device_pm.ret, e->header.pid,
-			       e->header.comm);
+			printf(
+				"%s[%s] Device: %s event=%d duration=%lluns ret=%d (pid=%d "
+				"comm=%s)\n",
+				timestamp_str,
+				power_event_type_str((enum power_event_type)e->header.event_type
+				),
+				e->data.device_pm.device_name,
+				e->data.device_pm.pm_event,
+				e->data.device_pm.duration_ns,
+				e->data.device_pm.ret,
+				e->header.pid,
+				e->header.comm
+			);
 		}
 		else
 		{
-			printf("Device PM: %s event=%d\n",
-			       e->data.device_pm.device_name,
-			       e->data.device_pm.pm_event);
+			printf(
+				"Device PM: %s event=%d\n",
+				e->data.device_pm.device_name,
+				e->data.device_pm.pm_event
+			);
 		}
 		break;
 
@@ -359,21 +373,26 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.pm_qos_events++;
 		if (env.verbose)
 		{
-			printf("%s[%s] PM QoS: type=%d value=%d requestor=%s (pid=%d comm=%s)\n",
-			       timestamp_str,
-			       power_event_type_str(
-				       (enum power_event_type)
-					       e->header.event_type),
-			       e->data.pm_qos.qos_type,
-			       e->data.pm_qos.qos_value,
-			       e->data.pm_qos.requestor, e->header.pid,
-			       e->header.comm);
+			printf(
+				"%s[%s] PM QoS: type=%d value=%d requestor=%s (pid=%d "
+				"comm=%s)\n",
+				timestamp_str,
+				power_event_type_str((enum power_event_type)e->header.event_type
+				),
+				e->data.pm_qos.qos_type,
+				e->data.pm_qos.qos_value,
+				e->data.pm_qos.requestor,
+				e->header.pid,
+				e->header.comm
+			);
 		}
 		else
 		{
-			printf("PM QoS: type=%d value=%d\n",
-			       e->data.pm_qos.qos_type,
-			       e->data.pm_qos.qos_value);
+			printf(
+				"PM QoS: type=%d value=%d\n",
+				e->data.pm_qos.qos_type,
+				e->data.pm_qos.qos_value
+			);
 		}
 		break;
 
@@ -382,23 +401,29 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.clock_events++;
 		if (env.verbose)
 		{
-			printf("%s[%s] Clock: %s rate=%lluHz prepare=%d enable=%d (pid=%d comm=%s)\n",
-			       timestamp_str,
-			       power_event_type_str(
-				       (enum power_event_type)
-					       e->header.event_type),
-			       e->data.clock.clock_name, e->data.clock.rate,
-			       e->data.clock.prepare_count,
-			       e->data.clock.enable_count, e->header.pid,
-			       e->header.comm);
+			printf(
+				"%s[%s] Clock: %s rate=%lluHz prepare=%d enable=%d (pid=%d "
+				"comm=%s)\n",
+				timestamp_str,
+				power_event_type_str((enum power_event_type)e->header.event_type
+				),
+				e->data.clock.clock_name,
+				e->data.clock.rate,
+				e->data.clock.prepare_count,
+				e->data.clock.enable_count,
+				e->header.pid,
+				e->header.comm
+			);
 		}
 		else
 		{
-			printf("Clock %s: %s rate=%lluHz\n",
-			       (e->header.event_type == POWER_CLOCK_ENABLE) ?
-				       "enable" :
-				       "disable",
-			       e->data.clock.clock_name, e->data.clock.rate);
+			printf(
+				"Clock %s: %s rate=%lluHz\n",
+				(e->header.event_type == POWER_CLOCK_ENABLE) ? "enable"
+															 : "disable",
+				e->data.clock.clock_name,
+				e->data.clock.rate
+			);
 		}
 		break;
 
@@ -407,39 +432,46 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.rpm_events++;
 		if (env.verbose)
 		{
-			printf("%s[%s] RPM: %s usage=%d depth=%d error=%d active=%lluns suspended=%lluns (pid=%d comm=%s)\n",
-			       timestamp_str,
-			       power_event_type_str(
-				       (enum power_event_type)
-					       e->header.event_type),
-			       e->data.rpm.device_name, e->data.rpm.usage_count,
-			       e->data.rpm.disable_depth,
-			       e->data.rpm.runtime_error,
-			       e->data.rpm.active_time,
-			       e->data.rpm.suspended_time, e->header.pid,
-			       e->header.comm);
+			printf(
+				"%s[%s] RPM: %s usage=%d depth=%d error=%d active=%lluns "
+				"suspended=%lluns (pid=%d comm=%s)\n",
+				timestamp_str,
+				power_event_type_str((enum power_event_type)e->header.event_type
+				),
+				e->data.rpm.device_name,
+				e->data.rpm.usage_count,
+				e->data.rpm.disable_depth,
+				e->data.rpm.runtime_error,
+				e->data.rpm.active_time,
+				e->data.rpm.suspended_time,
+				e->header.pid,
+				e->header.comm
+			);
 		}
 		else
 		{
-			printf("RPM %s: %s usage=%d\n",
-			       (e->header.event_type == POWER_RPM_SUSPEND) ?
-				       "suspend" :
-				       "resume",
-			       e->data.rpm.device_name,
-			       e->data.rpm.usage_count);
+			printf(
+				"RPM %s: %s usage=%d\n",
+				(e->header.event_type == POWER_RPM_SUSPEND) ? "suspend"
+															: "resume",
+				e->data.rpm.device_name,
+				e->data.rpm.usage_count
+			);
 		}
 		break;
 
 	default:
 		if (env.verbose)
 		{
-			printf("%s[%s] Unknown event type: %d (pid=%d comm=%s)\n",
-			       timestamp_str,
-			       power_event_type_str(
-				       (enum power_event_type)
-					       e->header.event_type),
-			       e->header.event_type, e->header.pid,
-			       e->header.comm);
+			printf(
+				"%s[%s] Unknown event type: %d (pid=%d comm=%s)\n",
+				timestamp_str,
+				power_event_type_str((enum power_event_type)e->header.event_type
+				),
+				e->header.event_type,
+				e->header.pid,
+				e->header.comm
+			);
 		}
 		break;
 	}
@@ -525,7 +557,9 @@ int main(int argc, char **argv)
 	signal(SIGINT, sig_handler);
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	libbpf_set_print(libbpf_print_fn);
 
@@ -560,12 +594,15 @@ int main(int argc, char **argv)
 			.min_idle_duration = env.min_idle_duration,
 			.max_idle_duration = env.max_idle_duration,
 		};
-		strncpy(filter.target_comm, env.comm,
-			sizeof(filter.target_comm) - 1);
+		strncpy(filter.target_comm, env.comm, sizeof(filter.target_comm) - 1);
 
 		__u32 filter_key = 0;
-		err = bpf_map_update_elem(bpf_map__fd(obj->maps.filter_map),
-					  &filter_key, &filter, BPF_ANY);
+		err = bpf_map_update_elem(
+			bpf_map__fd(obj->maps.filter_map),
+			&filter_key,
+			&filter,
+			BPF_ANY
+		);
 		if (err)
 		{
 			fprintf(stderr, "failed to set filter: %d\n", err);
@@ -581,11 +618,19 @@ int main(int argc, char **argv)
 	}
 
 #ifdef BUILTIN
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.power_events),
-			      (ring_buffer_sample_fn)cb, ctx, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.power_events),
+		(ring_buffer_sample_fn)cb,
+		ctx,
+		NULL
+	);
 #else
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.power_events), handle_event,
-			      NULL, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.power_events),
+		handle_event,
+		NULL,
+		NULL
+	);
 #endif
 	if (!rb)
 	{
@@ -608,7 +653,9 @@ int main(int argc, char **argv)
 
 cleanup:
 	if (rb)
+	{
 		ring_buffer__free(rb);
+	}
 	power_snoop_bpf__destroy(obj);
 
 	return err != 0;

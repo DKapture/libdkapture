@@ -20,9 +20,9 @@
 struct Rule
 {
 	pid_t sender_pid; // Sender process ID
-	pid_t recv_pid; // Receiver process ID
+	pid_t recv_pid;	  // Receiver process ID
 	uid_t sender_uid; // Sender user ID
-	int sig; // Signal type
+	int sig;		  // Signal type
 };
 
 #endif

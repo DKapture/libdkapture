@@ -37,7 +37,7 @@ static int unlink_check(struct path *dir, struct dentry *dentry)
 	if (0) // switch to 1 to enable debug
 	{
 		pid_t pid;
-		char comm[16] = { 0 };
+		char comm[16] = {0};
 		pid = bpf_get_current_pid_tgid();
 		bpf_get_current_comm(comm, sizeof(comm));
 		bpf_info("file(path) busy: %d %s", pid, comm);
@@ -58,14 +58,21 @@ static int unlink_check(struct path *dir, struct dentry *dentry)
 		__attribute__((aligned(8))) char tmp[16];
 		memcpy(tmp, uuid, sizeof(tmp));
 		byte_reverse(tmp, sizeof(tmp));
-		DEBUG(1, "UUID: %04x-%02x-%02x-%02x-%02x%04x",
-		      *(u32 *)(tmp + 12), *(u16 *)(tmp + 10), *(u16 *)(tmp + 8),
-		      *(u16 *)(tmp + 6), *(u16 *)(tmp + 4), *(u32 *)tmp);
+		DEBUG(
+			1,
+			"UUID: %04x-%02x-%02x-%02x-%02x%04x",
+			*(u32 *)(tmp + 12),
+			*(u16 *)(tmp + 10),
+			*(u16 *)(tmp + 8),
+			*(u16 *)(tmp + 6),
+			*(u16 *)(tmp + 4),
+			*(u32 *)tmp
+		);
 	}
 
-	__attribute__((aligned(8))) char zero_uuid[16] = { 0 };
+	__attribute__((aligned(8))) char zero_uuid[16] = {0};
 	if (memncmp(&rule->dev_uuid, zero_uuid, sizeof(uuid_t)) &&
-	    memncmp(&rule->dev_uuid, uuid, sizeof(uuid_t)))
+		memncmp(&rule->dev_uuid, uuid, sizeof(uuid_t)))
 	{
 		return 0;
 	}
@@ -83,9 +90,11 @@ int BPF_PROG(path_unlink, struct path *dir, struct dentry *dentry, int ret)
 {
 	if (ret)
 	{
-		DEBUG(0,
-		      "rm-forbid %s early return for previous bpf-lsm programs",
-		      __func__);
+		DEBUG(
+			0,
+			"rm-forbid %s early return for previous bpf-lsm programs",
+			__func__
+		);
 		return ret;
 	}
 
@@ -97,9 +106,11 @@ int BPF_PROG(path_rmdir, struct path *dir, struct dentry *dentry, int ret)
 {
 	if (ret)
 	{
-		DEBUG(0,
-		      "rm-forbid %s early return for previous bpf-lsm programs",
-		      __func__);
+		DEBUG(
+			0,
+			"rm-forbid %s early return for previous bpf-lsm programs",
+			__func__
+		);
 		return ret;
 	}
 

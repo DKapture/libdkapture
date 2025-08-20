@@ -54,10 +54,10 @@ struct Rule
 	};
 };
 
-#define SLICE_IP(x) \
+#define SLICE_IP(x)                                                            \
 	((x >> 24) & 0xff), ((x >> 16) & 0xff), ((x >> 8) & 0xff), ((x) & 0xff)
 
-struct Rule rule = { 0 };
+struct Rule rule = {0};
 static int filter_fd;
 static int log_map_fd;
 struct ring_buffer *rb = NULL;
@@ -65,41 +65,49 @@ static std::atomic<bool> exit_flag(false);
 std::map<std::string, unsigned long> traffic_stat_proc;
 std::map<unsigned int, unsigned long> traffic_stat_ip;
 
-static struct option lopts[] = { { "comm", required_argument, 0, 'c' },
-				 { "pid", required_argument, 0, 'p' },
-				 { "remote", required_argument, 0, 'r' },
-				 { "port", required_argument, 0, 'P' },
-				 { "dir", required_argument, 0, 'd' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"comm",	 required_argument, 0, 'c'},
+	{"pid",	required_argument, 0, 'p'},
+	{"remote", required_argument, 0, 'r'},
+	{"port",	 required_argument, 0, 'P'},
+	{"dir",	required_argument, 0, 'd'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		0,				 0, 0  }
+};
 
 // Structure for help messages
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{ "<process name>", "process name to filter\n" },
-	{ "<process id>", "process id to filter\n" },
-	{ "<remote ip>", "remote ip to filter\n" },
-	{ "<remote port>", "remote port to filter\n" },
-	{ "<direction>", "traffic direction to filter\n" },
-	{ "", "print this help message\n" },
+	{"<process name>", "process name to filter\n"	 },
+	{"<process id>",	 "process id to filter\n"		 },
+	{"<remote ip>",	"remote ip to filter\n"		   },
+	{"<remote port>",  "remote port to filter\n"	   },
+	{"<direction>",	"traffic direction to filter\n"},
+	{"",			   "print this help message\n"	},
 };
 
 // Function to print usage information
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
-	printf("  statistic network traffic per process, per ip, per port or per interface\n\n");
+	printf("  statistic network traffic per process, per ip, per port or per "
+		   "interface\n\n");
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -133,10 +141,9 @@ void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	optind = 1;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -171,10 +178,16 @@ void parse_args(int argc, char **argv)
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	const struct BpfData *log = (const struct BpfData *)data;
-	printf("[%s] %s[%d] %s %d.%d.%d.%d:%d, traffic: %u\n",
-	       get_time().c_str(), log->comm, log->pid,
-	       log->dir == TRAFFIC_IN ? "from" : "to", SLICE_IP(log->remote_ip),
-	       log->remote_port, log->traffic);
+	printf(
+		"[%s] %s[%d] %s %d.%d.%d.%d:%d, traffic: %u\n",
+		get_time().c_str(),
+		log->comm,
+		log->pid,
+		log->dir == TRAFFIC_IN ? "from" : "to",
+		SLICE_IP(log->remote_ip),
+		log->remote_port,
+		log->traffic
+	);
 
 	if (traffic_stat_proc.find(log->comm) == traffic_stat_proc.end())
 	{
@@ -207,10 +220,8 @@ void ringbuf_worker(void)
 void register_signal()
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
-		exit_flag = true;
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
+	sa.sa_flags = 0;							   // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -228,7 +239,9 @@ bool bpf_attachable(const char *name)
 	vmlinux_btf = btf__load_vmlinux_btf();
 	err = libbpf_get_error(vmlinux_btf);
 	if (err)
+	{
 		return false;
+	}
 
 	id = btf__find_by_name_kind(vmlinux_btf, name, BTF_KIND_FUNC);
 
@@ -264,19 +277,27 @@ int main(int argc, char **argv)
 
 	obj = net_traffic_bpf::open();
 	if (!obj)
+	{
 		exit(-1);
+	}
 
 	fix_attach_point(obj);
 	if (net_traffic_bpf::load(obj) < 0)
+	{
 		exit(-1);
+	}
 	if (0 != net_traffic_bpf::attach(obj))
+	{
 		exit(-1);
+	}
 
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
+	{
 		goto err_out; // Handle error
+	}
 
 	rb_thread = new std::thread(ringbuf_worker);
 	follow_trace_pipe();
@@ -285,8 +306,10 @@ int main(int argc, char **argv)
 	delete rb_thread;
 err_out:
 	if (rb)
+	{
 		ring_buffer__free(rb);
-	net_traffic_bpf::detach(obj); // Detach BPF program
+	}
+	net_traffic_bpf::detach(obj);  // Detach BPF program
 	net_traffic_bpf::destroy(obj); // Clean up BPF object
 	return -1;
 }

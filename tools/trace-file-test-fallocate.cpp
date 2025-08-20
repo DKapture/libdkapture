@@ -15,8 +15,7 @@ int main(int n, char *args[])
 	int fd = open(filename, O_RDWR | O_CREAT, 0666);
 	if (fd == -1)
 	{
-		std::cerr << "Failed to open file: " << strerror(errno)
-			  << std::endl;
+		std::cerr << "Failed to open file: " << strerror(errno) << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -26,15 +25,14 @@ int main(int n, char *args[])
 	// 使用 fallocate 预分配文件空间
 	if (fallocate(fd, 0, offset, len) == -1)
 	{
-		std::cerr
-			<< "Failed to allocate file space: " << strerror(errno)
-			<< std::endl;
+		std::cerr << "Failed to allocate file space: " << strerror(errno)
+				  << std::endl;
 		close(fd);
 		return EXIT_FAILURE;
 	}
 
 	std::cout << "Successfully allocated " << len << " bytes for file "
-		  << filename << std::endl;
+			  << filename << std::endl;
 
 	close(fd);
 	return EXIT_SUCCESS;

@@ -25,17 +25,17 @@ static volatile bool exiting = false;
 
 struct env
 {
-	__u32 pid; /* 进程过滤 */
-	__u32 cpu; /* CPU过滤 */
-	char comm[16]; /* 命令名过滤 */
-	__u32 event_mask; /* 事件类型掩码 */
+	__u32 pid;		   /* 进程过滤 */
+	__u32 cpu;		   /* CPU过滤 */
+	char comm[16];	   /* 命令名过滤 */
+	__u32 event_mask;  /* 事件类型掩码 */
 	__u32 crtc_filter; /* CRTC过滤 */
-	bool verbose; /* 详细输出 */
-	bool timestamp; /* 显示时间戳 */
-	bool stats; /* 显示统计 */
-	bool errors_only; /* 仅显示错误 */
-	time_t interval; /* 输出间隔 */
-	int times; /* 运行次数 */
+	bool verbose;	   /* 详细输出 */
+	bool timestamp;	   /* 显示时间戳 */
+	bool stats;		   /* 显示统计 */
+	bool errors_only;  /* 仅显示错误 */
+	time_t interval;   /* 输出间隔 */
+	int times;		   /* 运行次数 */
 } env = {
 	.pid = 0,
 	.cpu = (__u32)-1,
@@ -55,17 +55,17 @@ static struct graphics_stats stats = {};
 
 /* 命令行参数定义 */
 static const struct argp_option opts[] = {
-	{ "pid", 'p', "PID", 0, "Trace process with this PID only" },
-	{ "cpu", 'c', "CPU", 0, "Trace events on this CPU only" },
-	{ "comm", 'C', "COMM", 0, "Trace process with this command name only" },
-	{ "events", 'e', "MASK", 0, "Event type mask (1=vblank, 2=fence)" },
-	{ "crtc", 'r', "CRTC", 0, "Trace specific CRTC only" },
-	{ "verbose", 'v', NULL, 0, "Verbose output" },
-	{ "timestamp", 't', NULL, 0, "Print timestamp" },
-	{ "stats", 's', NULL, 0, "Print statistics" },
-	{ "errors-only", 'E', NULL, 0, "Show error events only" },
-	{ "interval", 'i', "INTERVAL", 0, "Summary interval in seconds" },
-	{ "times", 'T', "TIMES", 0, "Number of intervals to run" },
+	{"pid", 'p', "PID", 0, "Trace process with this PID only"},
+	{"cpu", 'c', "CPU", 0, "Trace events on this CPU only"},
+	{"comm", 'C', "COMM", 0, "Trace process with this command name only"},
+	{"events", 'e', "MASK", 0, "Event type mask (1=vblank, 2=fence)"},
+	{"crtc", 'r', "CRTC", 0, "Trace specific CRTC only"},
+	{"verbose", 'v', NULL, 0, "Verbose output"},
+	{"timestamp", 't', NULL, 0, "Print timestamp"},
+	{"stats", 's', NULL, 0, "Print statistics"},
+	{"errors-only", 'E', NULL, 0, "Show error events only"},
+	{"interval", 'i', "INTERVAL", 0, "Summary interval in seconds"},
+	{"times", 'T', "TIMES", 0, "Number of intervals to run"},
 	{},
 };
 
@@ -81,7 +81,8 @@ static const char program_doc[] =
 	"    graphics-snoop -e 1               # Monitor VBlank events only\n"
 	"    graphics-snoop -E                 # Show error events only\n"
 	"    graphics-snoop -v -t              # Verbose output with timestamps\n"
-	"    graphics-snoop -s -i 5            # Print statistics every 5 seconds\n";
+	"    graphics-snoop -s -i 5            # Print statistics every 5 "
+	"seconds\n";
 
 /* 事件类型转换函数 */
 static const char *event_type_str(__u32 event_type)
@@ -110,18 +111,29 @@ static void print_vblank_event(const struct graphics_event *e)
 {
 	if (env.verbose)
 	{
-		printf("[%d] %s[%d]: %s crtc=%d seq=%d timestamp=%llu device=%s\n",
-		       e->header.cpu, e->header.comm, e->header.pid,
-		       event_type_str(e->header.event_type),
-		       e->data.vblank.crtc_id, e->data.vblank.sequence,
-		       e->data.vblank.timestamp_ns, e->data.vblank.device_name);
+		printf(
+			"[%d] %s[%d]: %s crtc=%d seq=%d timestamp=%llu device=%s\n",
+			e->header.cpu,
+			e->header.comm,
+			e->header.pid,
+			event_type_str(e->header.event_type),
+			e->data.vblank.crtc_id,
+			e->data.vblank.sequence,
+			e->data.vblank.timestamp_ns,
+			e->data.vblank.device_name
+		);
 	}
 	else
 	{
-		printf("[%d] %s[%d]: %s crtc=%d seq=%d\n", e->header.cpu,
-		       e->header.comm, e->header.pid,
-		       event_type_str(e->header.event_type),
-		       e->data.vblank.crtc_id, e->data.vblank.sequence);
+		printf(
+			"[%d] %s[%d]: %s crtc=%d seq=%d\n",
+			e->header.cpu,
+			e->header.comm,
+			e->header.pid,
+			event_type_str(e->header.event_type),
+			e->data.vblank.crtc_id,
+			e->data.vblank.sequence
+		);
 	}
 }
 
@@ -129,20 +141,33 @@ static void print_fence_event(const struct graphics_event *e)
 {
 	if (env.verbose)
 	{
-		printf("[%d] %s[%d]: %s fence=0x%llx ctx=%llu seq=%d err=%d driver=%s timeline=%s\n",
-		       e->header.cpu, e->header.comm, e->header.pid,
-		       event_type_str(e->header.event_type),
-		       e->data.fence.fence_ptr, e->data.fence.context,
-		       e->data.fence.seqno, e->data.fence.error,
-		       e->data.fence.driver_name, e->data.fence.timeline_name);
+		printf(
+			"[%d] %s[%d]: %s fence=0x%llx ctx=%llu seq=%d err=%d driver=%s "
+			"timeline=%s\n",
+			e->header.cpu,
+			e->header.comm,
+			e->header.pid,
+			event_type_str(e->header.event_type),
+			e->data.fence.fence_ptr,
+			e->data.fence.context,
+			e->data.fence.seqno,
+			e->data.fence.error,
+			e->data.fence.driver_name,
+			e->data.fence.timeline_name
+		);
 	}
 	else
 	{
-		printf("[%d] %s[%d]: %s fence=0x%llx seq=%d%s\n", e->header.cpu,
-		       e->header.comm, e->header.pid,
-		       event_type_str(e->header.event_type),
-		       e->data.fence.fence_ptr, e->data.fence.seqno,
-		       e->data.fence.error ? " (ERROR)" : "");
+		printf(
+			"[%d] %s[%d]: %s fence=0x%llx seq=%d%s\n",
+			e->header.cpu,
+			e->header.comm,
+			e->header.pid,
+			event_type_str(e->header.event_type),
+			e->data.fence.fence_ptr,
+			e->data.fence.seqno,
+			e->data.fence.error ? " (ERROR)" : ""
+		);
 	}
 }
 
@@ -176,7 +201,7 @@ static void update_stats(const struct graphics_event *e)
 	}
 
 	if (e->header.event_type >= GRAPHICS_FENCE_INIT &&
-	    e->header.event_type <= GRAPHICS_FENCE_SIGNALED)
+		e->header.event_type <= GRAPHICS_FENCE_SIGNALED)
 	{
 		if (e->data.fence.error != 0)
 		{
@@ -191,18 +216,22 @@ static void print_stats(void)
 	printf("\nGraphics Events Statistics:\n");
 	printf("==========================\n");
 	printf("Total Events:      %llu\n", stats.total_events);
-	printf("VBlank Events:     %llu (%.1f%%)\n", stats.vblank_events,
-	       stats.total_events ?
-		       100.0 * stats.vblank_events / stats.total_events :
-		       0);
-	printf("Fence Events:      %llu (%.1f%%)\n", stats.fence_events,
-	       stats.total_events ?
-		       100.0 * stats.fence_events / stats.total_events :
-		       0);
-	printf("Error Events:      %llu (%.1f%%)\n", stats.error_events,
-	       stats.total_events ?
-		       100.0 * stats.error_events / stats.total_events :
-		       0);
+	printf(
+		"VBlank Events:     %llu (%.1f%%)\n",
+		stats.vblank_events,
+		stats.total_events ? 100.0 * stats.vblank_events / stats.total_events
+						   : 0
+	);
+	printf(
+		"Fence Events:      %llu (%.1f%%)\n",
+		stats.fence_events,
+		stats.total_events ? 100.0 * stats.fence_events / stats.total_events : 0
+	);
+	printf(
+		"Error Events:      %llu (%.1f%%)\n",
+		stats.error_events,
+		stats.total_events ? 100.0 * stats.error_events / stats.total_events : 0
+	);
 	printf("\nDRM Statistics:\n");
 	printf("Total VBlanks:     %llu\n", stats.total_vblanks);
 	printf("Active CRTCs:      %u\n", stats.active_crtcs);
@@ -329,12 +358,18 @@ int main(int argc, char **argv)
 	/* 命令行参数解析 */
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	printf("Filter settings:\n");
 	printf("  PID: %d, CPU: %d, COMM: %s\n", env.pid, env.cpu, env.comm);
-	printf("  Event mask: 0x%x, CRTC: %d, Errors only: %s\n\n",
-	       env.event_mask, env.crtc_filter, env.errors_only ? "yes" : "no");
+	printf(
+		"  Event mask: 0x%x, CRTC: %d, Errors only: %s\n\n",
+		env.event_mask,
+		env.crtc_filter,
+		env.errors_only ? "yes" : "no"
+	);
 
 	/* BPF对象操作 */
 	obj = graphics_snoop_bpf__open();
@@ -380,8 +415,12 @@ int main(int argc, char **argv)
 	}
 
 	/* Ring buffer设置 */
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.graphics_events),
-			      handle_event, NULL, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.graphics_events),
+		handle_event,
+		NULL,
+		NULL
+	);
 	if (!rb)
 	{
 		err = -1;
@@ -415,7 +454,9 @@ int main(int argc, char **argv)
 
 cleanup:
 	if (rb)
+	{
 		ring_buffer__free(rb);
+	}
 	graphics_snoop_bpf__destroy(obj);
 	return err != 0;
 }

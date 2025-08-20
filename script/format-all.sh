@@ -24,15 +24,24 @@ fi
 
 cd "$REPO_ROOT" || exit 1
 
-FILES=$(git diff --name-only --diff-filter=M \
-  | grep -E '\.(c|h|cpp)$')
+FILES=$(find . -type f \( -name "*.c" -o -name "*.h" -o -name "*.cpp" \) \
+  ! -path "./build/*" ! -path "./googletest/*")
 
 if [ -z "$FILES" ]; then
-  echo "No unstaged C/C++ files"
+  echo "No C/C++ files found"
   exit 0
 fi
 
-echo "Formatting:"
+echo "Formatting all C/C++ files:"
+echo "Found $(echo "$FILES" | wc -l) files to format"
+
+read -p "Are you sure you want to format all C/C++ files? (y/N) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+  echo "Operation cancelled"
+  exit 0
+fi
+
 echo "$FILES" | while IFS= read -r file; do
   echo "  • $file"
   clang-format -i "$file"

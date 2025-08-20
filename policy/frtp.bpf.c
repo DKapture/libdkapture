@@ -52,9 +52,9 @@ struct BpfData
 struct
 {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, u32); // Key type
+	__type(key, u32);			// Key type
 	__type(value, struct Rule); // Value type
-	__uint(max_entries, 1000); // Maximum entries
+	__uint(max_entries, 1000);	// Maximum entries
 } filter SEC(".maps");
 
 struct
@@ -71,8 +71,12 @@ struct
 	__uint(max_entries, 1024 * 1024); // 1 MB
 } logs SEC(".maps");
 
-static void audit_log(pid_t pid, const char *process,
-		      const struct Target *target, Action act)
+static void audit_log(
+	pid_t pid,
+	const char *process,
+	const struct Target *target,
+	Action act
+)
 {
 	long ret;
 	u32 log_bsz;
@@ -108,8 +112,13 @@ static void audit_log(pid_t pid, const char *process,
 		MINOR(target->dev),
 		target->ino,
 	};
-	ret = bpf_snprintf(log->process + ret, log_bsz / 2, "%u,%u %lu", data,
-			   sizeof(data));
+	ret = bpf_snprintf(
+		log->process + ret,
+		log_bsz / 2,
+		"%u,%u %lu",
+		data,
+		sizeof(data)
+	);
 	if (ret < 0)
 	{
 		bpf_printk("error: bpf_snprintf: %ld", ret);
@@ -143,8 +152,8 @@ struct Event
 	int act;
 };
 
-static long match_callback(struct bpf_map *map, const void *key, void *value,
-			   void *ctx)
+static long
+match_callback(struct bpf_map *map, const void *key, void *value, void *ctx)
 {
 	const char *proc_path;
 	dev_t dev;
@@ -193,8 +202,7 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 
 	if (DEBUG_OUTPUT)
 	{
-		bpf_printk("target fit: %s %lu %lu %d", proc_path, dev, ino,
-			   act);
+		bpf_printk("target fit: %s %lu %lu %d", proc_path, dev, ino, act);
 	}
 	// Check if act is a subset of rule->act
 	if (act & rule->act)
@@ -205,12 +213,10 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 	return 1;
 }
 
-static bool rules_filter(const char *proc_path, const struct Target *target,
-			 int act)
+static bool
+rules_filter(const char *proc_path, const struct Target *target, int act)
 {
-	struct Event event = { .act = act,
-			       .proc_path = proc_path,
-			       .target = target };
+	struct Event event = {.act = act, .proc_path = proc_path, .target = target};
 
 	bpf_for_each_map_elem(&filter, match_callback, &event, 0);
 
@@ -230,15 +236,16 @@ static int _permission_check(const struct Target *target, fmode_t mode)
 	if (!rules_filter(proc_path, target, mode))
 	{
 		if (proc_path)
+		{
 			audit_log(pid, proc_path, target, mode);
+		}
 		else
 		{
 			char comm[16];
 			ret = bpf_get_current_comm(comm, sizeof(comm));
 			if (ret)
 			{
-				bpf_printk("fail to get current comm: %ld",
-					   ret);
+				bpf_printk("fail to get current comm: %ld", ret);
 			}
 			else
 			{
@@ -248,8 +255,12 @@ static int _permission_check(const struct Target *target, fmode_t mode)
 
 		if (DEBUG_OUTPUT)
 		{
-			bpf_printk("permission denied: %lu %lu %d", target->dev,
-				   target->ino, mode);
+			bpf_printk(
+				"permission denied: %lu %lu %d",
+				target->dev,
+				target->ino,
+				mode
+			);
 		}
 		ret = -EACCES;
 	}
@@ -265,7 +276,9 @@ static int permission_check(struct dentry *dentry, fmode_t mode)
 	};
 	int ret = _permission_check(&target, mode);
 	if (ret)
+	{
 		return ret;
+	}
 	target.ino = dentry->d_parent->d_inode->i_ino;
 	target.dev = dentry->d_parent->d_inode->i_sb->s_dev;
 	return _permission_check(&target, mode);
@@ -294,21 +307,34 @@ int BPF_PROG(file_truncate, struct file *file, int ret)
 }
 
 SEC("lsm/path_unlink")
-int BPF_PROG(path_unlink, const struct path *dir, struct dentry *dentry,
-	     int ret)
+int BPF_PROG(
+	path_unlink,
+	const struct path *dir,
+	struct dentry *dentry,
+	int ret
+)
 {
 	if (ret)
+	{
 		return ret;
+	}
 
 	return permission_check(dir->dentry, FMODE_WRITE);
 }
 
 SEC("lsm/path_mkdir")
-int BPF_PROG(path_mkdir, const struct path *dir, struct dentry *dentry,
-	     umode_t mode, int ret)
+int BPF_PROG(
+	path_mkdir,
+	const struct path *dir,
+	struct dentry *dentry,
+	umode_t mode,
+	int ret
+)
 {
 	if (ret)
+	{
 		return ret;
+	}
 
 	return permission_check(dir->dentry, FMODE_WRITE);
 }
@@ -317,23 +343,33 @@ SEC("lsm/path_rmdir")
 int BPF_PROG(path_rmdir, const struct path *dir, struct dentry *dentry, int ret)
 {
 	if (ret)
+	{
 		return ret;
+	}
 
 	return permission_check(dir->dentry, FMODE_WRITE);
 }
 
 SEC("lsm/path_mknod")
-int BPF_PROG(path_mknod, const struct path *dir, struct dentry *dentry,
-	     umode_t mode, unsigned int dev, int ret)
+int BPF_PROG(
+	path_mknod,
+	const struct path *dir,
+	struct dentry *dentry,
+	umode_t mode,
+	unsigned int dev,
+	int ret
+)
 {
 	if (ret)
+	{
 		return ret;
+	}
 
 	return permission_check(dir->dentry, FMODE_WRITE);
 }
 
-static long pid2path_callback(struct bpf_map *map, const void *key, void *value,
-			      void *ctx)
+static long
+pid2path_callback(struct bpf_map *map, const void *key, void *value, void *ctx)
 {
 	char *filepath = *(char **)ctx;
 	struct Rule *rule = value;
@@ -369,8 +405,12 @@ static bool pid2path_filter(char *file_path)
 	return ret;
 }
 
-static long thead_exit_callback(struct bpf_map *map, const void *key,
-				void *value, void *ctx)
+static long thead_exit_callback(
+	struct bpf_map *map,
+	const void *key,
+	void *value,
+	void *ctx
+)
 {
 	struct Rule *rule = value;
 	bool *ret = ctx;
@@ -400,8 +440,13 @@ static bool thread_exit_filter(void)
 }
 
 SEC("fexit/bprm_execve")
-int BPF_PROG(bprm_execve, struct linux_binprm *bprm, int fd,
-	     struct filename *filename, int flags)
+int BPF_PROG(
+	bprm_execve,
+	struct linux_binprm *bprm,
+	int fd,
+	struct filename *filename,
+	int flags
+)
 {
 	long ret = 0;
 	pid_t pid;

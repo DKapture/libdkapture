@@ -4,7 +4,7 @@
 
 class DataMapTest : public ::testing::Test
 {
-    protected:
+  protected:
 	DataMap *data_map;
 
 	void SetUp() override
@@ -18,8 +18,11 @@ class DataMapTest : public ::testing::Test
 	}
 };
 
-int bpf_ringbuffer_push(RingBuffer *m_bpf_rb, int bpf_idx,
-			DKapture::DataHdr *dh);
+int bpf_ringbuffer_push(
+	RingBuffer *m_bpf_rb,
+	int bpf_idx,
+	DKapture::DataHdr *dh
+);
 TEST_F(DataMapTest, PushAndFind)
 {
 	ulong bpf_idx = 8;
@@ -28,8 +31,7 @@ TEST_F(DataMapTest, PushAndFind)
 	ulong dsz = 128;
 
 	// bpf系统接口被我们mock了，所以这里需要手动设置数据，模拟bpf系统接口的行为
-	DKapture::DataHdr *dh =
-		(typeof(dh))malloc(sizeof(DKapture::DataHdr) + dsz);
+	DKapture::DataHdr *dh = (typeof(dh))malloc(sizeof(DKapture::DataHdr) + dsz);
 	assert(dh);
 	dh->type = DKapture::PROC_PID_STAT;
 	dh->pid = pid;
@@ -86,8 +88,8 @@ TEST_F(DataMapTest, ListAllEntries)
 	ulong hash1 = MK_KEY(pid1, DKapture::PROC_PID_STAT);
 	ulong dsz1 = 512;
 
-	ulong bpf_idx2 = bpf_idx1 + BPF_RINGBUF_HDR_SZ +
-			 sizeof(DKapture::DataHdr) + dsz1;
+	ulong bpf_idx2 =
+		bpf_idx1 + BPF_RINGBUF_HDR_SZ + sizeof(DKapture::DataHdr) + dsz1;
 	pid_t pid2 = 0x9999;
 	ulong hash2 = MK_KEY(pid2, DKapture::PROC_PID_IO);
 	ulong dsz2 = 256;

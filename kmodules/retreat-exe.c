@@ -37,7 +37,7 @@ static typeof(get_task_exe_file) *get_task_exe;
 static void *lookup_function(const char *func)
 {
 	int ret = -1;
-	struct kprobe kp = { .symbol_name = func, .pre_handler = do_nothing };
+	struct kprobe kp = {.symbol_name = func, .pre_handler = do_nothing};
 	ret = register_kprobe(&kp);
 	if (ret < 0)
 	{
@@ -91,7 +91,9 @@ static int kdump_task_exe(pid_t pid)
 	for_each_process(p)
 	{
 		if (p->pid == pid)
+		{
 			break;
+		}
 	}
 	if (p != &init_task)
 	{
@@ -127,11 +129,13 @@ exit:
 	return ret;
 }
 
-static ssize_t misc_write(struct file *fp, const char *__user buf, size_t bsz,
-			  loff_t *off)
+static ssize_t
+misc_write(struct file *fp, const char *__user buf, size_t bsz, loff_t *off)
 {
 	if (bsz < sizeof(pid_t))
+	{
 		return -EINVAL;
+	}
 
 	long ret;
 	char *kbuf = NULL;
@@ -175,8 +179,10 @@ exit:
 	return ret;
 }
 
-static struct file_operations misc_fops = { .owner = THIS_MODULE,
-					    .write = misc_write };
+static struct file_operations misc_fops = {
+	.owner = THIS_MODULE,
+	.write = misc_write
+};
 
 static int __init register_misc_dev(void)
 {

@@ -63,8 +63,12 @@ struct CbCtx
 	int ret;
 };
 
-static long rule_filter_callback(struct bpf_map *map, const void *key,
-				 void *value, void *ctx)
+static long rule_filter_callback(
+	struct bpf_map *map,
+	const void *key,
+	void *value,
+	void *ctx
+)
 {
 	struct CbCtx *cb = ctx;
 	struct Rule *rule = value;
@@ -129,18 +133,24 @@ static int traffic_stat(struct socket *sock, int ret, int dir)
 	char comm[16];
 	u32 traffic = ret;
 	if (ret < 0)
+	{
 		return 0;
+	}
 
 	struct sock *sk;
 	bpf_read_kmem_ret(&sk, &sock->sk, return 0);
 	if (!sk)
+	{
 		return 0;
+	}
 
 	u16 pf;
 	bpf_read_kmem_ret(&pf, &sk->__sk_common.skc_family, return 0);
 
 	if (pf != PF_INET)
+	{
 		return 0;
+	}
 
 	u32 skc_daddr;
 	u32 skc_rcv_saddr;
@@ -148,21 +158,26 @@ static int traffic_stat(struct socket *sock, int ret, int dir)
 
 	bpf_read_kmem_ret(&skc_daddr, &sk->__sk_common.skc_daddr, return 0);
 
-	bpf_read_kmem_ret(&skc_rcv_saddr, &sk->__sk_common.skc_rcv_saddr,
-			  return 0);
+	bpf_read_kmem_ret(&skc_rcv_saddr, &sk->__sk_common.skc_rcv_saddr, return 0);
 
 	bpf_read_kmem_ret(&skc_dport, &sk->__sk_common.skc_dport, return 0);
 
 	dst_addr = bpf_ntohl(skc_daddr);
 	src_addr = bpf_ntohl(skc_rcv_saddr);
 	if (dst_addr == 0 || src_addr == 0)
+	{
 		return 0;
+	}
 
 	if (dst_addr == IP(127, 0, 0, 1) || src_addr == IP(127, 0, 0, 1))
+	{
 		return 0;
+	}
 
 	if (dst_addr == src_addr)
+	{
 		return 0;
+	}
 
 	ret = bpf_get_current_comm(comm, sizeof(comm));
 	if (ret)
@@ -189,7 +204,7 @@ static int traffic_stat(struct socket *sock, int ret, int dir)
 		goto exit;
 	}
 
-	u64 data[] = { (u64)comm };
+	u64 data[] = {(u64)comm};
 	ret = bpf_snprintf(log->comm, 16, "%s", data, sizeof(data));
 	if (ret < 0)
 	{
@@ -276,15 +291,21 @@ int BPF_PROG(sock_sendmsg, struct socket *sock, struct msghdr *msg, int ret)
 }
 
 SEC("fexit/sock_write_iter")
-int BPF_PROG(sock_write_iter, struct kiocb *iocb, struct iov_iter *from,
-	     int ret)
+int BPF_PROG(
+	sock_write_iter,
+	struct kiocb *iocb,
+	struct iov_iter *from,
+	int ret
+)
 {
 	struct file *file;
 	struct socket *sock;
 	file = iocb->ki_filp;
 	sock = file->private_data;
 	if (!sock)
+	{
 		return 0;
+	}
 	return traffic_stat(sock, ret, TRAFFIC_OUT);
 }
 
@@ -295,42 +316,69 @@ int BPF_PROG(__sys_sendto_entry)
 	return 0;
 }
 SEC("lsm/socket_sendmsg")
-int BPF_PROG(socket_sendmsg, struct socket *sock, struct msghdr *msg, int size,
-	     int ret)
+int BPF_PROG(
+	socket_sendmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int size,
+	int ret
+)
 {
 	struct socket **psock;
 	psock = get_sock();
 	if (!psock)
+	{
 		return 0;
+	}
 	*psock = sock;
 	return 0;
 }
 SEC("fexit/__sys_sendto")
-int BPF_PROG(__sys_sendto_exit, int fd, void __user *buff, size_t len,
-	     unsigned int flags, struct sockaddr __user *addr, int addr_len,
-	     int ret)
+int BPF_PROG(
+	__sys_sendto_exit,
+	int fd,
+	void __user *buff,
+	size_t len,
+	unsigned int flags,
+	struct sockaddr __user *addr,
+	int addr_len,
+	int ret
+)
 {
 	struct socket *sock;
 	struct socket **psock;
 	psock = get_sock();
 	if (!psock)
+	{
 		return 0;
+	}
 	sock = *psock;
 	clean_sock();
 	return traffic_stat(sock, ret, TRAFFIC_OUT);
 }
 SEC("fexit/____sys_sendmsg")
-int BPF_PROG(____sys_sendmsg, struct socket *sock, struct msghdr *msg_sys,
-	     unsigned int flags, struct used_address *used_address,
-	     unsigned int allowed_msghdr_flags, int ret)
+int BPF_PROG(
+	____sys_sendmsg,
+	struct socket *sock,
+	struct msghdr *msg_sys,
+	unsigned int flags,
+	struct used_address *used_address,
+	unsigned int allowed_msghdr_flags,
+	int ret
+)
 {
 	return traffic_stat(sock, ret, TRAFFIC_OUT);
 }
 // Alternatives for __sock_sendmsg END
 
 SEC("fexit/sock_recvmsg")
-int BPF_PROG(sock_recvmsg, struct socket *sock, struct msghdr *msg, int flags,
-	     int ret)
+int BPF_PROG(
+	sock_recvmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int flags,
+	int ret
+)
 {
 	return traffic_stat(sock, ret, TRAFFIC_IN);
 }

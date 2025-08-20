@@ -700,7 +700,7 @@ SEC("tracepoint/xhci_hcd/xhci_alloc_dev")
 int tp_xhci_alloc_dev(struct tp_xhci_alloc_dev_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_alloc_dev_event_t event = { 0 };
+	struct xhci_alloc_dev_event_t event = {0};
 
 	event.event_type = XHCI_ALLOC_DEV;
 	event.timestamp = bpf_ktime_get_ns();
@@ -717,10 +717,18 @@ int tp_xhci_alloc_dev(struct tp_xhci_alloc_dev_ctx_t *ctx)
 	event.tt_info = ctx->tt_info;
 	event.state = ctx->state;
 
-	DEBUG(0,
-	      "xhci_alloc_dev: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, tt_info: %u, state: %u\n",
-	      event.pid, event.tid, event.comm, event.info, event.info2,
-	      event.tt_info, event.state);
+	DEBUG(
+		0,
+		"xhci_alloc_dev: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, "
+		"tt_info: %u, state: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.info,
+		event.info2,
+		event.tt_info,
+		event.state
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -735,7 +743,7 @@ SEC("tracepoint/xhci_hcd/xhci_free_dev")
 int tp_xhci_free_dev(struct tp_xhci_free_dev_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_free_dev_event_t event = { 0 };
+	struct xhci_free_dev_event_t event = {0};
 
 	event.event_type = XHCI_FREE_DEV;
 	event.timestamp = bpf_ktime_get_ns();
@@ -752,10 +760,18 @@ int tp_xhci_free_dev(struct tp_xhci_free_dev_ctx_t *ctx)
 	event.tt_info = ctx->tt_info;
 	event.state = ctx->state;
 
-	DEBUG(0,
-	      "xhci_free_dev: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, tt_info: %u, state: %u\n",
-	      event.pid, event.tid, event.comm, event.info, event.info2,
-	      event.tt_info, event.state);
+	DEBUG(
+		0,
+		"xhci_free_dev: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, "
+		"tt_info: %u, state: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.info,
+		event.info2,
+		event.tt_info,
+		event.state
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -770,7 +786,7 @@ SEC("tracepoint/xhci_hcd/xhci_urb_enqueue")
 int tp_xhci_urb_enqueue(struct tp_xhci_urb_enqueue_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_urb_enqueue_event_t event = { 0 };
+	struct xhci_urb_enqueue_event_t event = {0};
 
 	event.event_type = XHCI_URB_ENQUEUE;
 	event.timestamp = bpf_ktime_get_ns();
@@ -796,11 +812,20 @@ int tp_xhci_urb_enqueue(struct tp_xhci_urb_enqueue_ctx_t *ctx)
 	event.type = ctx->type;
 	event.slot_id = ctx->slot_id;
 
-	DEBUG(0,
-	      "xhci_urb_enqueue: pid: %d, tid: %d, comm: %s, urb: %llx, ep%d%s, slot: %d, len: %d/%d\n",
-	      event.pid, event.tid, event.comm, event.urb, event.epnum,
-	      event.dir_in ? "in" : "out", event.slot_id, event.actual,
-	      event.length);
+	DEBUG(
+		0,
+		"xhci_urb_enqueue: pid: %d, tid: %d, comm: %s, urb: %llx, ep%d%s, "
+		"slot: %d, len: %d/%d\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.urb,
+		event.epnum,
+		event.dir_in ? "in" : "out",
+		event.slot_id,
+		event.actual,
+		event.length
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -815,7 +840,7 @@ SEC("tracepoint/xhci_hcd/xhci_urb_giveback")
 int tp_xhci_urb_giveback(struct tp_xhci_urb_giveback_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_urb_giveback_event_t event = { 0 };
+	struct xhci_urb_giveback_event_t event = {0};
 
 	event.event_type = XHCI_URB_GIVEBACK;
 	event.timestamp = bpf_ktime_get_ns();
@@ -841,11 +866,21 @@ int tp_xhci_urb_giveback(struct tp_xhci_urb_giveback_ctx_t *ctx)
 	event.type = ctx->type;
 	event.slot_id = ctx->slot_id;
 
-	DEBUG(0,
-	      "xhci_urb_giveback: pid: %d, tid: %d, comm: %s, urb: %llx, ep%d%s, slot: %d, len: %d/%d, status: %d\n",
-	      event.pid, event.tid, event.comm, event.urb, event.epnum,
-	      event.dir_in ? "in" : "out", event.slot_id, event.actual,
-	      event.length, event.status);
+	DEBUG(
+		0,
+		"xhci_urb_giveback: pid: %d, tid: %d, comm: %s, urb: %llx, ep%d%s, "
+		"slot: %d, len: %d/%d, status: %d\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.urb,
+		event.epnum,
+		event.dir_in ? "in" : "out",
+		event.slot_id,
+		event.actual,
+		event.length,
+		event.status
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -860,7 +895,7 @@ SEC("tracepoint/xhci_hcd/xhci_handle_event")
 int tp_xhci_handle_event(struct tp_xhci_handle_event_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_handle_event_event_t event = { 0 };
+	struct xhci_handle_event_event_t event = {0};
 
 	event.event_type = XHCI_HANDLE_EVENT;
 	event.timestamp = bpf_ktime_get_ns();
@@ -878,10 +913,19 @@ int tp_xhci_handle_event(struct tp_xhci_handle_event_ctx_t *ctx)
 	event.field2 = ctx->field2;
 	event.field3 = ctx->field3;
 
-	DEBUG(0,
-	      "xhci_handle_event: pid: %d, tid: %d, comm: %s, type: %u, fields: %u %u %u %u\n",
-	      event.pid, event.tid, event.comm, event.type, event.field0,
-	      event.field1, event.field2, event.field3);
+	DEBUG(
+		0,
+		"xhci_handle_event: pid: %d, tid: %d, comm: %s, type: %u, fields: %u "
+		"%u %u %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.type,
+		event.field0,
+		event.field1,
+		event.field2,
+		event.field3
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -896,7 +940,7 @@ SEC("tracepoint/xhci_hcd/xhci_handle_transfer")
 int tp_xhci_handle_transfer(struct tp_xhci_handle_transfer_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_handle_transfer_event_t event = { 0 };
+	struct xhci_handle_transfer_event_t event = {0};
 
 	event.event_type = XHCI_HANDLE_TRANSFER;
 	event.timestamp = bpf_ktime_get_ns();
@@ -914,10 +958,19 @@ int tp_xhci_handle_transfer(struct tp_xhci_handle_transfer_ctx_t *ctx)
 	event.field2 = ctx->field2;
 	event.field3 = ctx->field3;
 
-	DEBUG(0,
-	      "xhci_handle_transfer: pid: %d, tid: %d, comm: %s, type: %u, fields: %u %u %u %u\n",
-	      event.pid, event.tid, event.comm, event.type, event.field0,
-	      event.field1, event.field2, event.field3);
+	DEBUG(
+		0,
+		"xhci_handle_transfer: pid: %d, tid: %d, comm: %s, type: %u, fields: "
+		"%u %u %u %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.type,
+		event.field0,
+		event.field1,
+		event.field2,
+		event.field3
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -932,7 +985,7 @@ SEC("tracepoint/xhci_hcd/xhci_queue_trb")
 int tp_xhci_queue_trb(struct tp_xhci_queue_trb_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_queue_trb_event_t event = { 0 };
+	struct xhci_queue_trb_event_t event = {0};
 
 	event.event_type = XHCI_QUEUE_TRB;
 	event.timestamp = bpf_ktime_get_ns();
@@ -950,10 +1003,19 @@ int tp_xhci_queue_trb(struct tp_xhci_queue_trb_ctx_t *ctx)
 	event.field2 = ctx->field2;
 	event.field3 = ctx->field3;
 
-	DEBUG(0,
-	      "xhci_queue_trb: pid: %d, tid: %d, comm: %s, type: %u, fields: %u %u %u %u\n",
-	      event.pid, event.tid, event.comm, event.type, event.field0,
-	      event.field1, event.field2, event.field3);
+	DEBUG(
+		0,
+		"xhci_queue_trb: pid: %d, tid: %d, comm: %s, type: %u, fields: %u %u "
+		"%u %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.type,
+		event.field0,
+		event.field1,
+		event.field2,
+		event.field3
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -968,7 +1030,7 @@ SEC("tracepoint/xhci_hcd/xhci_setup_device")
 int tp_xhci_setup_device(struct tp_xhci_setup_device_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_setup_device_event_t event = { 0 };
+	struct xhci_setup_device_event_t event = {0};
 
 	event.event_type = XHCI_SETUP_DEVICE;
 	event.timestamp = bpf_ktime_get_ns();
@@ -990,10 +1052,20 @@ int tp_xhci_setup_device(struct tp_xhci_setup_device_ctx_t *ctx)
 	event.level = ctx->level;
 	event.slot_id = ctx->slot_id;
 
-	DEBUG(0,
-	      "xhci_setup_device: pid: %d, tid: %d, comm: %s, vdev: %llx, devnum: %d, state: %d, speed: %d, port: %d, slot: %d\n",
-	      event.pid, event.tid, event.comm, event.vdev, event.devnum,
-	      event.state, event.speed, event.portnum, event.slot_id);
+	DEBUG(
+		0,
+		"xhci_setup_device: pid: %d, tid: %d, comm: %s, vdev: %llx, devnum: "
+		"%d, state: %d, speed: %d, port: %d, slot: %d\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.vdev,
+		event.devnum,
+		event.state,
+		event.speed,
+		event.portnum,
+		event.slot_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1008,7 +1080,7 @@ SEC("tracepoint/xhci_hcd/xhci_ring_alloc")
 int tp_xhci_ring_alloc(struct tp_xhci_ring_alloc_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_ring_alloc_event_t event = { 0 };
+	struct xhci_ring_alloc_event_t event = {0};
 
 	event.event_type = XHCI_RING_ALLOC;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1031,10 +1103,18 @@ int tp_xhci_ring_alloc(struct tp_xhci_ring_alloc_ctx_t *ctx)
 	event.cycle_state = ctx->cycle_state;
 	event.bounce_buf_len = ctx->bounce_buf_len;
 
-	DEBUG(0,
-	      "xhci_ring_alloc: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, segs: %u, stream: %u\n",
-	      event.pid, event.tid, event.comm, event.type, event.ring,
-	      event.num_segs, event.stream_id);
+	DEBUG(
+		0,
+		"xhci_ring_alloc: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, "
+		"segs: %u, stream: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.type,
+		event.ring,
+		event.num_segs,
+		event.stream_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1049,7 +1129,7 @@ SEC("tracepoint/xhci_hcd/xhci_add_endpoint")
 int tp_xhci_add_endpoint(struct tp_xhci_add_endpoint_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_add_endpoint_event_t event = { 0 };
+	struct xhci_add_endpoint_event_t event = {0};
 
 	event.event_type = XHCI_ADD_ENDPOINT;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1066,10 +1146,18 @@ int tp_xhci_add_endpoint(struct tp_xhci_add_endpoint_ctx_t *ctx)
 	event.deq = ctx->deq;
 	event.tx_info = ctx->tx_info;
 
-	DEBUG(0,
-	      "xhci_add_endpoint: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, deq: %llx, tx_info: %u\n",
-	      event.pid, event.tid, event.comm, event.info, event.info2,
-	      event.deq, event.tx_info);
+	DEBUG(
+		0,
+		"xhci_add_endpoint: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, "
+		"deq: %llx, tx_info: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.info,
+		event.info2,
+		event.deq,
+		event.tx_info
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1084,7 +1172,7 @@ SEC("tracepoint/xhci_hcd/xhci_address_ctx")
 int tp_xhci_address_ctx(struct tp_xhci_address_ctx_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_address_ctx_event_t event = { 0 };
+	struct xhci_address_ctx_event_t event = {0};
 
 	event.event_type = XHCI_ADDRESS_CTX;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1103,10 +1191,18 @@ int tp_xhci_address_ctx(struct tp_xhci_address_ctx_ctx_t *ctx)
 	event.ctx_ep_num = ctx->ctx_ep_num;
 	event.ctx_data = ctx->ctx_data;
 
-	DEBUG(0,
-	      "xhci_address_ctx: pid: %d, tid: %d, comm: %s, ctx_64: %d, type: %u, dma: %llx, va: %llx\n",
-	      event.pid, event.tid, event.comm, event.ctx_64, event.ctx_type,
-	      event.ctx_dma, event.ctx_va);
+	DEBUG(
+		0,
+		"xhci_address_ctx: pid: %d, tid: %d, comm: %s, ctx_64: %d, type: %u, "
+		"dma: %llx, va: %llx\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.ctx_64,
+		event.ctx_type,
+		event.ctx_dma,
+		event.ctx_va
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1121,7 +1217,7 @@ SEC("tracepoint/xhci_hcd/xhci_alloc_virt_device")
 int tp_xhci_alloc_virt_device(struct tp_xhci_alloc_virt_device_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_alloc_virt_device_event_t event = { 0 };
+	struct xhci_alloc_virt_device_event_t event = {0};
 
 	event.event_type = XHCI_ALLOC_VIRT_DEVICE;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1143,10 +1239,20 @@ int tp_xhci_alloc_virt_device(struct tp_xhci_alloc_virt_device_ctx_t *ctx)
 	event.level = ctx->level;
 	event.slot_id = ctx->slot_id;
 
-	DEBUG(0,
-	      "xhci_alloc_virt_device: pid: %d, tid: %d, comm: %s, vdev: %llx, devnum: %d, state: %d, speed: %d, port: %d, slot: %d\n",
-	      event.pid, event.tid, event.comm, event.vdev, event.devnum,
-	      event.state, event.speed, event.portnum, event.slot_id);
+	DEBUG(
+		0,
+		"xhci_alloc_virt_device: pid: %d, tid: %d, comm: %s, vdev: %llx, "
+		"devnum: %d, state: %d, speed: %d, port: %d, slot: %d\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.vdev,
+		event.devnum,
+		event.state,
+		event.speed,
+		event.portnum,
+		event.slot_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1161,7 +1267,7 @@ SEC("tracepoint/xhci_hcd/xhci_configure_endpoint")
 int tp_xhci_configure_endpoint(struct tp_xhci_configure_endpoint_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_slot_ctx_event_t event = { 0 };
+	struct xhci_slot_ctx_event_t event = {0};
 
 	event.event_type = XHCI_CONFIGURE_ENDPOINT;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1178,10 +1284,18 @@ int tp_xhci_configure_endpoint(struct tp_xhci_configure_endpoint_ctx_t *ctx)
 	event.tt_info = ctx->tt_info;
 	event.state = ctx->state;
 
-	DEBUG(0,
-	      "xhci_configure_endpoint: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, tt_info: %u, state: %u\n",
-	      event.pid, event.tid, event.comm, event.info, event.info2,
-	      event.tt_info, event.state);
+	DEBUG(
+		0,
+		"xhci_configure_endpoint: pid: %d, tid: %d, comm: %s, info: %u, info2: "
+		"%u, tt_info: %u, state: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.info,
+		event.info2,
+		event.tt_info,
+		event.state
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1196,7 +1310,7 @@ SEC("tracepoint/xhci_hcd/xhci_ring_free")
 int tp_xhci_ring_free(struct tp_xhci_ring_free_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_ring_free_event_t event = { 0 };
+	struct xhci_ring_free_event_t event = {0};
 
 	event.event_type = XHCI_RING_FREE;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1219,10 +1333,18 @@ int tp_xhci_ring_free(struct tp_xhci_ring_free_ctx_t *ctx)
 	event.cycle_state = ctx->cycle_state;
 	event.bounce_buf_len = ctx->bounce_buf_len;
 
-	DEBUG(0,
-	      "xhci_ring_free: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, segs: %u, stream: %u\n",
-	      event.pid, event.tid, event.comm, event.type, event.ring,
-	      event.num_segs, event.stream_id);
+	DEBUG(
+		0,
+		"xhci_ring_free: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, "
+		"segs: %u, stream: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.type,
+		event.ring,
+		event.num_segs,
+		event.stream_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1237,7 +1359,7 @@ SEC("tracepoint/xhci_hcd/xhci_inc_deq")
 int tp_xhci_inc_deq(struct tp_xhci_inc_deq_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_inc_deq_event_t event = { 0 };
+	struct xhci_inc_deq_event_t event = {0};
 
 	event.event_type = XHCI_INC_DEQ;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1260,10 +1382,18 @@ int tp_xhci_inc_deq(struct tp_xhci_inc_deq_ctx_t *ctx)
 	event.cycle_state = ctx->cycle_state;
 	event.bounce_buf_len = ctx->bounce_buf_len;
 
-	DEBUG(0,
-	      "xhci_inc_deq: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, segs: %u, stream: %u\n",
-	      event.pid, event.tid, event.comm, event.type, event.ring,
-	      event.num_segs, event.stream_id);
+	DEBUG(
+		0,
+		"xhci_inc_deq: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, segs: "
+		"%u, stream: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.type,
+		event.ring,
+		event.num_segs,
+		event.stream_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1278,7 +1408,7 @@ SEC("tracepoint/xhci_hcd/xhci_inc_enq")
 int tp_xhci_inc_enq(struct tp_xhci_inc_enq_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_inc_enq_event_t event = { 0 };
+	struct xhci_inc_enq_event_t event = {0};
 
 	event.event_type = XHCI_INC_ENQ;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1301,10 +1431,18 @@ int tp_xhci_inc_enq(struct tp_xhci_inc_enq_ctx_t *ctx)
 	event.cycle_state = ctx->cycle_state;
 	event.bounce_buf_len = ctx->bounce_buf_len;
 
-	DEBUG(0,
-	      "xhci_inc_enq: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, segs: %u, stream: %u\n",
-	      event.pid, event.tid, event.comm, event.type, event.ring,
-	      event.num_segs, event.stream_id);
+	DEBUG(
+		0,
+		"xhci_inc_enq: pid: %d, tid: %d, comm: %s, type: %u, ring: %llx, segs: "
+		"%u, stream: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.type,
+		event.ring,
+		event.num_segs,
+		event.stream_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1319,7 +1457,7 @@ SEC("tracepoint/xhci_hcd/xhci_ring_ep_doorbell")
 int tp_xhci_ring_ep_doorbell(struct tp_xhci_ring_ep_doorbell_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_ring_ep_doorbell_event_t event = { 0 };
+	struct xhci_ring_ep_doorbell_event_t event = {0};
 
 	event.event_type = XHCI_RING_EP_DOORBELL;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1334,9 +1472,16 @@ int tp_xhci_ring_ep_doorbell(struct tp_xhci_ring_ep_doorbell_ctx_t *ctx)
 	event.slot = ctx->slot;
 	event.doorbell = ctx->doorbell;
 
-	DEBUG(0,
-	      "xhci_ring_ep_doorbell: pid: %d, tid: %d, comm: %s, slot: %u, doorbell: %u\n",
-	      event.pid, event.tid, event.comm, event.slot, event.doorbell);
+	DEBUG(
+		0,
+		"xhci_ring_ep_doorbell: pid: %d, tid: %d, comm: %s, slot: %u, "
+		"doorbell: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.slot,
+		event.doorbell
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1351,7 +1496,7 @@ SEC("tracepoint/xhci_hcd/xhci_urb_dequeue")
 int tp_xhci_urb_dequeue(struct tp_xhci_urb_dequeue_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_urb_dequeue_event_t event = { 0 };
+	struct xhci_urb_dequeue_event_t event = {0};
 
 	event.event_type = XHCI_URB_DEQUEUE;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1377,11 +1522,21 @@ int tp_xhci_urb_dequeue(struct tp_xhci_urb_dequeue_ctx_t *ctx)
 	event.type = ctx->type;
 	event.slot_id = ctx->slot_id;
 
-	DEBUG(0,
-	      "xhci_urb_dequeue: pid: %d, tid: %d, comm: %s, urb: %llx, ep%d%s, slot: %d, len: %d/%d, status: %d\n",
-	      event.pid, event.tid, event.comm, event.urb, event.epnum,
-	      event.dir_in ? "in" : "out", event.slot_id, event.actual,
-	      event.length, event.status);
+	DEBUG(
+		0,
+		"xhci_urb_dequeue: pid: %d, tid: %d, comm: %s, urb: %llx, ep%d%s, "
+		"slot: %d, len: %d/%d, status: %d\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.urb,
+		event.epnum,
+		event.dir_in ? "in" : "out",
+		event.slot_id,
+		event.actual,
+		event.length,
+		event.status
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1395,10 +1550,11 @@ int tp_xhci_urb_dequeue(struct tp_xhci_urb_dequeue_ctx_t *ctx)
 // Slot context tracepoints using generic structure
 SEC("tracepoint/xhci_hcd/xhci_setup_addressable_virt_device")
 int tp_xhci_setup_addressable_virt_device(
-	struct tp_xhci_alloc_virt_device_ctx_t *ctx)
+	struct tp_xhci_alloc_virt_device_ctx_t *ctx
+)
 {
 	long ret = 0;
-	struct xhci_alloc_virt_device_event_t event = { 0 };
+	struct xhci_alloc_virt_device_event_t event = {0};
 
 	event.event_type = XHCI_SETUP_ADDRESSABLE_VIRT_DEVICE;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1420,10 +1576,20 @@ int tp_xhci_setup_addressable_virt_device(
 	event.level = ctx->level;
 	event.slot_id = ctx->slot_id;
 
-	DEBUG(0,
-	      "xhci_setup_addressable_virt_device: pid: %d, tid: %d, comm: %s, vdev: %llx, devnum: %d, state: %d, speed: %d, port: %d, slot: %d\n",
-	      event.pid, event.tid, event.comm, event.vdev, event.devnum,
-	      event.state, event.speed, event.portnum, event.slot_id);
+	DEBUG(
+		0,
+		"xhci_setup_addressable_virt_device: pid: %d, tid: %d, comm: %s, vdev: "
+		"%llx, devnum: %d, state: %d, speed: %d, port: %d, slot: %d\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.vdev,
+		event.devnum,
+		event.state,
+		event.speed,
+		event.portnum,
+		event.slot_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1438,7 +1604,7 @@ SEC("tracepoint/xhci_hcd/xhci_free_virt_device")
 int tp_xhci_free_virt_device(struct tp_xhci_alloc_virt_device_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_alloc_virt_device_event_t event = { 0 };
+	struct xhci_alloc_virt_device_event_t event = {0};
 
 	event.event_type = XHCI_FREE_VIRT_DEVICE;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1460,10 +1626,20 @@ int tp_xhci_free_virt_device(struct tp_xhci_alloc_virt_device_ctx_t *ctx)
 	event.level = ctx->level;
 	event.slot_id = ctx->slot_id;
 
-	DEBUG(0,
-	      "xhci_free_virt_device: pid: %d, tid: %d, comm: %s, vdev: %llx, devnum: %d, state: %d, speed: %d, port: %d, slot: %d\n",
-	      event.pid, event.tid, event.comm, event.vdev, event.devnum,
-	      event.state, event.speed, event.portnum, event.slot_id);
+	DEBUG(
+		0,
+		"xhci_free_virt_device: pid: %d, tid: %d, comm: %s, vdev: %llx, "
+		"devnum: %d, state: %d, speed: %d, port: %d, slot: %d\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.vdev,
+		event.devnum,
+		event.state,
+		event.speed,
+		event.portnum,
+		event.slot_id
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1478,7 +1654,7 @@ SEC("tracepoint/xhci_hcd/xhci_setup_device_slot")
 int tp_xhci_setup_device_slot(struct tp_xhci_slot_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_slot_ctx_event_t event = { 0 };
+	struct xhci_slot_ctx_event_t event = {0};
 
 	event.event_type = XHCI_SETUP_DEVICE_SLOT;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1495,10 +1671,18 @@ int tp_xhci_setup_device_slot(struct tp_xhci_slot_ctx_t *ctx)
 	event.tt_info = ctx->tt_info;
 	event.state = ctx->state;
 
-	DEBUG(0,
-	      "xhci_setup_device_slot: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, tt_info: %u, state: %u\n",
-	      event.pid, event.tid, event.comm, event.info, event.info2,
-	      event.tt_info, event.state);
+	DEBUG(
+		0,
+		"xhci_setup_device_slot: pid: %d, tid: %d, comm: %s, info: %u, info2: "
+		"%u, tt_info: %u, state: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.info,
+		event.info2,
+		event.tt_info,
+		event.state
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1514,7 +1698,7 @@ SEC("tracepoint/xhci_hcd/xhci_handle_cmd_addr_dev")
 int tp_xhci_handle_cmd_addr_dev(struct tp_xhci_slot_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_slot_ctx_event_t event = { 0 };
+	struct xhci_slot_ctx_event_t event = {0};
 
 	event.event_type = XHCI_HANDLE_CMD_ADDR_DEV;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1531,10 +1715,18 @@ int tp_xhci_handle_cmd_addr_dev(struct tp_xhci_slot_ctx_t *ctx)
 	event.tt_info = ctx->tt_info;
 	event.state = ctx->state;
 
-	DEBUG(0,
-	      "xhci_handle_cmd_addr_dev: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, tt_info: %u, state: %u\n",
-	      event.pid, event.tid, event.comm, event.info, event.info2,
-	      event.tt_info, event.state);
+	DEBUG(
+		0,
+		"xhci_handle_cmd_addr_dev: pid: %d, tid: %d, comm: %s, info: %u, "
+		"info2: %u, tt_info: %u, state: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.info,
+		event.info2,
+		event.tt_info,
+		event.state
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -1549,7 +1741,7 @@ SEC("tracepoint/xhci_hcd/xhci_handle_cmd_config_ep")
 int tp_xhci_handle_cmd_config_ep(struct tp_xhci_slot_ctx_t *ctx)
 {
 	long ret = 0;
-	struct xhci_slot_ctx_event_t event = { 0 };
+	struct xhci_slot_ctx_event_t event = {0};
 
 	event.event_type = XHCI_HANDLE_CMD_CONFIG_EP;
 	event.timestamp = bpf_ktime_get_ns();
@@ -1566,10 +1758,18 @@ int tp_xhci_handle_cmd_config_ep(struct tp_xhci_slot_ctx_t *ctx)
 	event.tt_info = ctx->tt_info;
 	event.state = ctx->state;
 
-	DEBUG(0,
-	      "xhci_handle_cmd_config_ep: pid: %d, tid: %d, comm: %s, info: %u, info2: %u, tt_info: %u, state: %u\n",
-	      event.pid, event.tid, event.comm, event.info, event.info2,
-	      event.tt_info, event.state);
+	DEBUG(
+		0,
+		"xhci_handle_cmd_config_ep: pid: %d, tid: %d, comm: %s, info: %u, "
+		"info2: %u, tt_info: %u, state: %u\n",
+		event.pid,
+		event.tid,
+		event.comm,
+		event.info,
+		event.info2,
+		event.tt_info,
+		event.state
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)

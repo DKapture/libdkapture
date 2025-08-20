@@ -33,11 +33,13 @@ static rm_forbid_bpf *obj;
 static int filter_fd;
 static std::atomic<bool> exit_flag(false);
 
-static struct option lopts[] = { { "path", required_argument, 0, 'p' },
-				 { "uuid", required_argument, 0, 'u' },
-				 { "inode", required_argument, 0, 'i' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"path",	 required_argument, 0, 'p'},
+	{"uuid",	 required_argument, 0, 'u'},
+	{"inode", required_argument, 0, 'i'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		0,				 0, 0  }
+};
 
 struct HelpMsg
 {
@@ -46,11 +48,12 @@ struct HelpMsg
 };
 
 static HelpMsg help_msg[] = {
-	{ "[path]", "path of the file to watch on\n" },
-	{ "[uuid]", "the uuid of filesystem to which the inode belong.\n"
-		    "\tyou can get the uuid by running command 'blkid'\n" },
-	{ "[inode]", "inode of the file to watch on\n" },
-	{ "", "print this help message\n" },
+	{"[path]",  "path of the file to watch on\n"		   },
+	{"[uuid]",
+	 "the uuid of filesystem to which the inode belong.\n"
+	 "\tyou can get the uuid by running command 'blkid'\n"},
+	{"[inode]", "inode of the file to watch on\n"		 },
+	{"",		 "print this help message\n"				},
 };
 
 void Usage(const char *arg0)
@@ -60,8 +63,13 @@ void Usage(const char *arg0)
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -104,8 +112,13 @@ static void get_fs_uuid(const char *path, char *uuid, size_t uuid_size)
 	}
 
 	char dev_path[PATH_MAX];
-	snprintf(dev_path, sizeof(dev_path), "/dev/block/%u:%u",
-		 (u32)(st.st_dev >> 8), (u32)(st.st_dev & 0xff));
+	snprintf(
+		dev_path,
+		sizeof(dev_path),
+		"/dev/block/%u:%u",
+		(u32)(st.st_dev >> 8),
+		(u32)(st.st_dev & 0xff)
+	);
 
 	struct stat tstat = {};
 	if (stat(dev_path, &tstat) != 0)
@@ -125,8 +138,12 @@ static void get_fs_uuid(const char *path, char *uuid, size_t uuid_size)
 	while ((entry = readdir(dir)) != NULL)
 	{
 		char link_path[PATH_MAX];
-		snprintf(link_path, sizeof(link_path), "/dev/disk/by-uuid/%s",
-			 entry->d_name);
+		snprintf(
+			link_path,
+			sizeof(link_path),
+			"/dev/disk/by-uuid/%s",
+			entry->d_name
+		);
 
 		struct stat vstat = {};
 		if (stat(link_path, &vstat) != 0)
@@ -136,7 +153,9 @@ static void get_fs_uuid(const char *path, char *uuid, size_t uuid_size)
 		}
 
 		if (memcmp(&tstat.st_rdev, &vstat.st_rdev, sizeof(dev_t)) != 0)
+		{
 			continue;
+		}
 
 		strncpy(uuid, entry->d_name, uuid_size);
 		uuid[uuid_size - 1] = 0;
@@ -155,15 +174,14 @@ void parse_args(int argc, char **argv)
 	int opt, opt_idx;
 	optind = 1;
 	std::string sopts = long_opt2short_opt(lopts);
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
-		case 'p': {
-			char dev_uuid[UUID_STR_LEN] = { 0 };
-			get_fs_uuid(optarg, (char *)&dev_uuid,
-				    sizeof(dev_uuid));
+		case 'p':
+		{
+			char dev_uuid[UUID_STR_LEN] = {0};
+			get_fs_uuid(optarg, (char *)&dev_uuid, sizeof(dev_uuid));
 			optarg = dev_uuid;
 			fallthrough;
 		}
@@ -192,7 +210,8 @@ void parse_args(int argc, char **argv)
 void register_signal()
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
+	sa.sa_handler = [](int)
+	{
 		exit_flag = true;
 		stop_trace();
 	};
@@ -214,10 +233,14 @@ int main(int argc, char *args[])
 
 	obj = rm_forbid_bpf::open_and_load();
 	if (!obj)
+	{
 		exit(-1);
+	}
 
 	if (0 != rm_forbid_bpf::attach(obj))
+	{
 		exit(-1);
+	}
 
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
 

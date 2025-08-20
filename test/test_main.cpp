@@ -10,11 +10,16 @@
 
 FILE *gtest_fp;
 
-static int libbpf_user_print(enum libbpf_print_level level, const char *format,
-			     va_list args)
+static int libbpf_user_print(
+	enum libbpf_print_level level,
+	const char *format,
+	va_list args
+)
 {
 	if (level == LIBBPF_DEBUG)
+	{
 		return 0;
+	}
 	return vfprintf(gtest_fp, format, args);
 }
 
@@ -29,27 +34,32 @@ void clean_up(void)
 		{
 			int shmid = shmctl(id, SHM_STAT, &shm_info);
 			if (shmid < 0)
+			{
 				continue;
+			}
 			// 检查共享内存段是否仍然存在且可访问
 			if (shmctl(shmid, IPC_STAT, &shm_info) < 0)
+			{
 				continue;
+			}
 			// 尝试删除共享内存段
 			if (shmctl(shmid, IPC_RMID, NULL) == 0)
 			{
-				pr_info("Successfully removed shared memory segment %d",
-					shmid);
+				pr_info("Successfully removed shared memory segment %d", shmid);
 			}
 			else
 			{
-				pr_warn("Failed to remove shared memory segment %d: %s",
-					shmid, strerror(errno));
+				pr_warn(
+					"Failed to remove shared memory segment %d: %s",
+					shmid,
+					strerror(errno)
+				);
 			}
 		}
 	}
 	else
 	{
-		pr_warn("Failed to get shared memory info: %s",
-			strerror(errno));
+		pr_warn("Failed to get shared memory info: %s", strerror(errno));
 	}
 
 	// 删除之前可能残留的目录
@@ -61,19 +71,27 @@ void clean_up(void)
 		while ((entry = readdir(dir)) != NULL)
 		{
 			if (strcmp(entry->d_name, ".") == 0 ||
-			    strcmp(entry->d_name, "..") == 0)
+				strcmp(entry->d_name, "..") == 0)
+			{
 				continue;
-			snprintf(path, sizeof(path), "/sys/fs/bpf/dkapture/%s",
-				 entry->d_name);
+			}
+			snprintf(
+				path,
+				sizeof(path),
+				"/sys/fs/bpf/dkapture/%s",
+				entry->d_name
+			);
 			if (unlink(path) == 0)
 			{
-				pr_info("Successfully removed BPF file: %s",
-					entry->d_name);
+				pr_info("Successfully removed BPF file: %s", entry->d_name);
 			}
 			else
 			{
-				pr_warn("Failed to remove BPF file %s: %s",
-					entry->d_name, strerror(errno));
+				pr_warn(
+					"Failed to remove BPF file %s: %s",
+					entry->d_name,
+					strerror(errno)
+				);
 			}
 		}
 		closedir(dir);
@@ -83,8 +101,7 @@ void clean_up(void)
 		}
 		else
 		{
-			pr_warn("Failed to remove BPF directory: %s",
-				strerror(errno));
+			pr_warn("Failed to remove BPF directory: %s", strerror(errno));
 		}
 	}
 }
@@ -93,16 +110,16 @@ void set_up(void)
 {
 	uid_t ori_uid = getuid();
 	/**
-     * 切换挂载空间和用户空间
-     */
+	 * 切换挂载空间和用户空间
+	 */
 	if (unshare(CLONE_NEWNS | CLONE_NEWUSER) != 0)
 	{
 		pr_error("unshare: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	/**
-     * 将自己在当前用户空间映射成root
-     */
+	 * 将自己在当前用户空间映射成root
+	 */
 	char buf[32];
 	sprintf(buf, "0 %d 1", ori_uid);
 	int fd = open("/proc/self/uid_map", O_WRONLY);

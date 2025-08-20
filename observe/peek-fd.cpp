@@ -24,8 +24,8 @@
 struct Rule
 {
 	pid_t pid; // Process ID to filter
-	int fd; // File descriptor to watch
-	int rw; // Read/Write flags
+	int fd;	   // File descriptor to watch
+	int rw;	   // Read/Write flags
 } rule = {
 	.pid = -1,
 	.fd = -1,
@@ -40,52 +40,60 @@ struct BpfData
 };
 
 // Global variables
-static peek_fd_bpf *obj; // BPF program object
-static int log_map_fd; // File descriptor for log map
+static peek_fd_bpf *obj;	   // BPF program object
+static int log_map_fd;		   // File descriptor for log map
 struct ring_buffer *rb = NULL; // Ring buffer for log events
-static int filter_fd; // File descriptor for filter map
-static pthread_t t1; // Thread for processing ring buffer
+static int filter_fd;		   // File descriptor for filter map
+static pthread_t t1;		   // Thread for processing ring buffer
 static bool exit_flag = false; // Flag to signal exit
 static bool enable_sock_trace;
 // Command line options
-static struct option lopts[] = { { "pid", required_argument, 0, 'p' },
-				 { "fd", required_argument, 0, 'f' },
-				 { "read", no_argument, 0, 'r' },
-				 { "write", no_argument, 0, 'w' },
-				 { "outfile", required_argument, 0, 'o' },
-				 { "sock", no_argument, 0, 's' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"pid",		required_argument, 0, 'p'},
+	{"fd",	   required_argument, 0, 'f'},
+	{"read",	 no_argument,		  0, 'r'},
+	{"write",	  no_argument,	   0, 'w'},
+	{"outfile", required_argument, 0, 'o'},
+	{"sock",	 no_argument,		  0, 's'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		 0,				 0, 0  }
+};
 
 // Structure for help messages
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{ "<pid>", "filter with pid\n" },
-	{ "<fd>", "watch the specific fd in the process of pid\n" },
-	{ "[read]", "watch read data\n" },
-	{ "[write]", "watch write data\n" },
-	{ "[outfile]", "write data to a file\n" },
-	{ "[sock]", "output include fd of sockect type\n" },
-	{ "", "print this help message\n" },
+	{"<pid>",	  "filter with pid\n"							 },
+	{"<fd>",		 "watch the specific fd in the process of pid\n"},
+	{"[read]",	   "watch read data\n"							  },
+	{"[write]",	"watch write data\n"							},
+	{"[outfile]", "write data to a file\n"						  },
+	{"[sock]",	   "output include fd of sockect type\n"			},
+	{"",		  "print this help message\n"					},
 };
 
 // Function to print usage information
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
-	printf("  Trace file descriptor IO data of a specific process on the system. "
-	       "Supports filtering by PID and FD.\n\n");
+	printf("  Trace file descriptor IO data of a specific process on the "
+		   "system. "
+		   "Supports filtering by PID and FD.\n\n");
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -119,10 +127,9 @@ void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	optind = 1;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -158,7 +165,7 @@ void parse_args(int argc, char **argv)
 	if (rule.fd == -1 || rule.pid == -1)
 	{
 		printf("\nYou need to specify which process and which fd to \n"
-		       "watch on by the options -pid(-p) and -fd(-f)\n\n");
+			   "watch on by the options -pid(-p) and -fd(-f)\n\n");
 		exit(-1);
 	}
 	if (rule.rw == 0)
@@ -171,8 +178,9 @@ void parse_args(int argc, char **argv)
 // Handle events from the ring buffer
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-	const struct BpfData *log =
-		(const struct BpfData *)data; // Cast data to BpfData structure
+	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
+															  // BpfData
+															  // structure
 	fwrite(log->buf, 1, log->sz, stdout); // Write log buffer to stdout
 	fflush(stdout);
 	return 0;
@@ -198,10 +206,8 @@ void *ringbuf_worker(void *)
 void register_signal(void)
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
-		exit_flag = true;
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
+	sa.sa_flags = 0;							   // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -214,7 +220,9 @@ void register_signal(void)
 static void enable_read_trace(void)
 {
 	if (!(rule.rw & FD_READ))
+	{
 		return;
+	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_read, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_readv, true);
@@ -226,7 +234,9 @@ static void enable_read_trace(void)
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_preadv2, true);
 
 	if (!enable_sock_trace)
+	{
 		return;
+	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_recvfrom, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_recvmsg, true);
@@ -239,7 +249,9 @@ static void enable_read_trace(void)
 static void enable_write_trace(void)
 {
 	if (!(rule.rw & FD_READ))
+	{
 		return;
+	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_write, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_writev, true);
@@ -251,7 +263,9 @@ static void enable_write_trace(void)
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_pwritev2, true);
 
 	if (!enable_sock_trace)
+	{
 		return;
+	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_sendto, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_sendmsg, true);
@@ -265,21 +279,27 @@ static void enable_write_trace(void)
 int main(int argc, char *args[])
 {
 	parse_args(argc, args); // Parse command line arguments
-	register_signal(); // Register signal handler
+	register_signal();		// Register signal handler
 
-	int key = 0; // Key for BPF map
+	int key = 0;			   // Key for BPF map
 	obj = peek_fd_bpf::open(); // Load BPF program
 	if (!obj)
+	{
 		exit(-1); // Exit if loading failed
+	}
 
 	enable_read_trace();
 	enable_write_trace();
 	; // Load BPF program
 	if (peek_fd_bpf::load(obj))
+	{
 		exit(-1); // Exit if loading failed
+	}
 
 	if (0 != peek_fd_bpf::attach(obj))
+	{
 		exit(-1); // Attach BPF program
+	}
 
 	// Get file descriptor for filter map and update it with the rule
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
@@ -293,19 +313,23 @@ int main(int argc, char *args[])
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
+	{
 		goto err_out; // Handle error
+	}
 
 	printf("start peeking\n");
 	// Create a thread for processing the ring buffer
 	pthread_create(&t1, NULL, ringbuf_worker, NULL);
-	follow_trace_pipe(); // Read trace pipe
+	follow_trace_pipe();	// Read trace pipe
 	pthread_join(t1, NULL); // Wait for the worker thread to finish
 	printf("normally exit\n");
 
 err_out:
 	if (rb)
+	{
 		ring_buffer__free(rb); // Free ring buffer if allocated
-	peek_fd_bpf::detach(obj); // Detach BPF program
+	}
+	peek_fd_bpf::detach(obj);  // Detach BPF program
 	peek_fd_bpf::destroy(obj); // Clean up BPF program
-	return 0; // Exit successfully
+	return 0;				   // Exit successfully
 }

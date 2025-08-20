@@ -129,7 +129,7 @@ struct BpfData
 	u32 sk_ref;
 	union
 	{
-		int plen; // path length for unix socket
+		int plen;	  // path length for unix socket
 		int ssthresh; // slow start thresh
 	};
 	char path[]; // for unix socket only
@@ -142,7 +142,7 @@ struct TaskSock
 	char comm[16];
 	u64 ino;
 	unsigned int family; // 套接字协议族，例如 AF_INET, AF_INET6 等
-	unsigned int type; // 套接字类型，例如 SOCK_STREAM, SOCK_DGRAM 等
+	unsigned int type;	 // 套接字类型，例如 SOCK_STREAM, SOCK_DGRAM 等
 	unsigned int protocol;
 	unsigned int state; // 套接字状态，例如 TCP_ESTABLISHED, TCP_LISTEN 等
 	union
@@ -165,43 +165,45 @@ static int filter_fd;
 static std::atomic<bool> exit_flag(false);
 static std::vector<int> iter_fds;
 static Trace trace;
-static std::map<pid_t, std::vector<TaskSock> > task_sock;
-static std::map<u64 /* inode */, std::vector<TaskSock> > sock_task;
+static std::map<pid_t, std::vector<TaskSock>> task_sock;
+static std::map<u64 /* inode */, std::vector<TaskSock>> sock_task;
 static std::map<u64 /* inode */, BpfData> sock_info;
 
-static struct option lopts[] = { { "sip", required_argument, 0, 'i' },
-				 { "dip", required_argument, 0, 'I' },
-				 { "sport", required_argument, 0, 'p' },
-				 { "dport", required_argument, 0, 'P' },
-				 { "tcp", no_argument, 0, 't' },
-				 { "udp", no_argument, 0, 'u' },
-				 { "unix", no_argument, 0, 'x' },
-				 { "ipv4", no_argument, 0, '4' },
-				 { "ipv6", no_argument, 0, '6' },
-				 { "listen", no_argument, 0, 'l' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"sip",	required_argument, 0, 'i'},
+	{"dip",	required_argument, 0, 'I'},
+	{"sport",  required_argument, 0, 'p'},
+	{"dport",  required_argument, 0, 'P'},
+	{"tcp",	no_argument,		 0, 't'},
+	{"udp",	no_argument,		 0, 'u'},
+	{"unix",	 no_argument,		  0, 'x'},
+	{"ipv4",	 no_argument,		  0, '4'},
+	{"ipv6",	 no_argument,		  0, '6'},
+	{"listen", no_argument,		0, 'l'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		0,				 0, 0  }
+};
 
 // Structure for help messages
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{ "<source ip>", "process name to filter\n" },
-	{ "<dest ip>", "process id to filter\n" },
-	{ "<source port>", "remote ip to filter\n" },
-	{ "<dest port>", "remote port to filter\n" },
-	{ "", "filter tcp socket\n" },
-	{ "", "filter udp socket\n" },
-	{ "", "filter unix socket\n" },
-	{ "", "filter ipv4 socket\n" },
-	{ "", "filter ipv6 socket\n" },
-	{ "", "filter socket in state LISTENING\n" },
-	{ "", "print this help message\n" },
+	{"<source ip>",	"process name to filter\n"		  },
+	{"<dest ip>",	  "process id to filter\n"			  },
+	{"<source port>", "remote ip to filter\n"			 },
+	{"<dest port>",	"remote port to filter\n"			 },
+	{"",			  "filter tcp socket\n"				  },
+	{"",			  "filter udp socket\n"				  },
+	{"",			  "filter unix socket\n"			   },
+	{"",			  "filter ipv4 socket\n"			   },
+	{"",			  "filter ipv6 socket\n"			   },
+	{"",			  "filter socket in state LISTENING\n"},
+	{"",			  "print this help message\n"			},
 };
 
 // Function to print usage information
@@ -212,8 +214,13 @@ void Usage(const char *arg0)
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -242,8 +249,13 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 // Helper function to parse IP range
-void parse_ip_range(const char *arg, unsigned int &start, unsigned int &end,
-		    struct in6_addr &start_v6, struct in6_addr &end_v6)
+void parse_ip_range(
+	const char *arg,
+	unsigned int &start,
+	unsigned int &end,
+	struct in6_addr &start_v6,
+	struct in6_addr &end_v6
+)
 {
 	std::string input(arg);
 	size_t dash_pos = input.find('-');
@@ -260,8 +272,7 @@ void parse_ip_range(const char *arg, unsigned int &start, unsigned int &end,
 		}
 		else
 		{
-			throw std::invalid_argument(
-				"Invalid IP address format");
+			throw std::invalid_argument("Invalid IP address format");
 		}
 	}
 	else
@@ -270,7 +281,7 @@ void parse_ip_range(const char *arg, unsigned int &start, unsigned int &end,
 		std::string start_ip = input.substr(0, dash_pos);
 		std::string end_ip = input.substr(dash_pos + 1);
 		if (inet_pton(AF_INET, start_ip.c_str(), &start) == 1 &&
-		    inet_pton(AF_INET, end_ip.c_str(), &end) == 1)
+			inet_pton(AF_INET, end_ip.c_str(), &end) == 1)
 		{
 		}
 		else if (inet_pton(AF_INET6, start_ip.c_str(), &start_v6) ==
@@ -286,8 +297,11 @@ void parse_ip_range(const char *arg, unsigned int &start, unsigned int &end,
 }
 
 // Helper function to parse port range
-void parse_port_range(const char *arg, unsigned short &start,
-		      unsigned short &end)
+void parse_port_range(
+	const char *arg,
+	unsigned short &start,
+	unsigned short &end
+)
 {
 	std::string input(arg);
 	size_t dash_pos = input.find('-');
@@ -311,65 +325,69 @@ void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	u32 bit_switch = 0;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
 		case 'i': // Source IP
 			try
 			{
-				parse_ip_range(optarg, rule.lip, rule.lip_end,
-					       rule.lipv6, rule.lipv6_end);
+				parse_ip_range(
+					optarg,
+					rule.lip,
+					rule.lip_end,
+					rule.lipv6,
+					rule.lipv6_end
+				);
 			}
 			catch (const std::exception &e)
 			{
-				fprintf(stderr, "Error parsing source IP: %s\n",
-					e.what());
+				fprintf(stderr, "Error parsing source IP: %s\n", e.what());
 				exit(-1);
 			}
 			break;
 		case 'I': // Destination IP
 			try
 			{
-				parse_ip_range(optarg, rule.rip, rule.rip_end,
-					       rule.ripv6, rule.ripv6_end);
+				parse_ip_range(
+					optarg,
+					rule.rip,
+					rule.rip_end,
+					rule.ripv6,
+					rule.ripv6_end
+				);
 			}
 			catch (const std::exception &e)
 			{
-				fprintf(stderr,
-					"Error parsing destination IP: %s\n",
-					e.what());
+				fprintf(stderr, "Error parsing destination IP: %s\n", e.what());
 				exit(-1);
 			}
 			break;
 		case 'p': // Source port
 			try
 			{
-				parse_port_range(optarg, rule.lport,
-						 rule.lport_end);
+				parse_port_range(optarg, rule.lport, rule.lport_end);
 			}
 			catch (const std::exception &e)
 			{
-				fprintf(stderr,
-					"Error parsing source port: %s\n",
-					e.what());
+				fprintf(stderr, "Error parsing source port: %s\n", e.what());
 				exit(-1);
 			}
 			break;
 		case 'P': // Destination port
 			try
 			{
-				parse_port_range(optarg, rule.rport,
-						 rule.rport_end);
+				parse_port_range(optarg, rule.rport, rule.rport_end);
 			}
 			catch (const std::exception &e)
 			{
-				fprintf(stderr,
+				fprintf(
+					stderr,
 					"Error parsing destination port: %s\n",
-					e.what());
+					e.what()
+				);
 				exit(-1);
 			}
 			break;
@@ -401,18 +419,20 @@ void parse_args(int argc, char **argv)
 		}
 	}
 	if (bit_switch)
+	{
 		rule.bit_switch = bit_switch;
+	}
 	if ((rule.bit_switch & (SWITCH_IPV4 | SWITCH_IPV6)) == 0)
+	{
 		rule.bit_switch |= (SWITCH_IPV4 | SWITCH_IPV6);
+	}
 }
 
 void register_signal()
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
-		exit_flag = true;
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
+	sa.sa_flags = 0;							   // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -429,71 +449,71 @@ static void rule_init()
 }
 
 static const char *unix_titles = "Num               "
-				 "RefCount "
-				 "Protocol "
-				 "Flags    "
-				 "Type "
-				 "St    "
-				 "Inode "
-				 "Path";
+								 "RefCount "
+								 "Protocol "
+								 "Flags    "
+								 "Type "
+								 "St    "
+								 "Inode "
+								 "Path";
 
 static const char *tcp_titles = "  sl  "
-				"local_address "
-				"rem_address   "
-				"st "
-				"tx_queue "
-				"rx_queue "
-				"tr "
-				"tm->when "
-				"retrnsmt   "
-				"uid  "
-				"timeout "
-				"inode";
+								"local_address "
+								"rem_address   "
+								"st "
+								"tx_queue "
+								"rx_queue "
+								"tr "
+								"tm->when "
+								"retrnsmt   "
+								"uid  "
+								"timeout "
+								"inode";
 
 static const char *tcp6_titles = "  sl  "
-				 "local_address                         "
-				 "remote_address                        "
-				 "st "
-				 "tx_queue "
-				 "rx_queue "
-				 "tr "
-				 "tm->when "
-				 "retrnsmt   "
-				 "uid  "
-				 "timeout "
-				 "inode";
+								 "local_address                         "
+								 "remote_address                        "
+								 "st "
+								 "tx_queue "
+								 "rx_queue "
+								 "tr "
+								 "tm->when "
+								 "retrnsmt   "
+								 "uid  "
+								 "timeout "
+								 "inode";
 
 static const char *udp_titles = "   sl  "
-				"local_address "
-				"rem_address   "
-				"st "
-				"tx_queue "
-				"rx_queue "
-				"tr "
-				"tm->when "
-				"retrnsmt   "
-				"uid  "
-				"timeout "
-				"inode "
-				"ref "
-				"pointer "
-				"drops";
+								"local_address "
+								"rem_address   "
+								"st "
+								"tx_queue "
+								"rx_queue "
+								"tr "
+								"tm->when "
+								"retrnsmt   "
+								"uid  "
+								"timeout "
+								"inode "
+								"ref "
+								"pointer "
+								"drops";
 
 static const char *udp6_titles = "  sl  "
-				 "local_address                         "
-				 "remote_address                        "
-				 "st "
-				 "tx_queue "
-				 "rx_queue "
-				 "tr "
-				 "tm->when "
-				 "retrnsmt   "
-				 "uid  "
-				 "timeout "
-				 "inode "
-				 "ref "
-				 "pointer "
-				 "drops";
+								 "local_address                         "
+								 "remote_address                        "
+								 "st "
+								 "tx_queue "
+								 "rx_queue "
+								 "tr "
+								 "tm->when "
+								 "retrnsmt   "
+								 "uid  "
+								 "timeout "
+								 "inode "
+								 "ref "
+								 "pointer "
+								 "drops";
 
 static void print_log_titles(const BpfData &log)
 {
@@ -529,65 +549,169 @@ static void print_log_titles(const BpfData &log)
 
 static size_t dump_log(BpfData &log, size_t left)
 {
-	DEBUG(0, "logtype: %ld %d\n", (long)&log.log_type - (long)&log,
-	      log.log_type);
+	DEBUG(
+		0,
+		"logtype: %ld %d\n",
+		(long)&log.log_type - (long)&log,
+		log.log_type
+	);
 
 	print_log_titles(log);
 	switch (log.log_type)
 	{
 	case LOG_UNIX:
 		if (sizeof(BpfData) + log.plen > left)
+		{
 			return 0;
+		}
 		if (log.plen)
-			std::replace(log.path, log.path + log.plen - 1,
-				     (char)'\0', (char)'@');
-		printf("%s: %08X %08X %08X %04X %02X %8llu %s\n", log.sk_addr,
-		       log.sk_ref, 0, log.bit_flags, log.sk_type, log.state,
-		       log.ino, log.plen ? log.path : "");
+		{
+			std::replace(
+				log.path,
+				log.path + log.plen - 1,
+				(char)'\0',
+				(char)'@'
+			);
+		}
+		printf(
+			"%s: %08X %08X %08X %04X %02X %8llu %s\n",
+			log.sk_addr,
+			log.sk_ref,
+			0,
+			log.bit_flags,
+			log.sk_type,
+			log.state,
+			log.ino,
+			log.plen ? log.path : ""
+		);
 		return sizeof(BpfData) + log.plen;
 	case LOG_TCP_IPV4:
-		printf("%4d: %08X:%04X %08X:%04X ", 0, log.lip, log.lport,
-		       log.rip, log.rport);
-		printf("%02X %08X:%08X %02X:%08llX %08X %5u %8d %llu %d ",
-		       log.state, log.tx_queue, log.rx_queue, log.tr,
-		       log.tm_when, log.retrnsmt, log.uid, log.timeout, log.ino,
-		       log.sk_ref);
-		printf("%s %llu %llu %u %u %d\n", log.sk_addr, log.icsk_rto,
-		       log.icsk_ack, log.bit_flags, log.snd_cwnd, log.ssthresh);
+		printf(
+			"%4d: %08X:%04X %08X:%04X ",
+			0,
+			log.lip,
+			log.lport,
+			log.rip,
+			log.rport
+		);
+		printf(
+			"%02X %08X:%08X %02X:%08llX %08X %5u %8d %llu %d ",
+			log.state,
+			log.tx_queue,
+			log.rx_queue,
+			log.tr,
+			log.tm_when,
+			log.retrnsmt,
+			log.uid,
+			log.timeout,
+			log.ino,
+			log.sk_ref
+		);
+		printf(
+			"%s %llu %llu %u %u %d\n",
+			log.sk_addr,
+			log.icsk_rto,
+			log.icsk_ack,
+			log.bit_flags,
+			log.snd_cwnd,
+			log.ssthresh
+		);
 		return sizeof(BpfData);
 	case LOG_TCP_IPV6:
-		printf("%4d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ", 0,
-		       log.lipv6.s6_addr32[0], log.lipv6.s6_addr32[1],
-		       log.lipv6.s6_addr32[2], log.lipv6.s6_addr32[3],
-		       log.lport, log.ripv6.s6_addr32[0],
-		       log.ripv6.s6_addr32[1], log.ripv6.s6_addr32[2],
-		       log.ripv6.s6_addr32[3], log.rport);
-		printf("%02X %08X:%08X %02X:%08llX %08X %5u %8d %llu %d ",
-		       log.state, log.tx_queue, log.rx_queue, log.tr,
-		       log.tm_when, log.retrnsmt, log.uid, log.timeout, log.ino,
-		       log.sk_ref);
-		printf("%s %llu %llu %u %u %d\n", log.sk_addr, log.icsk_rto,
-		       log.icsk_ack, log.bit_flags, log.snd_cwnd, log.ssthresh);
+		printf(
+			"%4d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ",
+			0,
+			log.lipv6.s6_addr32[0],
+			log.lipv6.s6_addr32[1],
+			log.lipv6.s6_addr32[2],
+			log.lipv6.s6_addr32[3],
+			log.lport,
+			log.ripv6.s6_addr32[0],
+			log.ripv6.s6_addr32[1],
+			log.ripv6.s6_addr32[2],
+			log.ripv6.s6_addr32[3],
+			log.rport
+		);
+		printf(
+			"%02X %08X:%08X %02X:%08llX %08X %5u %8d %llu %d ",
+			log.state,
+			log.tx_queue,
+			log.rx_queue,
+			log.tr,
+			log.tm_when,
+			log.retrnsmt,
+			log.uid,
+			log.timeout,
+			log.ino,
+			log.sk_ref
+		);
+		printf(
+			"%s %llu %llu %u %u %d\n",
+			log.sk_addr,
+			log.icsk_rto,
+			log.icsk_ack,
+			log.bit_flags,
+			log.snd_cwnd,
+			log.ssthresh
+		);
 		return sizeof(BpfData);
 	case LOG_UDP_IPV4:
-		printf("%5d: %08X:%04X %08X:%04X ", 0, log.lip, log.lport,
-		       log.rip, log.rport);
+		printf(
+			"%5d: %08X:%04X %08X:%04X ",
+			0,
+			log.lip,
+			log.lport,
+			log.rip,
+			log.rport
+		);
 
-		printf("%02X %08X:%08X %02X:%08lX %08X %5u %8d %llu %d %s %llu\n",
-		       log.state, log.tx_queue, log.rx_queue, 0, 0L, 0, log.uid,
-		       0, log.ino, log.sk_ref, log.sk_addr, log.icsk_rto);
+		printf(
+			"%02X %08X:%08X %02X:%08lX %08X %5u %8d %llu %d %s %llu\n",
+			log.state,
+			log.tx_queue,
+			log.rx_queue,
+			0,
+			0L,
+			0,
+			log.uid,
+			0,
+			log.ino,
+			log.sk_ref,
+			log.sk_addr,
+			log.icsk_rto
+		);
 		return sizeof(BpfData);
 	case LOG_UDP_IPV6:
-		printf("%5d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ", 0,
-		       log.lipv6.s6_addr32[0], log.lipv6.s6_addr32[1],
-		       log.lipv6.s6_addr32[2], log.lipv6.s6_addr32[3],
-		       log.lport, log.ripv6.s6_addr32[0],
-		       log.ripv6.s6_addr32[1], log.ripv6.s6_addr32[2],
-		       log.ripv6.s6_addr32[3], log.rport);
+		printf(
+			"%5d: %08X%08X%08X%08X:%04X %08X%08X%08X%08X:%04X ",
+			0,
+			log.lipv6.s6_addr32[0],
+			log.lipv6.s6_addr32[1],
+			log.lipv6.s6_addr32[2],
+			log.lipv6.s6_addr32[3],
+			log.lport,
+			log.ripv6.s6_addr32[0],
+			log.ripv6.s6_addr32[1],
+			log.ripv6.s6_addr32[2],
+			log.ripv6.s6_addr32[3],
+			log.rport
+		);
 
-		printf("%02X %08X:%08X %02X:%08lX %08X %5u %8d %llu %d %s %llu\n",
-		       log.state, log.tx_queue, log.rx_queue, 0, 0L, 0, log.uid,
-		       0, log.ino, log.sk_ref, log.sk_addr, log.icsk_rto);
+		printf(
+			"%02X %08X:%08X %02X:%08lX %08X %5u %8d %llu %d %s %llu\n",
+			log.state,
+			log.tx_queue,
+			log.rx_queue,
+			0,
+			0L,
+			0,
+			log.uid,
+			0,
+			log.ino,
+			log.sk_ref,
+			log.sk_addr,
+			log.icsk_rto
+		);
 		return sizeof(BpfData);
 	default:
 		pr_error("unknown log type: %d\n", log.log_type);
@@ -607,10 +731,14 @@ static size_t process_ring_buf(const char *buf, size_t bsz)
 		llen = dump_log(*log, bsz);
 		// 0 means dump_log needs more than 'bsz'
 		if (llen == 0)
+		{
 			break;
+		}
 		// log memory is aligned to 8 bytes by kernel
 		if (llen % 8)
+		{
 			llen += 8 - llen % 8;
+		}
 		bsz -= llen;
 		buf += llen;
 	}
@@ -622,7 +750,7 @@ static u32 page_size = 4096;
 
 class CircleBuf
 {
-    private:
+  private:
 	size_t rdi;
 	size_t wri;
 	size_t bsz; // totle buffer size
@@ -631,7 +759,7 @@ class CircleBuf
 	void *addr1 = nullptr;
 	void *addr2 = nullptr;
 
-    public:
+  public:
 	CircleBuf(size_t bsz)
 	{
 		if (bsz % page_size)
@@ -677,18 +805,21 @@ class CircleBuf
 		usz = 0;
 		this->bsz = bsz;
 		if (addr1 < addr2)
+		{
 			std::swap(addr1, addr2);
+		}
 		return;
-err:
+	err:
 		this->~CircleBuf();
-		throw std::runtime_error(
-			"circle buf memory construction failure"
-			", check stdout for error details");
+		throw std::runtime_error("circle buf memory construction failure"
+								 ", check stdout for error details");
 	}
 	~CircleBuf()
 	{
 		if (shmid >= 0)
+		{
 			shmctl(shmid, IPC_RMID, NULL);
+		}
 	}
 	char *buf()
 	{
@@ -698,7 +829,9 @@ err:
 	{
 		// in case overflow happens when usz + dsz
 		if (dsz > bsz || usz + dsz > bsz)
+		{
 			dsz = bsz - usz;
+		}
 		memcpy(addr2, data, dsz);
 		wri += dsz;
 		usz += dsz;
@@ -708,7 +841,9 @@ err:
 	size_t read(void *data, size_t dsz)
 	{
 		if (usz < dsz)
+		{
 			dsz = usz;
+		}
 		memcpy(data, addr2, dsz);
 		rdi += dsz;
 		usz -= dsz;
@@ -719,8 +854,8 @@ err:
 
 #else // definded BUILTIN
 
-static int parse_task_sock(const TaskSock ts, DKapture::DKCallback cb,
-			   void *ctx)
+static int
+parse_task_sock(const TaskSock ts, DKapture::DKCallback cb, void *ctx)
 {
 	int ret = 0;
 	size_t dsz = sizeof(DKapture::DataHdr) + sizeof(ProcPidSock);
@@ -740,12 +875,12 @@ static int parse_task_sock(const TaskSock ts, DKapture::DKCallback cb,
 	sk->fd = ts.fd;
 	sk->ino = ts.ino;
 	sk->family = ts.family; // 套接字协议族
-	sk->type = ts.type; // 套接字类型
-	sk->state = ts.state; // 套接字状态
-	sk->lipv6 = ts.lipv6; // 本地 IP 地址
-	sk->ripv6 = ts.ripv6; // 远程 IP 地址
-	sk->lport = ts.lport; // 本地端口
-	sk->rport = ts.rport; // 远端端口
+	sk->type = ts.type;		// 套接字类型
+	sk->state = ts.state;	// 套接字状态
+	sk->lipv6 = ts.lipv6;	// 本地 IP 地址
+	sk->ripv6 = ts.ripv6;	// 远程 IP 地址
+	sk->lport = ts.lport;	// 本地端口
+	sk->rport = ts.rport;	// 远端端口
 	ret = cb(ctx, hdr, dsz);
 	free(hdr);
 	return ret;
@@ -754,9 +889,10 @@ static int parse_task_sock(const TaskSock ts, DKapture::DKCallback cb,
 
 static int get_task_sock(
 #ifndef BUILTIN
-	std::map<pid_t, std::vector<TaskSock> > &task_sock
+	std::map<pid_t, std::vector<TaskSock>> &task_sock
 #else
-	DKapture::DKCallback callback, void *ctx
+	DKapture::DKCallback callback,
+	void *ctx
 #endif
 )
 {
@@ -789,7 +925,9 @@ static int get_task_sock(
 		}
 	}
 	if (rd_sz < 0)
+	{
 		pr_error("read iter(%d): %s\n", fd, strerror(errno));
+	}
 
 #ifndef BUILTIN
 	if (0)
@@ -797,7 +935,9 @@ static int get_task_sock(
 		int len;
 		len = printf("%10s %16s %10s", "pid", "comm", "ino\n");
 		while (len--)
+		{
 			printf("=");
+		}
 		printf("\n");
 		for (auto &it : task_sock)
 		{
@@ -805,17 +945,21 @@ static int get_task_sock(
 			for (auto &ts : tss)
 			{
 				if (&ts == &tss[0])
-					printf("%10d %16s %10llu\n", ts.pid,
-					       ts.comm, ts.ino);
+				{
+					printf("%10d %16s %10llu\n", ts.pid, ts.comm, ts.ino);
+				}
 				else
-					printf("%10s %16s %10llu\n", "", "",
-					       ts.ino);
+				{
+					printf("%10s %16s %10llu\n", "", "", ts.ino);
+				}
 			}
 			printf("\n");
 		}
 		len = printf("%10s %10s %16s", "sock-ino", "pid", "comm\n");
 		while (len--)
+		{
 			printf("=");
+		}
 		printf("\n");
 		for (auto &it : sock_task)
 		{
@@ -823,11 +967,13 @@ static int get_task_sock(
 			for (auto &st : sts)
 			{
 				if (&st == &sts[0])
-					printf("%10llu %10d %16s\n", st.ino,
-					       st.pid, st.comm);
+				{
+					printf("%10llu %10d %16s\n", st.ino, st.pid, st.comm);
+				}
 				else
-					printf("%10s %10d %16s\n", "", st.pid,
-					       st.comm);
+				{
+					printf("%10s %10d %16s\n", "", st.pid, st.comm);
+				}
 			}
 			printf("\n");
 		}
@@ -837,9 +983,13 @@ static int get_task_sock(
 
 exit:
 	if (fd > 0)
+	{
 		close(fd);
+	}
 	if (buf)
+	{
 		delete[] buf;
+	}
 	return 0;
 }
 
@@ -849,17 +999,23 @@ int lsock_query(DKapture::DKCallback callback, void *ctx)
 	int ret = -1;
 	obj = lsock_bpf::open();
 	if (!obj)
+	{
 		return -1;
+	}
 
 	if (lsock_bpf::load(obj) < 0)
+	{
 		goto out;
+	}
 
 	if (0 != lsock_bpf::attach(obj))
+	{
 		goto out;
+	}
 
 	ret = get_task_sock(callback, ctx);
 out:
-	lsock_bpf::detach(obj); // Detach BPF program
+	lsock_bpf::detach(obj);	 // Detach BPF program
 	lsock_bpf::destroy(obj); // Clean up BPF object
 	return ret;
 }
@@ -886,13 +1042,19 @@ int main(int argc, char **argv)
 
 	obj = lsock_bpf::open();
 	if (!obj)
+	{
 		goto err_out;
+	}
 
 	if (lsock_bpf::load(obj) < 0)
+	{
 		goto err_out;
+	}
 
 	if (0 != lsock_bpf::attach(obj))
+	{
 		goto err_out;
+	}
 
 	get_task_sock(task_sock);
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
@@ -917,25 +1079,27 @@ int main(int argc, char **argv)
 	for (auto fd : iter_fds)
 	{
 		size_t left = 0;
-		while ((rd_sz = read(fd, cb->buf(), CIRCLE_BUF_SIZE - left)) >
-		       0)
+		while ((rd_sz = read(fd, cb->buf(), CIRCLE_BUF_SIZE - left)) > 0)
 		{
 #if ITER_PASS_STRING
 			write(fileno(stdout), cb->buf(), rd_sz);
 #else
 			DEBUG(0, "rd_sz: %ld left: %lu\n", rd_sz, left);
-			left = process_ring_buf(cb->buf() + CIRCLE_BUF_SIZE -
-							left,
-						rd_sz + left);
+			left = process_ring_buf(
+				cb->buf() + CIRCLE_BUF_SIZE - left,
+				rd_sz + left
+			);
 #endif
 		}
 		if (rd_sz < 0)
+		{
 			pr_error("read iter(%d): %s\n", fd, strerror(errno));
+		}
 		close(fd);
 	}
 	trace.stop();
 
-	lsock_bpf::detach(obj); // Detach BPF program
+	lsock_bpf::detach(obj);	 // Detach BPF program
 	lsock_bpf::destroy(obj); // Clean up BPF object
 	delete cb;
 	return 0;
@@ -943,11 +1107,13 @@ int main(int argc, char **argv)
 err_out:
 	if (obj)
 	{
-		lsock_bpf::detach(obj); // Detach BPF program
+		lsock_bpf::detach(obj);	 // Detach BPF program
 		lsock_bpf::destroy(obj); // Clean up BPF object
 	}
 	if (cb)
+	{
 		delete cb;
+	}
 	return -1;
 }
 #endif

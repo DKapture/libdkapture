@@ -1,11 +1,12 @@
 /**
- * sometimes we may accidentally delete a system file or else, there is no way to retreat 
- * it back by traditional methods(except data recovery which is very expensive).
- * 
- * This module provides a way to retreat the file back, if it's still referenced by any 
- * process. Mostly if the file deleted is of system file, it's much likely being 
- * referenced by some other processes, so we can find the file from the process and copy 
- * it back to the original path.
+ * sometimes we may accidentally delete a system file or else, there is no way
+ * to retreat it back by traditional methods(except data recovery which is very
+ * expensive).
+ *
+ * This module provides a way to retreat the file back, if it's still referenced
+ * by any process. Mostly if the file deleted is of system file, it's much
+ * likely being referenced by some other processes, so we can find the file from
+ * the process and copy it back to the original path.
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -26,12 +27,12 @@
 static rwlock_t *ptasklist_lock;
 static struct miscdevice misc;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 93) && \
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 93) &&                          \
 	LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 6)
-static struct file *(*pf_uld_check_file)(struct fdtable *fdt, struct file *file,
-					 unsigned fd);
-struct file *uld_fcheck_file(struct fdtable *fdt, struct file *file,
-			     unsigned fd)
+static struct file
+	*(*pf_uld_check_file)(struct fdtable *fdt, struct file *file, unsigned fd);
+struct file *
+uld_fcheck_file(struct fdtable *fdt, struct file *file, unsigned fd)
 {
 	return pf_uld_check_file(fdt, file, fd);
 }
@@ -49,7 +50,7 @@ static typeof(kallsyms_lookup_name) *lookup_symbol;
 static void *lookup_function(const char *func)
 {
 	int ret = -1;
-	struct kprobe kp = { .symbol_name = func, .pre_handler = do_nothing };
+	struct kprobe kp = {.symbol_name = func, .pre_handler = do_nothing};
 	ret = register_kprobe(&kp);
 	if (ret < 0)
 	{
@@ -119,7 +120,9 @@ static struct file *find_task_path(struct task_struct *task, const char *path)
 			struct file *file = files_lookup_fd_rcu(files, fd);
 #endif
 			if (!file)
+			{
 				continue;
+			}
 
 			char *ppath = file_path(file, buf, PATH_MAX);
 			if (IS_ERR(ppath))
@@ -169,7 +172,9 @@ static int retreat_path(const char *path)
 	{
 		file = find_task_path(p, path);
 		if (file)
+		{
 			break;
+		}
 	}
 	read_unlock(ptasklist_lock);
 
@@ -203,11 +208,13 @@ exit:
 	return ret;
 }
 
-static ssize_t misc_write(struct file *fp, const char *__user buf, size_t bsz,
-			  loff_t *off)
+static ssize_t
+misc_write(struct file *fp, const char *__user buf, size_t bsz, loff_t *off)
 {
 	if (bsz < 1)
+	{
 		return -EINVAL;
+	}
 
 	long ret;
 	char *kbuf = NULL;
@@ -246,8 +253,10 @@ exit:
 	return ret;
 }
 
-static struct file_operations misc_fops = { .owner = THIS_MODULE,
-					    .write = misc_write };
+static struct file_operations misc_fops = {
+	.owner = THIS_MODULE,
+	.write = misc_write
+};
 
 static int __init register_misc_dev(void)
 {
@@ -278,10 +287,10 @@ static int __init retreat_init(void)
 		return -EINVAL;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 93) && \
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 93) &&                          \
 	LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 6)
-	pf_uld_check_file =
-		(typeof(pf_uld_check_file))lookup_symbol("uld_check_file");
+	pf_uld_check_file = (typeof(pf_uld_check_file))lookup_symbol("uld_check_"
+																 "file");
 	if (!pf_uld_check_file)
 	{
 		pr_err("fail to lookup symbol 'uld_check_file'\n");
@@ -310,5 +319,5 @@ module_exit(retreat_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("uniontech.com");
-MODULE_DESCRIPTION(
-	"a module helping to retreat accidentally deleted files(if it's still referenced by any process)");
+MODULE_DESCRIPTION("a module helping to retreat accidentally deleted files(if "
+				   "it's still referenced by any process)");

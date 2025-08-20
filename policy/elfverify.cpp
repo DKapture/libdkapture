@@ -63,33 +63,41 @@ struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
 const char *policy_file = NULL;
 
-static struct option lopts[] = { { "policy-file", required_argument, 0, 'p' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"policy-file", required_argument, 0, 'p'},
+	{"help",		 no_argument,		  0, 'h'},
+	{0,			 0,				 0, 0  }
+};
 
 // Structure for help messages
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{ "<policy-file>", "specify the policy file to load policy\n" },
-	{ "", "print this help message\n" },
+	{"<policy-file>", "specify the policy file to load policy\n"},
+	{"",			  "print this help message\n"				},
 };
 
 // Function to print usage information
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
-	printf("  prevent the execution of applications from untrusted sources according to the policy file\n\n");
+	printf("  prevent the execution of applications from untrusted sources "
+		   "according to the policy file\n\n");
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -121,10 +129,9 @@ std::string long_opt2short_opt(const option lopts[])
 void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -152,10 +159,8 @@ void parse_args(int argc, char **argv)
 void register_signal()
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
-		exit_flag = true;
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
+	sa.sa_flags = 0;							   // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -185,9 +190,11 @@ static void path2target(const char *path, struct Target *target)
 	// pr_info("Add file: %x %lu", target->dev, target->ino);
 }
 
-static void add_directories_recursively(const char *dir_path,
-					const struct Rule *base_rule,
-					std::vector<struct Rule> &rules)
+static void add_directories_recursively(
+	const char *dir_path,
+	const struct Rule *base_rule,
+	std::vector<struct Rule> &rules
+)
 {
 	struct Rule dir_rule = *base_rule;
 	path2target(dir_path, &dir_rule.target);
@@ -196,27 +203,31 @@ static void add_directories_recursively(const char *dir_path,
 	DIR *dir = opendir(dir_path);
 	if (!dir)
 	{
-		pr_error("Cannot open directory %s: %s", dir_path,
-			 strerror(errno));
+		pr_error("Cannot open directory %s: %s", dir_path, strerror(errno));
 		return;
 	}
 
 	struct dirent *entry;
 	while ((entry = readdir(dir)) != NULL)
 	{
-		if (strcmp(entry->d_name, ".") == 0 ||
-		    strcmp(entry->d_name, "..") == 0)
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+		{
 			continue;
+		}
 
 		char full_path[PATH_MAX];
-		snprintf(full_path, sizeof(full_path), "%s/%s", dir_path,
-			 entry->d_name);
+		snprintf(
+			full_path,
+			sizeof(full_path),
+			"%s/%s",
+			dir_path,
+			entry->d_name
+		);
 
 		struct stat st;
 		if (lstat(full_path, &st) != 0)
 		{
-			pr_error("Cannot lstat %s: %s", full_path,
-				 strerror(errno));
+			pr_error("Cannot lstat %s: %s", full_path, strerror(errno));
 			continue;
 		}
 
@@ -227,8 +238,7 @@ static void add_directories_recursively(const char *dir_path,
 
 		if (S_ISDIR(st.st_mode))
 		{
-			add_directories_recursively(full_path, base_rule,
-						    rules);
+			add_directories_recursively(full_path, base_rule, rules);
 		}
 	}
 
@@ -264,28 +274,28 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 		char content[4096];
 
 		if (line[0] == '#')
+		{
 			continue;
+		}
 
 		if (sscanf(line, "%4[^=]=%4095s", type, content) != 2)
 		{
 			pr_error("Invalid line: %s", line);
 			continue;
 		}
-		struct Rule rule = { 0 };
+		struct Rule rule = {0};
 
 		if (strcmp(type, "path") == 0)
 		{
 			struct stat st;
 			if (stat(content, &st) != 0)
 			{
-				pr_error("Cannot access path %s: %s", content,
-					 strerror(errno));
+				pr_error("Cannot access path %s: %s", content, strerror(errno));
 				continue;
 			}
 			if (S_ISDIR(st.st_mode))
 			{
-				add_directories_recursively(content, &rule,
-							    rules);
+				add_directories_recursively(content, &rule, rules);
 			}
 			else
 			{
@@ -311,8 +321,7 @@ void load_rules(const std::vector<struct Rule> &rules)
 	for (const auto &rule : rules)
 	{
 		key++;
-		if (bpf_map_update_elem(whitelist_fd, &key, &rule, BPF_ANY) !=
-		    0)
+		if (bpf_map_update_elem(whitelist_fd, &key, &rule, BPF_ANY) != 0)
 		{
 			perror("bpf_map_update_elem");
 			exit(EXIT_FAILURE);
@@ -322,12 +331,18 @@ void load_rules(const std::vector<struct Rule> &rules)
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-	const struct BpfData *log =
-		(const struct BpfData *)data; // Cast data to BpfData structure
-	pr_info("process %d of user %d tried to execve %s file "
+	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
+															  // BpfData
+															  // structure
+	pr_info(
+		"process %d of user %d tried to execve %s file "
 		"(dev: %x, ino: %lu), denied!",
-		log->pid, log->uid, log->is_binary ? "binary" : "script",
-		log->target.dev, log->target.ino);
+		log->pid,
+		log->uid,
+		log->is_binary ? "binary" : "script",
+		log->target.dev,
+		log->target.ino
+	);
 	return 0;
 }
 
@@ -355,19 +370,25 @@ int main(int argc, char **argv)
 
 	obj = elfverify_bpf::open_and_load();
 	if (!obj)
+	{
 		exit(-1);
+	}
 
 	whitelist_fd = bpf_get_map_fd(obj->obj, "whitelist", goto err_out);
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
+	{
 		goto err_out;
+	}
 	rules = parse_policy_file(policy_file);
 	load_rules(rules);
 
 	pr_info("Program start");
 	if (0 != elfverify_bpf::attach(obj))
+	{
 		exit(-1);
+	}
 
 	rb_thread = new std::thread(ringbuf_worker);
 	follow_trace_pipe();

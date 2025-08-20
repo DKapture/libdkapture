@@ -9,7 +9,7 @@
 
 class BPFTest : public ::testing::Test
 {
-    protected:
+  protected:
 	BPF *bpf_instance;
 
 	void SetUp() override
@@ -31,8 +31,10 @@ class BPFTest : public ::testing::Test
 			while ((entry = readdir(dir)) != nullptr)
 			{
 				if (strcmp(entry->d_name, ".") == 0 ||
-				    strcmp(entry->d_name, "..") == 0)
+					strcmp(entry->d_name, "..") == 0)
+				{
 					continue;
+				}
 				std::string path(TEST_PIN_PATH);
 				path += "/";
 				path += entry->d_name;

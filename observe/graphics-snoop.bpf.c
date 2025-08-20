@@ -40,7 +40,7 @@ struct
 struct
 {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
-	__type(key, __u32); /* crtc_id */
+	__type(key, __u32);	  /* crtc_id */
 	__type(value, __u64); /* last_vblank_time */
 	__uint(max_entries, 32);
 } crtc_state SEC(".maps");
@@ -49,7 +49,7 @@ struct
 struct
 {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
-	__type(key, __u64); /* fence_ptr */
+	__type(key, __u64);	  /* fence_ptr */
 	__type(value, __u64); /* creation_time */
 	__uint(max_entries, 1024);
 } fence_tracker SEC(".maps");
@@ -68,7 +68,9 @@ static __always_inline bool should_trace_pid(__u32 pid)
 {
 	struct graphics_filter *filter = get_filter();
 	if (!filter)
+	{
 		return true;
+	}
 	return filter->target_pid == 0 || filter->target_pid == pid;
 }
 
@@ -76,7 +78,9 @@ static __always_inline bool should_trace_cpu(__u32 cpu)
 {
 	struct graphics_filter *filter = get_filter();
 	if (!filter)
+	{
 		return true;
+	}
 	return filter->target_cpu == (__u32)-1 || filter->target_cpu == cpu;
 }
 
@@ -84,9 +88,13 @@ static __always_inline bool should_trace_event(__u32 event_type)
 {
 	struct graphics_filter *filter = get_filter();
 	if (!filter)
+	{
 		return true;
+	}
 	if (filter->event_mask == 0)
+	{
 		return true;
+	}
 	return filter->event_mask & (1 << (event_type - 1));
 }
 
@@ -94,7 +102,9 @@ static __always_inline bool should_trace_crtc(__u32 crtc_id)
 {
 	struct graphics_filter *filter = get_filter();
 	if (!filter)
+	{
 		return true;
+	}
 	return filter->crtc_filter == 0 || filter->crtc_filter == crtc_id;
 }
 
@@ -102,9 +112,13 @@ static __always_inline bool should_trace_comm(const char *comm)
 {
 	struct graphics_filter *filter = get_filter();
 	if (!filter)
+	{
 		return true;
+	}
 	if (filter->target_comm[0] == '\0')
+	{
 		return true;
+	}
 	return strncmp(comm, filter->target_comm, TASK_COMM_LEN) == 0;
 }
 
@@ -125,24 +139,34 @@ static __always_inline int submit_graphics_event(struct graphics_event *event)
 {
 	/* 基础过滤检查 */
 	if (!should_trace_pid(event->header.pid))
+	{
 		return 0;
+	}
 	if (!should_trace_cpu(event->header.cpu))
+	{
 		return 0;
+	}
 	if (!should_trace_event(event->header.event_type))
+	{
 		return 0;
+	}
 	if (!should_trace_comm(event->header.comm))
+	{
 		return 0;
+	}
 
 	/* 错误过滤检查 */
 	if (targ_errors_only)
 	{
 		if (event->header.event_type == GRAPHICS_FENCE_INIT ||
-		    event->header.event_type == GRAPHICS_FENCE_DESTROY ||
-		    event->header.event_type == GRAPHICS_FENCE_ENABLE ||
-		    event->header.event_type == GRAPHICS_FENCE_SIGNALED)
+			event->header.event_type == GRAPHICS_FENCE_DESTROY ||
+			event->header.event_type == GRAPHICS_FENCE_ENABLE ||
+			event->header.event_type == GRAPHICS_FENCE_SIGNALED)
 		{
 			if (event->data.fence.error == 0)
+			{
 				return 0;
+			}
 		}
 	}
 
@@ -151,7 +175,8 @@ static __always_inline int submit_graphics_event(struct graphics_event *event)
 
 /* Tracepoint处理函数 */
 
-/* 由于实际的DRM tracepoint可能不存在或结构不同，我们使用通用的系统调用监控来模拟 */
+/* 由于实际的DRM
+ * tracepoint可能不存在或结构不同，我们使用通用的系统调用监控来模拟 */
 /* 这里提供一个框架，实际部署时需要根据系统的tracepoint情况调整 */
 
 /* 自定义tracepoint结构体 */
@@ -174,7 +199,9 @@ int handle_drm_vblank_event(struct drm_vblank_event_ctx *ctx)
 	struct graphics_event event = {};
 
 	if (!should_trace_event(GRAPHICS_VBLANK_EVENT))
+	{
 		return 0;
+	}
 
 	fill_common_header(&event.header, GRAPHICS_VBLANK_EVENT);
 
@@ -185,7 +212,9 @@ int handle_drm_vblank_event(struct drm_vblank_event_ctx *ctx)
 	__builtin_memcpy(event.data.vblank.device_name, "drm", 4);
 
 	if (!should_trace_crtc(event.data.vblank.crtc_id))
+	{
 		return 0;
+	}
 
 	/* 更新CRTC状态 */
 	__u32 crtc_id = event.data.vblank.crtc_id;
@@ -215,7 +244,9 @@ int handle_dma_fence_init(struct dma_fence_init_ctx *ctx)
 	__u64 now = bpf_ktime_get_ns();
 
 	if (!should_trace_event(GRAPHICS_FENCE_INIT))
+	{
 		return 0;
+	}
 
 	fill_common_header(&event.header, GRAPHICS_FENCE_INIT);
 
@@ -229,16 +260,24 @@ int handle_dma_fence_init(struct dma_fence_init_ctx *ctx)
 		(char *)((void *)ctx + (ctx->__data_loc_driver & 0xffff));
 	char *timeline_str =
 		(char *)((void *)ctx + (ctx->__data_loc_timeline & 0xffff));
-	bpf_probe_read_kernel_str(event.data.fence.driver_name,
-				  sizeof(event.data.fence.driver_name),
-				  driver_str);
-	bpf_probe_read_kernel_str(event.data.fence.timeline_name,
-				  sizeof(event.data.fence.timeline_name),
-				  timeline_str);
+	bpf_probe_read_kernel_str(
+		event.data.fence.driver_name,
+		sizeof(event.data.fence.driver_name),
+		driver_str
+	);
+	bpf_probe_read_kernel_str(
+		event.data.fence.timeline_name,
+		sizeof(event.data.fence.timeline_name),
+		timeline_str
+	);
 
 	/* 记录围栏创建 */
-	bpf_map_update_elem(&fence_tracker, &event.data.fence.fence_ptr, &now,
-			    BPF_ANY);
+	bpf_map_update_elem(
+		&fence_tracker,
+		&event.data.fence.fence_ptr,
+		&now,
+		BPF_ANY
+	);
 
 	return submit_graphics_event(&event);
 }
@@ -263,7 +302,9 @@ int handle_dma_fence_signaled(struct dma_fence_signaled_ctx *ctx)
 	__u64 now = bpf_ktime_get_ns();
 
 	if (!should_trace_event(GRAPHICS_FENCE_SIGNALED))
+	{
 		return 0;
+	}
 
 	fill_common_header(&event.header, GRAPHICS_FENCE_SIGNALED);
 
@@ -277,12 +318,16 @@ int handle_dma_fence_signaled(struct dma_fence_signaled_ctx *ctx)
 		(char *)((void *)ctx + (ctx->__data_loc_driver & 0xffff));
 	char *timeline_str =
 		(char *)((void *)ctx + (ctx->__data_loc_timeline & 0xffff));
-	bpf_probe_read_kernel_str(event.data.fence.driver_name,
-				  sizeof(event.data.fence.driver_name),
-				  driver_str);
-	bpf_probe_read_kernel_str(event.data.fence.timeline_name,
-				  sizeof(event.data.fence.timeline_name),
-				  timeline_str);
+	bpf_probe_read_kernel_str(
+		event.data.fence.driver_name,
+		sizeof(event.data.fence.driver_name),
+		driver_str
+	);
+	bpf_probe_read_kernel_str(
+		event.data.fence.timeline_name,
+		sizeof(event.data.fence.timeline_name),
+		timeline_str
+	);
 
 	return submit_graphics_event(&event);
 }
@@ -306,7 +351,9 @@ int handle_drm_vblank_queued(struct drm_vblank_event_queued_ctx *ctx)
 	struct graphics_event event = {};
 
 	if (!should_trace_event(GRAPHICS_VBLANK_QUEUED))
+	{
 		return 0;
+	}
 
 	fill_common_header(&event.header, GRAPHICS_VBLANK_QUEUED);
 
@@ -317,7 +364,9 @@ int handle_drm_vblank_queued(struct drm_vblank_event_queued_ctx *ctx)
 	__builtin_memcpy(event.data.vblank.device_name, "drm", 4);
 
 	if (!should_trace_crtc(event.data.vblank.crtc_id))
+	{
 		return 0;
+	}
 
 	return submit_graphics_event(&event);
 }

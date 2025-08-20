@@ -33,9 +33,11 @@ static uint32_t target_ip = 0; // 0 means show all ARP packets
 static unsigned int ifindex = 0;
 
 // Command line options
-static struct option lopts[] = { { "ip", required_argument, 0, 'i' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"ip",   required_argument, 0, 'i'},
+	{"help", no_argument,		  0, 'h'},
+	{0,		0,				 0, 0  }
+};
 
 // Format current time as HH:MM:SS
 static std::string format_time()
@@ -57,7 +59,9 @@ static std::string format_mac(const unsigned char *mac)
 	for (int i = 0; i < 6; i++)
 	{
 		if (i > 0)
+		{
 			oss << ":";
+		}
 		oss << std::setw(2) << static_cast<int>(mac[i]);
 	}
 	return oss.str();
@@ -106,8 +110,7 @@ static int handle_arp_event(void *ctx, void *data, size_t data_sz)
 {
 	if (data_sz != sizeof(arp_event))
 	{
-		std::cerr << "Invalid data size: " << data_sz << " bytes"
-			  << std::endl;
+		std::cerr << "Invalid data size: " << data_sz << " bytes" << std::endl;
 		return 0;
 	}
 
@@ -129,11 +132,10 @@ static int handle_arp_event(void *ctx, void *data, size_t data_sz)
 
 	// Display ARP event information
 	std::cout << "[" << std::setw(8) << std::left << time_str << "] "
-		  << std::setw(15) << std::left << src_ip << " -> "
-		  << std::setw(15) << std::left << dst_ip << " "
-		  << std::setw(17) << std::left << src_mac << " -> "
-		  << std::setw(17) << std::left << dst_mac << " " << opcode_desc
-		  << std::endl;
+			  << std::setw(15) << std::left << src_ip << " -> " << std::setw(15)
+			  << std::left << dst_ip << " " << std::setw(17) << std::left
+			  << src_mac << " -> " << std::setw(17) << std::left << dst_mac
+			  << " " << opcode_desc << std::endl;
 
 	return 0;
 }
@@ -151,14 +153,13 @@ void Usage(const char *arg0)
 	std::cout << "Usage: " << arg0 << " <interface> [options]" << std::endl;
 	std::cout << "  ARP packet monitoring tool." << std::endl << std::endl;
 	std::cout << "Arguments:" << std::endl;
-	std::cout
-		<< "  <interface>        Network interface name (e.g., eth0, lo)"
-		<< std::endl;
+	std::cout << "  <interface>        Network interface name (e.g., eth0, lo)"
+			  << std::endl;
 	std::cout << std::endl;
 	std::cout << "Options:" << std::endl;
-	std::cout
-		<< "  -i, --ip <ip>     Show only ARP packets involving this IP (e.g., 192.168.1.1)"
-		<< std::endl;
+	std::cout << "  -i, --ip <ip>     Show only ARP packets involving this IP "
+				 "(e.g., 192.168.1.1)"
+			  << std::endl;
 	std::cout << "  -h, --help        Show help information" << std::endl;
 	std::cout << std::endl;
 	std::cout << "Examples:" << std::endl;
@@ -171,7 +172,9 @@ void Usage(const char *arg0)
 static bool parse_ip_address(const char *str, uint32_t *result)
 {
 	if (!str || !result)
+	{
 		return false;
+	}
 
 	struct in_addr addr;
 	if (inet_pton(AF_INET, str, &addr) != 1)
@@ -191,16 +194,15 @@ void parse_args(int argc, char **argv, int start_idx)
 
 	optind = start_idx;
 
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
 		case 'i':
 			if (!parse_ip_address(optarg, &target_ip))
 			{
-				std::cerr << "Error: Invalid IP address '"
-					  << optarg << "'" << std::endl;
+				std::cerr << "Error: Invalid IP address '" << optarg << "'"
+						  << std::endl;
 				exit(-1);
 			}
 			break;
@@ -215,9 +217,8 @@ void parse_args(int argc, char **argv, int start_idx)
 		}
 	}
 
-	std::cout << "\n=============== ARP Monitor ================="
-		  << std::endl
-		  << std::endl;
+	std::cout << "\n=============== ARP Monitor =================" << std::endl
+			  << std::endl;
 }
 
 // Check if running with root privileges
@@ -225,8 +226,7 @@ static bool check_privileges()
 {
 	if (getuid() != 0)
 	{
-		std::cerr << "Error: This program must be run as root"
-			  << std::endl;
+		std::cerr << "Error: This program must be run as root" << std::endl;
 		return false;
 	}
 	return true;
@@ -243,9 +243,8 @@ static bool setup_resource_limits()
 	int err = setrlimit(RLIMIT_MEMLOCK, &rlim);
 	if (err)
 	{
-		std::cerr
-			<< "Failed to set resource limits: " << strerror(errno)
-			<< std::endl;
+		std::cerr << "Failed to set resource limits: " << strerror(errno)
+				  << std::endl;
 		return false;
 	}
 	return true;
@@ -261,7 +260,7 @@ static void print_startup_info()
 	if (target_ip != 0)
 	{
 		std::cout << "Filtering: Show only ARP packets involving "
-			  << format_ip(target_ip) << std::endl;
+				  << format_ip(target_ip) << std::endl;
 	}
 	else
 	{
@@ -270,9 +269,9 @@ static void print_startup_info()
 	std::cout << std::endl;
 
 	std::cout << "ARP Events:" << std::endl;
-	std::cout
-		<< "Time      Source IP       Dest IP         Source MAC        Dest MAC         Opcode"
-		<< std::endl;
+	std::cout << "Time      Source IP       Dest IP         Source MAC        "
+				 "Dest MAC         Opcode"
+			  << std::endl;
 	std::cout << std::endl;
 }
 
@@ -318,8 +317,7 @@ int main(int argc, char *args[])
 	ifindex = if_nametoindex(ifname);
 	if (ifindex == 0)
 	{
-		std::cerr << "Error: Invalid interface name " << ifname
-			  << std::endl;
+		std::cerr << "Error: Invalid interface name " << ifname << std::endl;
 		return 1;
 	}
 
@@ -341,7 +339,7 @@ int main(int argc, char *args[])
 	if (!skel)
 	{
 		std::cerr << "Failed to open BPF skeleton: " << strerror(errno)
-			  << std::endl;
+				  << std::endl;
 		return 1;
 	}
 
@@ -349,7 +347,7 @@ int main(int argc, char *args[])
 	if (err)
 	{
 		std::cerr << "Failed to load BPF skeleton: " << err << " ("
-			  << strerror(-err) << ")" << std::endl;
+				  << strerror(-err) << ")" << std::endl;
 		goto cleanup;
 	}
 
@@ -358,7 +356,7 @@ int main(int argc, char *args[])
 	if (err)
 	{
 		std::cerr << "Failed to attach BPF program: " << err << " ("
-			  << strerror(-err) << ")" << std::endl;
+				  << strerror(-err) << ")" << std::endl;
 		goto cleanup;
 	}
 
@@ -369,16 +367,20 @@ int main(int argc, char *args[])
 	{
 		err = -errno;
 		std::cerr << "Failed to attach XDP program to interface: "
-			  << strerror(errno) << std::endl;
+				  << strerror(errno) << std::endl;
 		goto cleanup;
 	}
 
 	std::cout << "Successfully attached XDP program to interface " << ifname
-		  << std::endl;
+			  << std::endl;
 
 	// Set up ring buffer for event polling
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_arp_event,
-			      nullptr, nullptr);
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.rb),
+		handle_arp_event,
+		nullptr,
+		nullptr
+	);
 	if (!rb)
 	{
 		std::cerr << "Failed to create ring buffer" << std::endl;
@@ -400,8 +402,7 @@ int main(int argc, char *args[])
 		}
 		if (err < 0)
 		{
-			std::cerr << "Error polling ring buffer: " << err
-				  << std::endl;
+			std::cerr << "Error polling ring buffer: " << err << std::endl;
 			break;
 		}
 	}

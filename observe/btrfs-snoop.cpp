@@ -31,20 +31,19 @@ static struct env
 
 const char *argp_program_version = "btrfs-snoop 1.0";
 const char *argp_program_bug_address = "<your-email>";
-const char argp_program_doc[] =
-	"Trace Btrfs filesystem operations.\n"
-	"\n"
-	"USAGE: btrfs-snoop [-h] [-v] [-t] [-p PID] [-T TID] [-c COMM] [-D DURATION]\n";
+const char argp_program_doc[] = "Trace Btrfs filesystem operations.\n"
+								"\n"
+								"USAGE: btrfs-snoop [-h] [-v] [-t] [-p PID] "
+								"[-T TID] [-c COMM] [-D DURATION]\n";
 
 static const struct argp_option opts[] = {
-	{ "verbose", 'v', nullptr, 0, "Verbose debug output" },
-	{ "timestamp", 't', nullptr, 0, "Include timestamp on output" },
-	{ "pid", 'p', "PID", 0, "Trace process with this PID only" },
-	{ "tid", 'T', "TID", 0, "Trace thread with this TID only" },
-	{ "comm", 'c', "COMM", 0, "Trace command containing this string" },
-	{ "duration", 'D', "DURATION", 0,
-	  "Total duration of trace in seconds" },
-	{ nullptr, 'h', nullptr, OPTION_HIDDEN, "Show the full help" },
+	{"verbose", 'v', nullptr, 0, "Verbose debug output"},
+	{"timestamp", 't', nullptr, 0, "Include timestamp on output"},
+	{"pid", 'p', "PID", 0, "Trace process with this PID only"},
+	{"tid", 'T', "TID", 0, "Trace thread with this TID only"},
+	{"comm", 'c', "COMM", 0, "Trace command containing this string"},
+	{"duration", 'D', "DURATION", 0, "Total duration of trace in seconds"},
+	{nullptr, 'h', nullptr, OPTION_HIDDEN, "Show the full help"},
 	{}
 };
 
@@ -85,11 +84,13 @@ static const struct argp argp = {
 	.doc = argp_program_doc,
 };
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -103,9 +104,17 @@ static void sig_handler(int sig)
 static void print_header()
 {
 	if (env.timestamp)
+	{
 		printf("%-14s ", "TIME(s)");
-	printf("%-16s %-7s %-7s %-30s %s\n", "COMM", "PID", "TID", "EVENT",
-	       "DETAILS");
+	}
+	printf(
+		"%-16s %-7s %-7s %-30s %s\n",
+		"COMM",
+		"PID",
+		"TID",
+		"EVENT",
+		"DETAILS"
+	);
 }
 
 static void print_timestamp()
@@ -121,11 +130,17 @@ static void print_timestamp()
 static bool should_filter_event(pid_t pid, pid_t tid, const char *comm)
 {
 	if (env.target_pid && pid != env.target_pid)
+	{
 		return true;
+	}
 	if (env.target_tid && tid != env.target_tid)
+	{
 		return true;
+	}
 	if (env.target_comm && !strstr(comm, env.target_comm))
+	{
 		return true;
+	}
 	return false;
 }
 
@@ -137,7 +152,9 @@ static std::string format_fsid(const __u8 fsid[16])
 	{
 		ss << std::setw(2) << static_cast<unsigned>(fsid[i]);
 		if (i == 3 || i == 5 || i == 7 || i == 9)
+		{
 			ss << "-";
+		}
 	}
 	return ss.str();
 }
@@ -146,168 +163,307 @@ static void
 print_extent_writepage_event(const struct btrfs_extent_writepage_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s ino=%llu index=%lu nr_to_write=%ld "
-	       "range=[%ld-%ld] root=%llu fsid=%s\n",
-	       e->base.comm, e->base.pid, e->base.tid, "btrfs_extent_writepage",
-	       e->ino, e->index, e->nr_to_write, e->range_start, e->range_end,
-	       e->root_objectid, format_fsid(e->fsid).c_str());
+	printf(
+		"%-16s %-7d %-7d %-30s ino=%llu index=%lu nr_to_write=%ld "
+		"range=[%ld-%ld] root=%llu fsid=%s\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_extent_writepage",
+		e->ino,
+		e->index,
+		e->nr_to_write,
+		e->range_start,
+		e->range_end,
+		e->root_objectid,
+		format_fsid(e->fsid).c_str()
+	);
 }
 
 static void print_add_delayed_data_ref_event(
-	const struct btrfs_add_delayed_data_ref_event *e)
+	const struct btrfs_add_delayed_data_ref_event *e
+)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s bytenr=%llu bytes=%llu action=%d "
-	       "parent=%llu root=%llu owner=%llu offset=%llu type=%d\n",
-	       e->base.comm, e->base.pid, e->base.tid,
-	       "btrfs_add_delayed_data_ref", e->bytenr, e->num_bytes, e->action,
-	       e->parent, e->ref_root, e->owner, e->offset, e->type);
+	printf(
+		"%-16s %-7d %-7d %-30s bytenr=%llu bytes=%llu action=%d "
+		"parent=%llu root=%llu owner=%llu offset=%llu type=%d\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_add_delayed_data_ref",
+		e->bytenr,
+		e->num_bytes,
+		e->action,
+		e->parent,
+		e->ref_root,
+		e->owner,
+		e->offset,
+		e->type
+	);
 }
 
 static void print_add_delayed_ref_head_event(
-	const struct btrfs_add_delayed_ref_head_event *e)
+	const struct btrfs_add_delayed_ref_head_event *e
+)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s bytenr=%llu bytes=%llu action=%d is_data=%d\n",
-	       e->base.comm, e->base.pid, e->base.tid,
-	       "btrfs_add_delayed_ref_head", e->bytenr, e->num_bytes, e->action,
-	       e->is_data);
+	printf(
+		"%-16s %-7d %-7d %-30s bytenr=%llu bytes=%llu action=%d is_data=%d\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_add_delayed_ref_head",
+		e->bytenr,
+		e->num_bytes,
+		e->action,
+		e->is_data
+	);
 }
 
 static void print_chunk_alloc_event(const struct btrfs_chunk_alloc_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s type=%llu size=%llu stripes=%d root=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid, "btrfs_chunk_alloc",
-	       e->type, e->size, e->num_stripes, e->root_objectid);
+	printf(
+		"%-16s %-7d %-7d %-30s type=%llu size=%llu stripes=%d root=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_chunk_alloc",
+		e->type,
+		e->size,
+		e->num_stripes,
+		e->root_objectid
+	);
 }
 
 static void print_chunk_free_event(const struct btrfs_chunk_free_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s type=%llu size=%llu stripes=%d root=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid, "btrfs_chunk_free",
-	       e->type, e->size, e->num_stripes, e->root_objectid);
+	printf(
+		"%-16s %-7d %-7d %-30s type=%llu size=%llu stripes=%d root=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_chunk_free",
+		e->type,
+		e->size,
+		e->num_stripes,
+		e->root_objectid
+	);
 }
 
 static void
 print_transaction_commit_event(const struct btrfs_transaction_commit_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s generation=%llu root=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid,
-	       "btrfs_transaction_commit", e->generation, e->root_objectid);
+	printf(
+		"%-16s %-7d %-7d %-30s generation=%llu root=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_transaction_commit",
+		e->generation,
+		e->root_objectid
+	);
 }
 
 static void
 print_space_reservation_event(const struct btrfs_space_reservation_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s bytes=%llu reserve=%d\n", e->base.comm,
-	       e->base.pid, e->base.tid, "btrfs_space_reservation", e->bytes,
-	       e->reserve);
+	printf(
+		"%-16s %-7d %-7d %-30s bytes=%llu reserve=%d\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_space_reservation",
+		e->bytes,
+		e->reserve
+	);
 }
 
 static void
 print_ordered_extent_add_event(const struct btrfs_ordered_extent_add_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s ino=%llu start=%llu len=%llu flags=0x%lx\n",
-	       e->base.comm, e->base.pid, e->base.tid,
-	       "btrfs_ordered_extent_add", e->ino, e->start, e->len, e->flags);
+	printf(
+		"%-16s %-7d %-7d %-30s ino=%llu start=%llu len=%llu flags=0x%lx\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_ordered_extent_add",
+		e->ino,
+		e->start,
+		e->len,
+		e->flags
+	);
 }
 
 static void print_sync_file_event(const struct btrfs_sync_file_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s ino=%llu datasync=%d root=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid, "btrfs_sync_file",
-	       e->ino, e->datasync, e->root_objectid);
+	printf(
+		"%-16s %-7d %-7d %-30s ino=%llu datasync=%d root=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_sync_file",
+		e->ino,
+		e->datasync,
+		e->root_objectid
+	);
 }
 
 static void print_qgroup_account_extent_event(
-	const struct btrfs_qgroup_account_extent_event *e)
+	const struct btrfs_qgroup_account_extent_event *e
+)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s bytenr=%llu bytes=%llu old_roots=%llu new_roots=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid,
-	       "btrfs_qgroup_account_extent", e->bytenr, e->num_bytes,
-	       e->nr_old_roots, e->nr_new_roots);
+	printf(
+		"%-16s %-7d %-7d %-30s bytenr=%llu bytes=%llu old_roots=%llu "
+		"new_roots=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_qgroup_account_extent",
+		e->bytenr,
+		e->num_bytes,
+		e->nr_old_roots,
+		e->nr_new_roots
+	);
 }
 
 static void print_tree_lock_event(const struct btrfs_tree_lock_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s block=%llu gen=%llu diff_ns=%llu owner=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid, "btrfs_tree_lock",
-	       e->block, e->generation, e->diff_ns, e->owner);
+	printf(
+		"%-16s %-7d %-7d %-30s block=%llu gen=%llu diff_ns=%llu owner=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_tree_lock",
+		e->block,
+		e->generation,
+		e->diff_ns,
+		e->owner
+	);
 }
 
 static void print_get_extent_event(const struct btrfs_get_extent_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s ino=%llu start=%llu len=%llu block_start=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid, "btrfs_get_extent",
-	       e->ino, e->start, e->len, e->block_start);
+	printf(
+		"%-16s %-7d %-7d %-30s ino=%llu start=%llu len=%llu block_start=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_get_extent",
+		e->ino,
+		e->start,
+		e->len,
+		e->block_start
+	);
 }
 
 static void
 print_reserve_extent_event(const struct btrfs_reserve_extent_event *e)
 {
 	if (should_filter_event(e->base.pid, e->base.tid, e->base.comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s start=%llu len=%llu flags=%llu loop=%llu\n",
-	       e->base.comm, e->base.pid, e->base.tid, "btrfs_reserve_extent",
-	       e->start, e->len, e->flags, e->loop);
+	printf(
+		"%-16s %-7d %-7d %-30s start=%llu len=%llu flags=%llu loop=%llu\n",
+		e->base.comm,
+		e->base.pid,
+		e->base.tid,
+		"btrfs_reserve_extent",
+		e->start,
+		e->len,
+		e->flags,
+		e->loop
+	);
 }
 
-static void print_default_event(const struct btrfs_base_event *e,
-				const char *event_name)
+static void
+print_default_event(const struct btrfs_base_event *e, const char *event_name)
 {
 	if (should_filter_event(e->pid, e->tid, e->comm))
+	{
 		return;
+	}
 
 	print_timestamp();
-	printf("%-16s %-7d %-7d %-30s (generic event)\n", e->comm, e->pid,
-	       e->tid, event_name);
+	printf(
+		"%-16s %-7d %-7d %-30s (generic event)\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		event_name
+	);
 }
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
@@ -318,62 +474,64 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	{
 	case BTRFS_EXTENT_WRITEPAGE:
 		print_extent_writepage_event(
-			static_cast<struct btrfs_extent_writepage_event *>(
-				data));
+			static_cast<struct btrfs_extent_writepage_event *>(data)
+		);
 		break;
 	case BTRFS_ADD_DELAYED_DATA_REF:
 		print_add_delayed_data_ref_event(
-			static_cast<struct btrfs_add_delayed_data_ref_event *>(
-				data));
+			static_cast<struct btrfs_add_delayed_data_ref_event *>(data)
+		);
 		break;
 	case BTRFS_ADD_DELAYED_REF_HEAD:
 		print_add_delayed_ref_head_event(
-			static_cast<struct btrfs_add_delayed_ref_head_event *>(
-				data));
+			static_cast<struct btrfs_add_delayed_ref_head_event *>(data)
+		);
 		break;
 	case BTRFS_CHUNK_ALLOC:
 		print_chunk_alloc_event(
-			static_cast<struct btrfs_chunk_alloc_event *>(data));
+			static_cast<struct btrfs_chunk_alloc_event *>(data)
+		);
 		break;
 	case BTRFS_CHUNK_FREE:
-		print_chunk_free_event(
-			static_cast<struct btrfs_chunk_free_event *>(data));
+		print_chunk_free_event(static_cast<struct btrfs_chunk_free_event *>(data
+		));
 		break;
 	case BTRFS_TRANSACTION_COMMIT:
 		print_transaction_commit_event(
-			static_cast<struct btrfs_transaction_commit_event *>(
-				data));
+			static_cast<struct btrfs_transaction_commit_event *>(data)
+		);
 		break;
 	case BTRFS_SPACE_RESERVATION:
 		print_space_reservation_event(
-			static_cast<struct btrfs_space_reservation_event *>(
-				data));
+			static_cast<struct btrfs_space_reservation_event *>(data)
+		);
 		break;
 	case BTRFS_ORDERED_EXTENT_ADD:
 		print_ordered_extent_add_event(
-			static_cast<struct btrfs_ordered_extent_add_event *>(
-				data));
+			static_cast<struct btrfs_ordered_extent_add_event *>(data)
+		);
 		break;
 	case BTRFS_SYNC_FILE:
-		print_sync_file_event(
-			static_cast<struct btrfs_sync_file_event *>(data));
+		print_sync_file_event(static_cast<struct btrfs_sync_file_event *>(data)
+		);
 		break;
 	case BTRFS_QGROUP_ACCOUNT_EXTENT:
 		print_qgroup_account_extent_event(
-			static_cast<struct btrfs_qgroup_account_extent_event *>(
-				data));
+			static_cast<struct btrfs_qgroup_account_extent_event *>(data)
+		);
 		break;
 	case BTRFS_TREE_LOCK:
-		print_tree_lock_event(
-			static_cast<struct btrfs_tree_lock_event *>(data));
+		print_tree_lock_event(static_cast<struct btrfs_tree_lock_event *>(data)
+		);
 		break;
 	case BTRFS_GET_EXTENT:
-		print_get_extent_event(
-			static_cast<struct btrfs_get_extent_event *>(data));
+		print_get_extent_event(static_cast<struct btrfs_get_extent_event *>(data
+		));
 		break;
 	case BTRFS_RESERVE_EXTENT:
 		print_reserve_extent_event(
-			static_cast<struct btrfs_reserve_extent_event *>(data));
+			static_cast<struct btrfs_reserve_extent_event *>(data)
+		);
 		break;
 
 	// Handle remaining events with generic print function
@@ -439,8 +597,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		break;
 	default:
 		if (env.verbose)
-			fprintf(stderr, "Unknown event type: %d\n",
-				base->event_type);
+		{
+			fprintf(stderr, "Unknown event type: %d\n", base->event_type);
+		}
 		break;
 	}
 
@@ -457,7 +616,9 @@ int main(int argc, char **argv)
 	// 解析参数
 	err = argp_parse(&argp, argc, argv, 0, nullptr, nullptr);
 	if (err)
+	{
 		return err;
+	}
 
 	// 设置libbpf日志
 	libbpf_set_print(libbpf_print_fn);
@@ -487,8 +648,12 @@ int main(int argc, char **argv)
 	}
 
 	// 设置ring buffer
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event,
-			      nullptr, nullptr);
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.events),
+		handle_event,
+		nullptr,
+		nullptr
+	);
 	if (!rb)
 	{
 		fprintf(stderr, "Failed to create ring buffer\n");
@@ -521,8 +686,7 @@ int main(int argc, char **argv)
 		}
 
 		// 检查是否超时
-		if (env.duration &&
-		    time(nullptr) - start_time >= (long)env.duration)
+		if (env.duration && time(nullptr) - start_time >= (long)env.duration)
 		{
 			break;
 		}

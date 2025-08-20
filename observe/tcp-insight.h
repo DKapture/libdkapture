@@ -12,18 +12,18 @@
 /* TCP Event Types - Based on actual available tracepoints */
 enum tcp_event_type
 {
-	TCP_EVENT_STATE_CHANGE = 1, /* inet_sock_set_state */
-	TCP_EVENT_PERF_SAMPLE = 2, /* tcp_probe */
-	TCP_EVENT_RETRANSMIT = 3, /* tcp_retransmit_skb */
-	TCP_EVENT_SEND_RESET = 4, /* tcp_send_reset */
-	TCP_EVENT_RECV_RESET = 5, /* tcp_receive_reset */
-	TCP_EVENT_SEND_DATA = 6, /* sock_send_length */
-	TCP_EVENT_RECV_DATA = 7, /* sock_recv_length */
-	TCP_EVENT_SOCK_DESTROY = 8, /* tcp_destroy_sock */
-	TCP_EVENT_CONG_STATE = 9, /* tcp_cong_state_set */
-	TCP_EVENT_WIN_ADJUST = 10, /* tcp_rcv_space_adjust */
-	TCP_EVENT_KPROBE_SEND = 11, /* kprobe tcp_sendmsg */
-	TCP_EVENT_KPROBE_RECV = 12, /* kprobe tcp_recvmsg */
+	TCP_EVENT_STATE_CHANGE = 1,	  /* inet_sock_set_state */
+	TCP_EVENT_PERF_SAMPLE = 2,	  /* tcp_probe */
+	TCP_EVENT_RETRANSMIT = 3,	  /* tcp_retransmit_skb */
+	TCP_EVENT_SEND_RESET = 4,	  /* tcp_send_reset */
+	TCP_EVENT_RECV_RESET = 5,	  /* tcp_receive_reset */
+	TCP_EVENT_SEND_DATA = 6,	  /* sock_send_length */
+	TCP_EVENT_RECV_DATA = 7,	  /* sock_recv_length */
+	TCP_EVENT_SOCK_DESTROY = 8,	  /* tcp_destroy_sock */
+	TCP_EVENT_CONG_STATE = 9,	  /* tcp_cong_state_set */
+	TCP_EVENT_WIN_ADJUST = 10,	  /* tcp_rcv_space_adjust */
+	TCP_EVENT_KPROBE_SEND = 11,	  /* kprobe tcp_sendmsg */
+	TCP_EVENT_KPROBE_RECV = 12,	  /* kprobe tcp_recvmsg */
 	TCP_EVENT_KPROBE_RETRANS = 13 /* kprobe tcp_retransmit_skb */
 };
 
@@ -279,13 +279,13 @@ struct tcp_event
 
 /* Legacy compatibility fields for user space */
 #ifndef __KERNEL__
-	__u32 saddr; /* IPv4 source address (legacy) */
-	__u32 daddr; /* IPv4 dest address (legacy) */
-	__u8 event_type; /* Legacy event type */
-	__u8 state; /* Current TCP state */
-	__u32 cwnd; /* Congestion window */
-	__u32 rtt_us; /* RTT in microseconds */
-	__u64 bytes; /* Bytes transferred */
+	__u32 saddr;	  /* IPv4 source address (legacy) */
+	__u32 daddr;	  /* IPv4 dest address (legacy) */
+	__u8 event_type;  /* Legacy event type */
+	__u8 state;		  /* Current TCP state */
+	__u32 cwnd;		  /* Congestion window */
+	__u32 rtt_us;	  /* RTT in microseconds */
+	__u64 bytes;	  /* Bytes transferred */
 	char details[64]; /* Additional details */
 #endif
 

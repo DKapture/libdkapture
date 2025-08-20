@@ -81,23 +81,31 @@ static bool tracing_task(u64 task_id)
 	u32 pid = task_id;
 
 	if (targ_tgid && targ_tgid != tgid)
+	{
 		return false;
+	}
 	if (targ_pid && targ_pid != pid)
+	{
 		return false;
+	}
 	return true;
 }
 
 static void lock_contended(void *ctx, void *lock)
 {
 	u64 task_id;
-	struct lockholder_info li[1] = { 0 };
+	struct lockholder_info li[1] = {0};
 	struct task_lock tl = {};
 
 	if (targ_lock && targ_lock != lock)
+	{
 		return;
+	}
 	task_id = bpf_get_current_pid_tgid();
 	if (!tracing_task(task_id))
+	{
 		return;
+	}
 
 	li->task_id = task_id;
 	li->lock_ptr = (u64)lock;
@@ -111,12 +119,13 @@ static void lock_contended(void *ctx, void *lock)
 	 * Note: if you make major changes to this bpf program, double check
 	 * that you aren't skipping too many frames.
 	 */
-	li->stack_id =
-		bpf_get_stackid(ctx, &stack_map, 4 | BPF_F_FAST_STACK_CMP);
+	li->stack_id = bpf_get_stackid(ctx, &stack_map, 4 | BPF_F_FAST_STACK_CMP);
 
 	/* Legit failures include EEXIST */
 	if (li->stack_id < 0)
+	{
 		return;
+	}
 	li->try_at = bpf_ktime_get_ns();
 
 	tl.task_id = task_id;
@@ -130,10 +139,14 @@ static void lock_aborted(void *lock)
 	struct task_lock tl = {};
 
 	if (targ_lock && targ_lock != lock)
+	{
 		return;
+	}
 	task_id = bpf_get_current_pid_tgid();
 	if (!tracing_task(task_id))
+	{
 		return;
+	}
 	tl.task_id = task_id;
 	tl.lock_ptr = (u64)lock;
 	bpf_map_delete_elem(&lockholder_map, &tl);
@@ -146,16 +159,22 @@ static void lock_acquired(void *lock)
 	struct task_lock tl = {};
 
 	if (targ_lock && targ_lock != lock)
+	{
 		return;
+	}
 	task_id = bpf_get_current_pid_tgid();
 	if (!tracing_task(task_id))
+	{
 		return;
+	}
 
 	tl.task_id = task_id;
 	tl.lock_ptr = (u64)lock;
 	li = bpf_map_lookup_elem(&lockholder_map, &tl);
 	if (!li)
+	{
 		return;
+	}
 
 	li->acq_at = bpf_ktime_get_ns();
 }
@@ -167,7 +186,9 @@ static void account(struct lockholder_info *li)
 	u32 key = li->stack_id;
 
 	if (per_thread)
+	{
 		key = li->task_id;
+	}
 
 	/*
 	 * Multiple threads may have the same stack_id.  Even though we are
@@ -181,15 +202,19 @@ static void account(struct lockholder_info *li)
 	ls = bpf_map_lookup_elem(&stat_map, &key);
 	if (!ls)
 	{
-		struct lock_stat fresh = { 0 };
+		struct lock_stat fresh = {0};
 
 		bpf_map_update_elem(&stat_map, &key, &fresh, BPF_ANY);
 		ls = bpf_map_lookup_elem(&stat_map, &key);
 		if (!ls)
+		{
 			return;
+		}
 
 		if (per_thread)
+		{
 			bpf_get_current_comm(ls->acq_max_comm, TASK_COMM_LEN);
+		}
 	}
 
 	delta = li->acq_at - li->try_at;
@@ -205,7 +230,9 @@ static void account(struct lockholder_info *li)
 		 * so you may get a clobbered write.
 		 */
 		if (!per_thread)
+		{
 			bpf_get_current_comm(ls->acq_max_comm, TASK_COMM_LEN);
+		}
 	}
 
 	delta = li->rel_at - li->acq_at;
@@ -217,7 +244,9 @@ static void account(struct lockholder_info *li)
 		WRITE_ONCE(ls->hld_max_id, li->task_id);
 		WRITE_ONCE(ls->hld_max_lock_ptr, li->lock_ptr);
 		if (!per_thread)
+		{
 			bpf_get_current_comm(ls->hld_max_comm, TASK_COMM_LEN);
+		}
 	}
 }
 
@@ -228,15 +257,21 @@ static void lock_released(void *lock)
 	struct task_lock tl = {};
 
 	if (targ_lock && targ_lock != lock)
+	{
 		return;
+	}
 	task_id = bpf_get_current_pid_tgid();
 	if (!tracing_task(task_id))
+	{
 		return;
+	}
 	tl.task_id = task_id;
 	tl.lock_ptr = (u64)lock;
 	li = bpf_map_lookup_elem(&lockholder_map, &tl);
 	if (!li)
+	{
 		return;
+	}
 
 	li->rel_at = bpf_ktime_get_ns();
 	account(li);
@@ -287,7 +322,9 @@ int BPF_KRETPROBE(kprobe__raw_spin_lock_exit, long ret)
 
 	lock = bpf_map_lookup_elem(&locks, &tid);
 	if (!lock)
+	{
 		return 0;
+	}
 
 	bpf_map_delete_elem(&locks, &tid);
 	lock_acquired(*lock);

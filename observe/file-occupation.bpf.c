@@ -85,22 +85,30 @@ static bool file_filter(struct file *file)
 	if (rule->not_inode)
 	{
 		if (strncmp(path, rule->path, PAGE_SIZE))
+		{
 			goto exit;
+		}
 	}
 	else
 	{
-		if (memncmp(&rule->dev_uuid, &file->f_path.mnt->mnt_sb->s_uuid,
-			    sizeof(uuid_t)))
+		if (memncmp(
+				&rule->dev_uuid,
+				&file->f_path.mnt->mnt_sb->s_uuid,
+				sizeof(uuid_t)
+			))
+		{
 			goto exit;
+		}
 		if (rule->inode != file->f_inode->i_ino)
+		{
 			goto exit;
+		}
 	}
 
 	if (0) // change to 1 when DEBUG uuid
 	{
 		char buf[36] = {};
-		hex_print(buf, &file->f_path.mnt->mnt_sb->s_uuid,
-			  sizeof(uuid_t));
+		hex_print(buf, &file->f_path.mnt->mnt_sb->s_uuid, sizeof(uuid_t));
 		bpf_info("uuid: %s", buf);
 	}
 	ret = true;
@@ -140,13 +148,19 @@ int file_iterator(struct bpf_iter__task_file *ctx)
 	file = ctx->file;
 
 	if (!task || !file)
+	{
 		return 0;
+	}
 
 	if (task->pid != task->tgid)
+	{
 		return 0;
+	}
 
 	if (!file_filter(file))
+	{
 		return 0;
+	}
 
 	send_log(task, ctx->fd);
 	return 0;
@@ -160,20 +174,30 @@ int vma_iterator(struct bpf_iter__task_vma *ctx)
 	struct file *file;
 	task = ctx->task;
 	if (!task)
+	{
 		return 0;
+	}
 
 	if (task->pid != task->tgid)
+	{
 		return 0;
+	}
 
 	vma = ctx->vma;
 	if (!vma)
+	{
 		return 0;
+	}
 	file = vma->vm_file;
 	if (!file)
+	{
 		return 0;
+	}
 
 	if (!file_filter(file))
+	{
 		return 0;
+	}
 
 	send_log(task, -1);
 	return 0;

@@ -12,15 +12,15 @@ void copy_file(const char *src_filename, const char *dst_filename)
 	if (src_fd == -1)
 	{
 		std::cerr << "Failed to open source file: " << strerror(errno)
-			  << std::endl;
+				  << std::endl;
 		return;
 	}
 
 	int dst_fd = open(dst_filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (dst_fd == -1)
 	{
-		std::cerr << "Failed to open destination file: "
-			  << strerror(errno) << std::endl;
+		std::cerr << "Failed to open destination file: " << strerror(errno)
+				  << std::endl;
 		close(src_fd);
 		return;
 	}
@@ -28,22 +28,20 @@ void copy_file(const char *src_filename, const char *dst_filename)
 	int pipe_fd[2];
 	if (pipe(pipe_fd) == -1)
 	{
-		std::cerr << "Failed to create pipe: " << strerror(errno)
-			  << std::endl;
+		std::cerr << "Failed to create pipe: " << strerror(errno) << std::endl;
 		close(src_fd);
 		close(dst_fd);
 		return;
 	}
 
 	ssize_t bytes_copied;
-	while ((bytes_copied = splice(src_fd, nullptr, pipe_fd[1], nullptr,
-				      4096, 0)) > 0)
+	while ((bytes_copied =
+				splice(src_fd, nullptr, pipe_fd[1], nullptr, 4096, 0)) > 0)
 	{
-		if (splice(pipe_fd[0], nullptr, dst_fd, nullptr, bytes_copied,
-			   0) == -1)
+		if (splice(pipe_fd[0], nullptr, dst_fd, nullptr, bytes_copied, 0) == -1)
 		{
 			std::cerr << "Failed to splice to destination file: "
-				  << strerror(errno) << std::endl;
+					  << strerror(errno) << std::endl;
 			close(src_fd);
 			close(dst_fd);
 			close(pipe_fd[0]);
@@ -54,13 +52,13 @@ void copy_file(const char *src_filename, const char *dst_filename)
 
 	if (bytes_copied == -1)
 	{
-		std::cerr << "Failed to splice from source file: "
-			  << strerror(errno) << std::endl;
+		std::cerr << "Failed to splice from source file: " << strerror(errno)
+				  << std::endl;
 	}
 	else
 	{
-		std::cout << "File copied successfully from " << src_filename
-			  << " to " << dst_filename << std::endl;
+		std::cout << "File copied successfully from " << src_filename << " to "
+				  << dst_filename << std::endl;
 	}
 
 	close(src_fd);
@@ -73,8 +71,8 @@ int main(int argc, char *argv[])
 {
 	if (argc < 3)
 	{
-		std::cerr << "Usage: " << argv[0]
-			  << " <source file> <destination file>" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " <source file> <destination file>"
+				  << std::endl;
 		return EXIT_FAILURE;
 	}
 

@@ -13,9 +13,9 @@
 #define MAJOR(dev) ((dev) >> 8)
 #define MINOR(dev) ((dev) & 0xff)
 #define MKDEV(ma, mi) ((ma) << 8 | (mi))
-#define RLIMIT_AS 6 /* address space limit */
-#define RLIMIT_RSS 7 /* max resident set size */
-#define RLIMIT_NPROC 8 /* max number of processes */
+#define RLIMIT_AS 6		 /* address space limit */
+#define RLIMIT_RSS 7	 /* max resident set size */
+#define RLIMIT_NPROC 8	 /* max number of processes */
 #define RLIMIT_MEMLOCK 9 /* max locked-in-memory address space */
 
 /* Used in tsk->__state: */
@@ -44,29 +44,28 @@
 
 #define TASK_ANY (TASK_STATE_MAX - 1)
 
-#define TASK_REPORT                                                 \
-	(TASK_RUNNING | TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE | \
-	 __TASK_STOPPED | __TASK_TRACED | EXIT_DEAD | EXIT_ZOMBIE | \
-	 TASK_PARKED)
+#define TASK_REPORT                                                            \
+	(TASK_RUNNING | TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE |                \
+	 __TASK_STOPPED | __TASK_TRACED | EXIT_DEAD | EXIT_ZOMBIE | TASK_PARKED)
 #define TASK_REPORT_IDLE (TASK_REPORT + 1)
 
 #define PF_INET 2
 #define TRAFFIC_IN -1
 #define TRAFFIC_OUT 1
 
-#define thread_leader_only(task)             \
-	do                                   \
-	{                                    \
-		if (task->pid != task->tgid) \
-			return 0;            \
+#define thread_leader_only(task)                                               \
+	do                                                                         \
+	{                                                                          \
+		if (task->pid != task->tgid)                                           \
+			return 0;                                                          \
 	} while (0)
 
 #define PF_KTHREAD 0x00200000
-#define skip_kthread(task)                    \
-	do                                    \
-	{                                     \
-		if (task->flags & PF_KTHREAD) \
-			return 0;             \
+#define skip_kthread(task)                                                     \
+	do                                                                         \
+	{                                                                          \
+		if (task->flags & PF_KTHREAD)                                          \
+			return 0;                                                          \
 	} while (0)
 
 typedef struct
@@ -99,17 +98,20 @@ static inline unsigned int task_state(struct task_struct *tsk)
 	unsigned int state = (tsk->__state | tsk->exit_state) & TASK_REPORT;
 
 	if ((tsk->__state & TASK_IDLE) == TASK_IDLE)
+	{
 		state = TASK_REPORT_IDLE;
+	}
 
 	/*
-     * We're lying here, but rather than expose a completely new task state
-     * to userspace, we can make this appear as if the task has gone through
-     * a regular rt_mutex_lock() call.
-     * Report frozen tasks as uninterruptible.
-     */
-	if ((tsk->__state & TASK_RTLOCK_WAIT) ||
-	    (tsk->exit_state & TASK_FROZEN))
+	 * We're lying here, but rather than expose a completely new task state
+	 * to userspace, we can make this appear as if the task has gone through
+	 * a regular rt_mutex_lock() call.
+	 * Report frozen tasks as uninterruptible.
+	 */
+	if ((tsk->__state & TASK_RTLOCK_WAIT) || (tsk->exit_state & TASK_FROZEN))
+	{
 		state = TASK_UNINTERRUPTIBLE;
+	}
 
 	return state;
 }
@@ -120,7 +122,9 @@ static inline s64 percpu_counter_read_positive(struct percpu_counter *fbc)
 	s64 ret = fbc->count;
 
 	if (ret >= 0)
+	{
 		return ret;
+	}
 	return 0;
 }
 static inline unsigned long get_mm_counter(struct mm_struct *mm, int member)
@@ -130,9 +134,8 @@ static inline unsigned long get_mm_counter(struct mm_struct *mm, int member)
 
 static inline unsigned long get_mm_rss(struct mm_struct *mm)
 {
-	return get_mm_counter(mm, MM_FILEPAGES) +
-	       get_mm_counter(mm, MM_ANONPAGES) +
-	       get_mm_counter(mm, MM_SHMEMPAGES);
+	return get_mm_counter(mm, MM_FILEPAGES) + get_mm_counter(mm, MM_ANONPAGES) +
+		   get_mm_counter(mm, MM_SHMEMPAGES);
 }
 
 static __always_inline u32 new_encode_dev(dev_t dev)
@@ -161,8 +164,11 @@ static inline void sigaddset(sigset_t *set, int _sig)
 #define _NSIG 64
 #define SIG_DFL ((__sighandler_t)0) /* default signal handling */
 #define SIG_IGN ((__sighandler_t)1) /* ignore signal */
-static void collect_sigign_sigcatch(struct task_struct *p, sigset_t *sigign,
-				    sigset_t *sigcatch)
+static void collect_sigign_sigcatch(
+	struct task_struct *p,
+	sigset_t *sigign,
+	sigset_t *sigcatch
+)
 {
 	struct k_sigaction *k;
 	int i;
@@ -171,21 +177,31 @@ static void collect_sigign_sigcatch(struct task_struct *p, sigset_t *sigign,
 	for (i = 1; i <= _NSIG; ++i, ++k)
 	{
 		if (k->sa.sa_handler == SIG_IGN)
+		{
 			sigaddset(sigign, i);
+		}
 		else if (k->sa.sa_handler != SIG_DFL)
+		{
 			sigaddset(sigcatch, i);
+		}
 	}
 }
 
 static inline __u64 delayacct_blkio_ticks(struct task_struct *tsk)
 {
 	if (CONFIG_TASK_DELAY_ACCT && tsk->delays)
+	{
 		return tsk->delays->blkio_delay;
+	}
 	return 0;
 }
 
-static void fill_hdr(struct DataHdr *hdr, const struct task_struct *task,
-		     size_t dsz, enum DataType dt)
+static void fill_hdr(
+	struct DataHdr *hdr,
+	const struct task_struct *task,
+	size_t dsz,
+	enum DataType dt
+)
 {
 	hdr->dsz = dsz;
 	hdr->type = dt;
@@ -197,8 +213,8 @@ static void fill_hdr(struct DataHdr *hdr, const struct task_struct *task,
 static int dump_proc_cmdline(struct task_struct *task)
 {
 	/**
-     * TODO:
-     */
+	 * TODO:
+	 */
 	return 0;
 }
 
@@ -223,8 +239,12 @@ static int dump_proc_schedstat(struct task_struct *task)
 	return 0;
 }
 
-static void cputime_adjust(struct task_cputime *curr, struct prev_cputime *prev,
-			   u64 *ut, u64 *st)
+static void cputime_adjust(
+	struct task_cputime *curr,
+	struct prev_cputime *prev,
+	u64 *ut,
+	u64 *st
+)
 {
 	if (CONFIG_VIRT_CPU_ACCOUNTING_NATIVE)
 	{
@@ -259,11 +279,15 @@ static void cputime_adjust(struct task_cputime *curr, struct prev_cputime *prev,
 
 	stime = stime * rtime / (stime + utime);
 	if (stime > rtime)
+	{
 		stime = rtime;
+	}
 
 update:
 	if (stime < prev->stime)
+	{
 		stime = prev->stime;
+	}
 	utime = rtime - stime;
 	if (utime < prev->utime)
 	{
@@ -284,9 +308,10 @@ static __always_inline bool context_tracking_enabled(void)
 	if (CONFIG_CONTEXT_TRACKING_USER)
 	{
 		if (!context_tracking_key)
+		{
 			return false;
-		return !!BPF_CORE_READ(context_tracking_key,
-				       key.enabled.counter);
+		}
+		return !!BPF_CORE_READ(context_tracking_key, key.enabled.counter);
 	}
 	else
 	{
@@ -305,7 +330,9 @@ static u64 vtime_delta(struct vtime *vtime)
 
 	clock = bpf_ktime_get_boot_ns();
 	if (clock < vtime->starttime)
+	{
 		return 0;
+	}
 
 	return clock - vtime->starttime;
 }
@@ -331,18 +358,24 @@ static bool task_cputime(struct task_struct *t, u64 *utime, u64 *stime)
 
 	/* Task is sleeping or idle, nothing to add */
 	if (vtime->state < VTIME_SYS)
+	{
 		return false;
+	}
 
 	delta = vtime_delta(vtime);
 
 	/*
-     * Task runs either in user (including guest) or kernel space,
-     * add pending nohz time to the right place.
-     */
+	 * Task runs either in user (including guest) or kernel space,
+	 * add pending nohz time to the right place.
+	 */
 	if (vtime->state == VTIME_SYS)
+	{
 		*stime += vtime->stime + delta;
+	}
 	else
+	{
 		*utime += vtime->utime + delta;
+	}
 
 	return true;
 }
@@ -403,8 +436,7 @@ static int dump_proc_stat(struct task_struct *task)
 	stat->pgid = task->group_leader->pid;
 	stat->sid = sig->pids[PIDTYPE_SID]->numbers[0].nr;
 	stat->tty_nr = tty ? new_encode_dev(tty_devnum(tty)) : 0;
-	stat->tty_pgrp = tty && tty->ctrl.pgrp ? tty->ctrl.pgrp->numbers[0].nr :
-						 0;
+	stat->tty_pgrp = tty && tty->ctrl.pgrp ? tty->ctrl.pgrp->numbers[0].nr : 0;
 	stat->flags = task->flags;
 	stat->cmin_flt = task->min_flt;
 	stat->cmaj_flt = task->maj_flt;
@@ -480,8 +512,14 @@ static int dump_proc_io(struct task_struct *task)
 	ASSIGN_IO_FIELD(cancelled_write_bytes);
 	if (task->pid == 1)
 	{
-		DEBUG(0, "PID: %d Comm: %s Rchar: %lu Wchar: %lu", hdr->pid,
-		      hdr->comm, io->rchar, io->wchar);
+		DEBUG(
+			0,
+			"PID: %d Comm: %s Rchar: %lu Wchar: %lu",
+			hdr->pid,
+			hdr->comm,
+			io->rchar,
+			io->wchar
+		);
 		DEBUG(0, "Wchar: %llu", task->signal->ioac.wchar);
 	}
 	if ((task->flags & PF_KTHREAD) && (io->rchar + io->wchar))
@@ -550,12 +588,12 @@ static int dump_proc_statm(struct task_struct *task)
 		DEBUG(0, "statm size: %d", task->mm->total_vm);
 		statm->size = task->mm->total_vm;
 		statm->shared = task->mm->rss_stat[MM_FILEPAGES].count +
-				task->mm->rss_stat[MM_SHMEMPAGES].count;
+						task->mm->rss_stat[MM_SHMEMPAGES].count;
 		statm->resident =
 			statm->shared + task->mm->rss_stat[MM_ANONPAGES].count;
 		statm->text = task->mm->end_data - task->mm->start_data;
 		statm->text = (statm->text >> PAGE_SHIFT) +
-			      !!(statm->text & ((1 << PAGE_SHIFT) - 1));
+					  !!(statm->text & ((1 << PAGE_SHIFT) - 1));
 		statm->data = task->mm->data_vm + task->mm->stack_vm;
 	}
 	bpf_ringbuf_submit(hdr, 0);
@@ -635,18 +673,13 @@ static int dump_proc_ns(struct task_struct *task)
 				if (level >= 0)
 				{
 					struct upid *upid =
-						(struct upid *)&thread_pid
-							->numbers[level];
+						(struct upid *)&thread_pid->numbers[level];
 					if (bpf_core_field_exists(upid->ns))
 					{
-						struct pid_namespace *ns =
-							BPF_CORE_READ(upid, ns);
+						struct pid_namespace *ns = BPF_CORE_READ(upid, ns);
 						if (ns)
 						{
-							ns_info->pid =
-								BPF_CORE_READ(
-									ns,
-									ns.inum);
+							ns_info->pid = BPF_CORE_READ(ns, ns.inum);
 						}
 					}
 				}
@@ -689,8 +722,7 @@ static int dump_proc_ns(struct task_struct *task)
 			ns_info->net = BPF_CORE_READ(net_ns, ns.inum);
 		}
 
-		struct time_namespace *time_ns =
-			BPF_CORE_READ(nsproxy, time_ns);
+		struct time_namespace *time_ns = BPF_CORE_READ(nsproxy, time_ns);
 		if (time_ns)
 		{
 			ns_info->time = BPF_CORE_READ(time_ns, ns.inum);
@@ -704,8 +736,7 @@ static int dump_proc_ns(struct task_struct *task)
 				BPF_CORE_READ(time_ns_for_children, ns.inum);
 		}
 
-		struct cgroup_namespace *cgroup_ns =
-			BPF_CORE_READ(nsproxy, cgroup_ns);
+		struct cgroup_namespace *cgroup_ns = BPF_CORE_READ(nsproxy, cgroup_ns);
 		if (cgroup_ns)
 		{
 			ns_info->cgroup = BPF_CORE_READ(cgroup_ns, ns.inum);
@@ -740,24 +771,42 @@ int dump_task(struct bpf_iter__task *ctx)
 	{
 		DEBUG(0, "-------- prologue -----------");
 		if (put_prologue())
+		{
 			return 1;
+		}
 	}
 	if (dump_proc_stat(task))
+	{
 		return 1;
+	}
 	if (dump_proc_io(task))
+	{
 		return 1;
+	}
 	if (dump_proc_traffic(task))
+	{
 		return 1;
+	}
 	if (dump_proc_statm(task))
+	{
 		return 1;
+	}
 	if (dump_proc_cmdline(task))
+	{
 		return 1;
+	}
 	if (dump_proc_schedstat(task))
+	{
 		return 1;
+	}
 	if (dump_proc_status(task))
+	{
 		return 1;
+	}
 	if (dump_proc_ns(task))
+	{
 		return 1;
+	}
 	DEBUG(0, "dump_task: %d %s", task->pid, task->comm);
 
 	return 0;
@@ -773,18 +822,19 @@ int dump_task_file(struct bpf_iter__task_file *ctx)
 	file = ctx->file;
 
 	if (!task || !file)
+	{
 		return 0;
+	}
 
 	/**
-     * 仅用于验证 bpf_iter__task_file 是以进程为单位进行迭代的
-     */
+	 * 仅用于验证 bpf_iter__task_file 是以进程为单位进行迭代的
+	 */
 	if (0 && task->pid != task->tgid)
 	{
 		/**
-         * logically never get here
-         */
-		bpf_info("sub thread passed: tid(%d) tgid(%d)", task->pid,
-			 task->tgid);
+		 * logically never get here
+		 */
+		bpf_info("sub thread passed: tid(%d) tgid(%d)", task->pid, task->tgid);
 		return 0;
 	}
 
@@ -809,14 +859,21 @@ int dump_task_file(struct bpf_iter__task_file *ctx)
 	fd->dev = ino->i_sb->s_dev;
 
 	// 打印 fd 的所有字段
-	DEBUG(0,
-	      "task: %s pid: %d\n"
-	      "\ti_mode: %d\n"
-	      "\tfd: %d\n"
-	      "\tinode: %lu\n"
-	      "\tdev: %u:%u",
-	      hdr->comm, hdr->pid, fd->i_mode, fd->fd, fd->inode,
-	      MAJOR(fd->dev), MINOR(fd->dev));
+	DEBUG(
+		0,
+		"task: %s pid: %d\n"
+		"\ti_mode: %d\n"
+		"\tfd: %d\n"
+		"\tinode: %lu\n"
+		"\tdev: %u:%u",
+		hdr->comm,
+		hdr->pid,
+		fd->i_mode,
+		fd->fd,
+		fd->inode,
+		MAJOR(fd->dev),
+		MINOR(fd->dev)
+	);
 	bpf_ringbuf_submit(hdr, 0);
 
 	return 0;
@@ -830,7 +887,9 @@ static int traffic_stat(int ret, int dir)
 {
 	u32 bytes = ret;
 	if (ret < 0)
+	{
 		return 0;
+	}
 	u64 tgid_pid = bpf_get_current_pid_tgid();
 	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 	net_key_t key = {
@@ -849,9 +908,13 @@ static int traffic_stat(int ret, int dir)
 		return 0;
 	}
 	if (TRAFFIC_IN == dir)
+	{
 		traffic->rbytes += bytes;
+	}
 	else
+	{
 		traffic->wbytes += bytes;
+	}
 	return 0;
 }
 
@@ -893,30 +956,52 @@ int BPF_PROG(fr_sock_sendmsg, struct socket *sock, struct msghdr *msg, int ret)
 }
 
 SEC("?fexit/sock_write_iter")
-int BPF_PROG(fr_sock_write_iter, struct kiocb *iocb, struct iov_iter *from,
-	     int ret)
+int BPF_PROG(
+	fr_sock_write_iter,
+	struct kiocb *iocb,
+	struct iov_iter *from,
+	int ret
+)
 {
 	return traffic_stat(ret, TRAFFIC_OUT);
 }
 
 SEC("?fexit/__sys_sendto")
-int BPF_PROG(fr___sys_sendto_exit, int fd, void __user *buff, size_t len,
-	     unsigned int flags, struct sockaddr __user *addr, int addr_len,
-	     int ret)
+int BPF_PROG(
+	fr___sys_sendto_exit,
+	int fd,
+	void __user *buff,
+	size_t len,
+	unsigned int flags,
+	struct sockaddr __user *addr,
+	int addr_len,
+	int ret
+)
 {
 	return traffic_stat(ret, TRAFFIC_OUT);
 }
 SEC("?fexit/____sys_sendmsg")
-int BPF_PROG(fr_____sys_sendmsg, struct socket *sock, struct msghdr *msg_sys,
-	     unsigned int flags, struct used_address *used_address,
-	     unsigned int allowed_msghdr_flags, int ret)
+int BPF_PROG(
+	fr_____sys_sendmsg,
+	struct socket *sock,
+	struct msghdr *msg_sys,
+	unsigned int flags,
+	struct used_address *used_address,
+	unsigned int allowed_msghdr_flags,
+	int ret
+)
 {
 	return traffic_stat(ret, TRAFFIC_OUT);
 }
 
 SEC("?fexit/sock_recvmsg")
-int BPF_PROG(fr_sock_recvmsg, struct socket *sock, struct msghdr *msg,
-	     int flags, int ret)
+int BPF_PROG(
+	fr_sock_recvmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int flags,
+	int ret
+)
 {
 	return traffic_stat(ret, TRAFFIC_IN);
 }
@@ -927,9 +1012,12 @@ int proc_info_init(void *ctx)
 	if (!context_tracking_key)
 	{
 		long ret;
-		ret = bpf_kallsyms_lookup_name(CONTEXT_TRACKING_KEY,
-					       sizeof(CONTEXT_TRACKING_KEY), 0,
-					       (u64 *)&context_tracking_key);
+		ret = bpf_kallsyms_lookup_name(
+			CONTEXT_TRACKING_KEY,
+			sizeof(CONTEXT_TRACKING_KEY),
+			0,
+			(u64 *)&context_tracking_key
+		);
 		if (ret || !context_tracking_key)
 		{
 			bpf_warn("bpf_kallsyms_lookup_name failed: %d", ret);
@@ -937,9 +1025,11 @@ int proc_info_init(void *ctx)
 	}
 	if (context_tracking_key)
 	{
-		bpf_info(CONTEXT_TRACKING_KEY ": %p-%d", context_tracking_key,
-			 BPF_CORE_READ(context_tracking_key,
-				       key.enabled.counter));
+		bpf_info(
+			CONTEXT_TRACKING_KEY ": %p-%d",
+			context_tracking_key,
+			BPF_CORE_READ(context_tracking_key, key.enabled.counter)
+		);
 	}
 	return 0;
 }

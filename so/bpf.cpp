@@ -14,7 +14,7 @@
 
 #define PIN_PATH "/sys/fs/bpf/dkapture"
 
-#define link_idx(links, link) \
+#define link_idx(links, link)                                                  \
 	(((long)&links.dump_task - (long)&links) / sizeof(bpf_link *))
 
 int BPF::retreat_bpf_map(const char *name)
@@ -36,9 +36,14 @@ int BPF::retreat_bpf_map(const char *name)
 		if (err)
 		{
 			if (errno == ENOENT)
+			{
 				break;
-			pr_error("bpf_map_get_next_id: %s%s", strerror(errno),
-				 errno == EINVAL ? " -- kernel too old?" : "");
+			}
+			pr_error(
+				"bpf_map_get_next_id: %s%s",
+				strerror(errno),
+				errno == EINVAL ? " -- kernel too old?" : ""
+			);
 			break;
 		}
 
@@ -46,9 +51,10 @@ int BPF::retreat_bpf_map(const char *name)
 		if (fd < 0)
 		{
 			if (errno == ENOENT)
+			{
 				continue;
-			pr_error("bpf_map_get_fd_by_id (%u): %s", id,
-				 strerror(errno));
+			}
+			pr_error("bpf_map_get_fd_by_id (%u): %s", id, strerror(errno));
 			break;
 		}
 		err = bpf_map_get_info_by_fd(fd, &info, &len);
@@ -74,7 +80,9 @@ std::string BPF::retreat_bpf_iter(const char *name)
 	char buf[PATH_MAX];
 	snprintf(buf, sizeof(buf), PIN_PATH "/link-%s", name);
 	if (access(buf, F_OK) != 0)
+	{
 		return "";
+	}
 	return buf;
 }
 
@@ -87,7 +95,9 @@ int BPF::bpf_pin_links(const char *pin_dir)
 	{
 		bpf_link *link = *m_obj->skeleton->progs[i].link;
 		if (!link)
+		{
 			continue;
+		}
 		const char *name = m_obj->skeleton->progs[i].name;
 		snprintf(buf, PATH_MAX, "%s/link-%s", pin_dir, name);
 		err = bpf_link__pin(link, buf);
@@ -101,7 +111,9 @@ int BPF::bpf_pin_links(const char *pin_dir)
 	return 0;
 err_out:
 	for (auto link : links)
+	{
 		bpf_link__unpin(link);
+	}
 	return err;
 }
 
@@ -119,12 +131,16 @@ int BPF::bpf_pin_programs(const char *path)
 	{
 		int fd = bpf_program__fd(prog);
 		if (!bpf_program__autoload(prog) && fd < 0)
+		{
 			continue;
+		}
 		const char *prog_name = bpf_program__name(prog);
 		snprintf(buf, PATH_MAX, "%s/%s", path, prog_name);
 		err = bpf_program__pin(prog, buf);
 		if (err)
+		{
 			goto err_out;
+		}
 	}
 
 	return 0;
@@ -155,9 +171,9 @@ BPF::BPF()
 		throw;
 	}
 	/**
-     * TODO:
-     * 临界区可能会被信号中断导致进程异常推出，需要处理这种情况下的锁未释放的问题
-     */
+	 * TODO:
+	 * 临界区可能会被信号中断导致进程异常推出，需要处理这种情况下的锁未释放的问题
+	 */
 	m_bpf_lock->lock();
 	// Implementation for opening the capture
 	m_map_fd = retreat_bpf_map("dk_shared_mem");
@@ -176,20 +192,29 @@ BPF::BPF()
 		pr_debug("creating new bpf mirror");
 		m_obj = proc_info_bpf::open_and_load();
 		if (!m_obj)
+		{
 			goto err_out;
+		}
 		err = proc_info_bpf::attach(m_obj);
 		if (0 != err)
+		{
 			goto err_out;
+		}
 		err = bpf_object__pin_maps(m_obj->obj, PIN_PATH);
 		if (err)
+		{
 			goto err_out;
+		}
 		err = bpf_pin_programs(PIN_PATH);
 		if (err)
+		{
 			goto err_out;
+		}
 		if (0 != bpf_pin_links(PIN_PATH))
+		{
 			goto err_out;
-		m_map_fd = bpf_get_map_fd(m_obj->obj, "dk_shared_mem",
-					  goto err_out);
+		}
+		m_map_fd = bpf_get_map_fd(m_obj->obj, "dk_shared_mem", goto err_out);
 	}
 	(*bpf_ref_cnt)++;
 	m_bpf_lock->unlock();
@@ -230,8 +255,10 @@ BPF::~BPF()
 				while ((entry = readdir64(dir)) != nullptr)
 				{
 					if (strcmp(entry->d_name, ".") == 0 ||
-					    strcmp(entry->d_name, "..") == 0)
+						strcmp(entry->d_name, "..") == 0)
+					{
 						continue;
+					}
 					std::string path(PIN_PATH);
 					path += "/";
 					path += entry->d_name;
@@ -242,15 +269,17 @@ BPF::~BPF()
 			rmdir(PIN_PATH);
 		}
 		/**
-         * 这个判断代码用于验证 bpf pin 路径被删除后，bpf 内核对象仍然会
-         * 在短时间存活，即便它的引用计数已归零，应该是 unlink 的过程中，采
-         * 用的异步释放，这段代码未删除的原因，仅用于惊醒开发者这一现象。
-         */
+		 * 这个判断代码用于验证 bpf pin 路径被删除后，bpf 内核对象仍然会
+		 * 在短时间存活，即便它的引用计数已归零，应该是 unlink 的过程中，采
+		 * 用的异步释放，这段代码未删除的原因，仅用于惊醒开发者这一现象。
+		 */
 		if (0 && bpf_map_get_fd_by_id(m_map_id) >= 0)
 		{
-			pr_warn("bpf map %d still exists after "
+			pr_warn(
+				"bpf map %d still exists after "
 				"unlink pin path",
-				m_map_id);
+				m_map_id
+			);
 		}
 		m_bpf_lock->unlock();
 	}
@@ -264,13 +293,20 @@ int BPF::dump_task_file(void)
 	ssize_t rd_sz;
 	char buf[8]; // 实际上并没有使用
 	if (m_obj)
+	{
 		fd = bpf_create_iter(m_obj->links.dump_task_file, return -1);
+	}
 	else
+	{
 		fd = ::open(m_dump_task_file.c_str(), O_RDONLY);
+	}
 	if (fd < 0)
 	{
-		pr_error("bpf_iter_create (%s): %s", m_dump_task_file.c_str(),
-			 strerror(errno));
+		pr_error(
+			"bpf_iter_create (%s): %s",
+			m_dump_task_file.c_str(),
+			strerror(errno)
+		);
 		return -1;
 	}
 

@@ -9,9 +9,9 @@
 class BPF
 {
 #ifdef __GTEST__
-    public:
+  public:
 #else
-    private:
+  private:
 #endif
 	SharedMemory *m_shm = nullptr;
 	SpinLock *m_bpf_lock = nullptr;
@@ -26,7 +26,7 @@ class BPF
 	int bpf_pin_programs(const char *path);
 	static int handle_event(void *ctx, void *data, size_t data_sz);
 
-    public:
+  public:
 	int m_map_fd = -1;
 	proc_info_bpf *m_obj = nullptr;
 	std::string m_proc_iter_link_path;

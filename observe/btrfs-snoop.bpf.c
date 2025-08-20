@@ -284,7 +284,8 @@ struct tp_btrfs_add_reclaim_block_group_t
 
 SEC("tracepoint/btrfs/btrfs_add_reclaim_block_group")
 int tp_btrfs_add_reclaim_block_group(
-	struct tp_btrfs_add_reclaim_block_group_t *ctx)
+	struct tp_btrfs_add_reclaim_block_group_t *ctx
+)
 {
 	struct btrfs_add_reclaim_block_group_event event = {};
 
@@ -319,7 +320,8 @@ struct tp_btrfs_add_unused_block_group_t
 
 SEC("tracepoint/btrfs/btrfs_add_unused_block_group")
 int tp_btrfs_add_unused_block_group(
-	struct tp_btrfs_add_unused_block_group_t *ctx)
+	struct tp_btrfs_add_unused_block_group_t *ctx
+)
 {
 	struct btrfs_add_unused_block_group_event event = {};
 
@@ -586,7 +588,8 @@ struct tp_btrfs_done_preemptive_reclaim_t
 
 SEC("tracepoint/btrfs/btrfs_done_preemptive_reclaim")
 int tp_btrfs_done_preemptive_reclaim(
-	struct tp_btrfs_done_preemptive_reclaim_t *ctx)
+	struct tp_btrfs_done_preemptive_reclaim_t *ctx
+)
 {
 	struct btrfs_done_preemptive_reclaim_event event = {};
 
@@ -879,7 +882,8 @@ struct tp_btrfs_get_extent_show_fi_inline_t
 
 SEC("tracepoint/btrfs/btrfs_get_extent_show_fi_inline")
 int tp_btrfs_get_extent_show_fi_inline(
-	struct tp_btrfs_get_extent_show_fi_inline_t *ctx)
+	struct tp_btrfs_get_extent_show_fi_inline_t *ctx
+)
 {
 	struct btrfs_get_extent_show_fi_inline_event event = {};
 
@@ -927,7 +931,8 @@ struct tp_btrfs_get_extent_show_fi_regular_t
 
 SEC("tracepoint/btrfs/btrfs_get_extent_show_fi_regular")
 int tp_btrfs_get_extent_show_fi_regular(
-	struct tp_btrfs_get_extent_show_fi_regular_t *ctx)
+	struct tp_btrfs_get_extent_show_fi_regular_t *ctx
+)
 {
 	struct btrfs_get_extent_show_fi_regular_event event = {};
 
@@ -1049,7 +1054,8 @@ struct tp_btrfs_inode_mod_outstanding_extents_t
 
 SEC("tracepoint/btrfs/btrfs_inode_mod_outstanding_extents")
 int tp_btrfs_inode_mod_outstanding_extents(
-	struct tp_btrfs_inode_mod_outstanding_extents_t *ctx)
+	struct tp_btrfs_inode_mod_outstanding_extents_t *ctx
+)
 {
 	struct btrfs_inode_mod_outstanding_extents_event event = {};
 
@@ -1219,7 +1225,8 @@ struct tp_btrfs_ordered_extent_dec_test_pending_t
 
 SEC("tracepoint/btrfs/btrfs_ordered_extent_dec_test_pending")
 int tp_btrfs_ordered_extent_dec_test_pending(
-	struct tp_btrfs_ordered_extent_dec_test_pending_t *ctx)
+	struct tp_btrfs_ordered_extent_dec_test_pending_t *ctx
+)
 {
 	struct btrfs_ordered_extent_dec_test_pending_event event = {};
 
@@ -1316,7 +1323,8 @@ struct tp_btrfs_ordered_extent_lookup_first_t
 
 SEC("tracepoint/btrfs/btrfs_ordered_extent_lookup_first")
 int tp_btrfs_ordered_extent_lookup_first(
-	struct tp_btrfs_ordered_extent_lookup_first_t *ctx)
+	struct tp_btrfs_ordered_extent_lookup_first_t *ctx
+)
 {
 	struct btrfs_ordered_extent_lookup_first_event event = {};
 
@@ -1365,7 +1373,8 @@ struct tp_btrfs_ordered_extent_lookup_first_range_t
 
 SEC("tracepoint/btrfs/btrfs_ordered_extent_lookup_first_range")
 int tp_btrfs_ordered_extent_lookup_first_range(
-	struct tp_btrfs_ordered_extent_lookup_first_range_t *ctx)
+	struct tp_btrfs_ordered_extent_lookup_first_range_t *ctx
+)
 {
 	struct btrfs_ordered_extent_lookup_first_range_event event = {};
 
@@ -1414,7 +1423,8 @@ struct tp_btrfs_ordered_extent_lookup_for_logging_t
 
 SEC("tracepoint/btrfs/btrfs_ordered_extent_lookup_for_logging")
 int tp_btrfs_ordered_extent_lookup_for_logging(
-	struct tp_btrfs_ordered_extent_lookup_for_logging_t *ctx)
+	struct tp_btrfs_ordered_extent_lookup_for_logging_t *ctx
+)
 {
 	struct btrfs_ordered_extent_lookup_for_logging_event event = {};
 
@@ -1463,7 +1473,8 @@ struct tp_btrfs_ordered_extent_lookup_range_t
 
 SEC("tracepoint/btrfs/btrfs_ordered_extent_lookup_range")
 int tp_btrfs_ordered_extent_lookup_range(
-	struct tp_btrfs_ordered_extent_lookup_range_t *ctx)
+	struct tp_btrfs_ordered_extent_lookup_range_t *ctx
+)
 {
 	struct btrfs_ordered_extent_lookup_range_event event = {};
 
@@ -1512,7 +1523,8 @@ struct tp_btrfs_ordered_extent_mark_finished_t
 
 SEC("tracepoint/btrfs/btrfs_ordered_extent_mark_finished")
 int tp_btrfs_ordered_extent_mark_finished(
-	struct tp_btrfs_ordered_extent_mark_finished_t *ctx)
+	struct tp_btrfs_ordered_extent_mark_finished_t *ctx
+)
 {
 	struct btrfs_ordered_extent_mark_finished_event event = {};
 
@@ -1910,7 +1922,8 @@ struct tp_btrfs_qgroup_account_extents_t
 
 SEC("tracepoint/btrfs/btrfs_qgroup_account_extents")
 int tp_btrfs_qgroup_account_extents(
-	struct tp_btrfs_qgroup_account_extents_t *ctx)
+	struct tp_btrfs_qgroup_account_extents_t *ctx
+)
 {
 	struct btrfs_qgroup_account_extents_event event = {};
 
@@ -2163,7 +2176,8 @@ struct tp_btrfs_reserve_extent_cluster_t
 
 SEC("tracepoint/btrfs/btrfs_reserve_extent_cluster")
 int tp_btrfs_reserve_extent_cluster(
-	struct tp_btrfs_reserve_extent_cluster_t *ctx)
+	struct tp_btrfs_reserve_extent_cluster_t *ctx
+)
 {
 	struct btrfs_reserve_extent_cluster_event event = {};
 
@@ -2336,7 +2350,8 @@ struct tp_btrfs_set_lock_blocking_read_t
 
 SEC("tracepoint/btrfs/btrfs_set_lock_blocking_read")
 int tp_btrfs_set_lock_blocking_read(
-	struct tp_btrfs_set_lock_blocking_read_t *ctx)
+	struct tp_btrfs_set_lock_blocking_read_t *ctx
+)
 {
 	struct btrfs_set_lock_blocking_read_event event = {};
 
@@ -2371,7 +2386,8 @@ struct tp_btrfs_set_lock_blocking_write_t
 
 SEC("tracepoint/btrfs/btrfs_set_lock_blocking_write")
 int tp_btrfs_set_lock_blocking_write(
-	struct tp_btrfs_set_lock_blocking_write_t *ctx)
+	struct tp_btrfs_set_lock_blocking_write_t *ctx
+)
 {
 	struct btrfs_set_lock_blocking_write_event event = {};
 
@@ -2441,7 +2457,8 @@ struct tp_btrfs_skip_unused_block_group_t
 
 SEC("tracepoint/btrfs/btrfs_skip_unused_block_group")
 int tp_btrfs_skip_unused_block_group(
-	struct tp_btrfs_skip_unused_block_group_t *ctx)
+	struct tp_btrfs_skip_unused_block_group_t *ctx
+)
 {
 	struct btrfs_skip_unused_block_group_event event = {};
 	event.base.event_type = BTRFS_SKIP_UNUSED_BLOCK_GROUP;
@@ -2738,7 +2755,8 @@ struct tp_btrfs_tree_read_unlock_blocking_t
 
 SEC("tracepoint/btrfs/btrfs_tree_read_unlock_blocking")
 int tp_btrfs_tree_read_unlock_blocking(
-	struct tp_btrfs_tree_read_unlock_blocking_t *ctx)
+	struct tp_btrfs_tree_read_unlock_blocking_t *ctx
+)
 {
 	struct btrfs_tree_read_unlock_blocking_event event = {};
 
@@ -2845,7 +2863,8 @@ struct tp_btrfs_truncate_show_fi_inline_t
 
 SEC("tracepoint/btrfs/btrfs_truncate_show_fi_inline")
 int tp_btrfs_truncate_show_fi_inline(
-	struct tp_btrfs_truncate_show_fi_inline_t *ctx)
+	struct tp_btrfs_truncate_show_fi_inline_t *ctx
+)
 {
 	struct btrfs_truncate_show_fi_inline_event event = {};
 
@@ -2893,7 +2912,8 @@ struct tp_btrfs_truncate_show_fi_regular_t
 
 SEC("tracepoint/btrfs/btrfs_truncate_show_fi_regular")
 int tp_btrfs_truncate_show_fi_regular(
-	struct tp_btrfs_truncate_show_fi_regular_t *ctx)
+	struct tp_btrfs_truncate_show_fi_regular_t *ctx
+)
 {
 	struct btrfs_truncate_show_fi_regular_event event = {};
 
@@ -3213,7 +3233,8 @@ struct tp_find_free_extent_have_block_group_t
 
 SEC("tracepoint/btrfs/find_free_extent_have_block_group")
 int tp_find_free_extent_have_block_group(
-	struct tp_find_free_extent_have_block_group_t *ctx)
+	struct tp_find_free_extent_have_block_group_t *ctx
+)
 {
 	struct btrfs_find_free_extent_have_block_group_event event = {};
 
@@ -3253,7 +3274,8 @@ struct tp_find_free_extent_search_loop_t
 
 SEC("tracepoint/btrfs/find_free_extent_search_loop")
 int tp_find_free_extent_search_loop(
-	struct tp_find_free_extent_search_loop_t *ctx)
+	struct tp_find_free_extent_search_loop_t *ctx
+)
 {
 	struct btrfs_find_free_extent_search_loop_event event = {};
 
@@ -3346,7 +3368,8 @@ struct tp_qgroup_meta_free_all_pertrans_t
 
 SEC("tracepoint/btrfs/qgroup_meta_free_all_pertrans")
 int tp_qgroup_meta_free_all_pertrans(
-	struct tp_qgroup_meta_free_all_pertrans_t *ctx)
+	struct tp_qgroup_meta_free_all_pertrans_t *ctx
+)
 {
 	struct btrfs_qgroup_meta_free_all_pertrans_event event = {};
 

@@ -27,47 +27,57 @@ static std::atomic<bool> exit_flag(false);
 struct Rule
 {
 	char target_path[PATH_MAX]; // Path to filter on
-	uint32_t depth; // Depth of the printed task chain
-	uint32_t uid; // User ID to filter on
+	uint32_t depth;				// Depth of the printed task chain
+	uint32_t uid;				// User ID to filter on
 } rule = {
-	.depth = 50, // Default depth
+	.depth = 50,		// Default depth
 	.uid = (uint32_t)-1 // Default UID (no filtering)
 };
 
 // Long options for command line arguments
-static struct option lopts[] = { { "uid", required_argument, 0, 'u' },
-				 { "depth", required_argument, 0, 'd' },
-				 { "target", required_argument, 0, 't' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"uid",	required_argument, 0, 'u'},
+	{"depth",  required_argument, 0, 'd'},
+	{"target", required_argument, 0, 't'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		0,				 0, 0  }
+};
 
 // Help message structure
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages for each option
 static HelpMsg help_msg[] = {
-	{ "<uid>", "filter with uid\n" },
-	{ "<depth>", "set the printed task chain length\n" },
-	{ "[target]", "filter with process file path\n" },
-	{ "", "print this help message\n" },
+	{"<uid>",	  "filter with uid\n"					 },
+	{"<depth>",	"set the printed task chain length\n"},
+	{"[target]", "filter with process file path\n"	  },
+	{"",		 "print this help message\n"			},
 };
 
 // Function to display usage information
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
-	printf("  trace exec event on the system, support filter with process image file name and uid.\n"
-	       "  This tool is useful for tracing processes that run and exit fast, traditional methods, "
-	       "like traversing through the proc dir, cannot catch such events in time.\n\n");
+	printf("  trace exec event on the system, support filter with process "
+		   "image file name and uid.\n"
+		   "  This tool is useful for tracing processes that run and exit "
+		   "fast, traditional methods, "
+		   "like traversing through the proc dir, cannot catch such events in "
+		   "time.\n\n");
 	printf("options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -102,10 +112,9 @@ void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	optind = 1;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -155,11 +164,12 @@ void *ringbuf_worker(void *)
 void register_signal()
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
+	sa.sa_handler = [](int)
+	{
 		exit_flag = true;
 		stop_trace();
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	};						  // Set exit flag on signal
+	sa.sa_flags = 0;		  // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -174,7 +184,7 @@ int main(int argc, char *args[])
 {
 	parse_args(argc, args); // Parse command line arguments
 	register_signal();
-	int key = 0; // Key for BPF map
+	int key = 0;						   // Key for BPF map
 	obj = trace_exec_bpf::open_and_load(); // Load BPF program
 	if (!obj)
 	{
@@ -191,12 +201,14 @@ int main(int argc, char *args[])
 	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
 	{
 		printf("error: bpf_map_update_elem\n"); // Print error if updating fails
-		goto err_out; // Go to error handling
+		goto err_out;							// Go to error handling
 	}
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
+	{
 		goto err_out; // Handle error
+	}
 
 	pthread_create(&t1, NULL, ringbuf_worker, NULL);
 	follow_trace_pipe(); // Start reading from the trace pipe
@@ -206,8 +218,10 @@ int main(int argc, char *args[])
 
 err_out:
 	if (rb)
+	{
 		ring_buffer__free(rb); // Free ring buffer if allocated
-	trace_exec_bpf::detach(obj); // Detach BPF program
+	}
+	trace_exec_bpf::detach(obj);  // Detach BPF program
 	trace_exec_bpf::destroy(obj); // Clean up BPF object
-	return 0; // Exit successfully
+	return 0;					  // Exit successfully
 }

@@ -9,8 +9,7 @@ void lock_file(int fd, int operation)
 {
 	if (flock(fd, operation) == -1)
 	{
-		std::cerr << "Failed to lock file: " << strerror(errno)
-			  << std::endl;
+		std::cerr << "Failed to lock file: " << strerror(errno) << std::endl;
 		exit(EXIT_FAILURE);
 	}
 }
@@ -19,8 +18,7 @@ void unlock_file(int fd)
 {
 	if (flock(fd, LOCK_UN) == -1)
 	{
-		std::cerr << "Failed to unlock file: " << strerror(errno)
-			  << std::endl;
+		std::cerr << "Failed to unlock file: " << strerror(errno) << std::endl;
 		exit(EXIT_FAILURE);
 	}
 }
@@ -36,8 +34,7 @@ int main(int n, char *args[])
 	int fd = open(filename, O_RDWR | O_CREAT, 0666);
 	if (fd == -1)
 	{
-		std::cerr << "Failed to open file: " << strerror(errno)
-			  << std::endl;
+		std::cerr << "Failed to open file: " << strerror(errno) << std::endl;
 		return EXIT_FAILURE;
 	}
 

@@ -41,12 +41,13 @@ static struct env
 static volatile bool exiting;
 
 const char *argp_program_version = "urblat 0.1";
-const char *argp_program_bug_address =
-	"https://github.com/iovisor/bcc/tree/master/libbpf-tools";
+const char *argp_program_bug_address = "https://github.com/iovisor/bcc/tree/"
+									   "master/libbpf-tools";
 const char argp_program_doc[] =
 	"Summarize block device I/O latency as a histogram.\n"
 	"\n"
-	"USAGE:urblat [--help] [-T] [-m] [-Q] [-D] [-F] [-d DISK] [-c CG] [interval] [count]\n"
+	"USAGE:urblat [--help] [-T] [-m] [-Q] [-D] [-F] [-d DISK] [-c CG] "
+	"[interval] [count]\n"
 	"\n"
 	"EXAMPLES:\n"
 	"   urblat              # summarize block I/O latency as a histogram\n"
@@ -59,16 +60,18 @@ const char argp_program_doc[] =
 	"   urblat -c CG        # Trace process under cgroupsPath CG\n";
 
 static const struct argp_option opts[] = {
-	{ "timestamp", 'T', NULL, 0, "Include timestamp on output", 0 },
-	{ "milliseconds", 'm', NULL, 0, "Millisecond histogram", 0 },
-	{ "queued", 'Q', NULL, 0, "Include OS queued time in I/O time", 0 },
-	{ "disk", 'D', NULL, 0, "Print a histogram per disk device", 0 },
-	{ "flag", 'F', NULL, 0, "Print a histogram per set of I/O flags", 0 },
-	{ "disk", 'd', "DISK", 0, "Trace this disk only", 0 },
-	{ "verbose", 'v', NULL, 0, "Verbose debug output", 0 },
-	{ "cgroup", 'c', "/sys/fs/cgroup/unified", 0,
-	  "Trace process in cgroup path", 0 },
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0 },
+	{"timestamp", 'T', NULL, 0, "Include timestamp on output", 0},
+	{"milliseconds", 'm', NULL, 0, "Millisecond histogram", 0},
+	{"queued", 'Q', NULL, 0, "Include OS queued time in I/O time", 0},
+	{"disk", 'D', NULL, 0, "Print a histogram per disk device", 0},
+	{"flag", 'F', NULL, 0, "Print a histogram per set of I/O flags", 0},
+	{"disk", 'd', "DISK", 0, "Trace this disk only", 0},
+	{"verbose", 'v', NULL, 0, "Verbose debug output", 0},
+	{"cgroup",
+	 'c', "/sys/fs/cgroup/unified",
+	 0, "Trace process in cgroup path",
+	 0},
+	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0},
 	{},
 };
 
@@ -133,8 +136,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		}
 		else
 		{
-			fprintf(stderr,
-				"unrecognized positional argument: %s\n", arg);
+			fprintf(stderr, "unrecognized positional argument: %s\n", arg);
 			argp_usage(state);
 		}
 		pos_args++;
@@ -145,11 +147,13 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -165,12 +169,17 @@ static void print_cmd_flags(int cmd_flags)
 		int bit;
 		const char *str;
 	} flags[] = {
-		{ REQ_NOWAIT, "NoWait-" },    { REQ_BACKGROUND, "Background-" },
-		{ REQ_RAHEAD, "ReadAhead-" }, { REQ_PREFLUSH, "PreFlush-" },
-		{ REQ_FUA, "FUA-" },	      { REQ_INTEGRITY, "Integrity-" },
-		{ REQ_IDLE, "Idle-" },	      { REQ_NOMERGE, "NoMerge-" },
-		{ REQ_PRIO, "Priority-" },    { REQ_META, "Metadata-" },
-		{ REQ_SYNC, "Sync-" },
+		{REQ_NOWAIT,	 "NoWait-"	  },
+		{REQ_BACKGROUND, "Background-"},
+		{REQ_RAHEAD,	 "ReadAhead-" },
+		{REQ_PREFLUSH,   "PreFlush-"  },
+		{REQ_FUA,		  "FUA-"		},
+		{REQ_INTEGRITY,	"Integrity-" },
+		{REQ_IDLE,	   "Idle-"	  },
+		{REQ_NOMERGE,	  "NoMerge-"	},
+		{REQ_PRIO,	   "Priority-"  },
+		{REQ_META,	   "Metadata-"  },
+		{REQ_SYNC,	   "Sync-"	  },
 	};
 	static const char *ops[] = {
 		[REQ_OP_READ] = "Read",
@@ -197,13 +206,19 @@ static void print_cmd_flags(int cmd_flags)
 	for (i = 0; i < ARRAY_SIZE(flags); i++)
 	{
 		if (cmd_flags & flags[i].bit)
+		{
 			printf("%s", flags[i].str);
+		}
 	}
 
 	if ((cmd_flags & REQ_OP_MASK) < ARRAY_SIZE(ops))
+	{
 		printf("%s", ops[cmd_flags & REQ_OP_MASK]);
+	}
 	else
+	{
 		printf("Unknown");
+	}
 }
 
 struct partitions
@@ -212,16 +227,23 @@ struct partitions
 	int sz;
 };
 
-static int partitions__add_partition(struct partitions *partitions,
-				     const char *name, unsigned int dev)
+static int partitions__add_partition(
+	struct partitions *partitions,
+	const char *name,
+	unsigned int dev
+)
 {
 	struct partition *partition;
 	void *tmp;
 
-	tmp = realloc(partitions->items,
-		      (partitions->sz + 1) * sizeof(*partitions->items));
+	tmp = realloc(
+		partitions->items,
+		(partitions->sz + 1) * sizeof(*partitions->items)
+	);
 	if (!tmp)
+	{
 		return -1;
+	}
 	partitions->items = tmp;
 	partition = &partitions->items[partitions->sz];
 	partition->name = strdup(name);
@@ -243,23 +265,36 @@ struct partitions *partitions__load(void)
 
 	f = fopen("/proc/partitions", "r");
 	if (!f)
+	{
 		return NULL;
+	}
 
 	partitions = calloc(1, sizeof(*partitions));
 	if (!partitions)
+	{
 		goto err_out;
+	}
 
 	while (fgets(buf, sizeof(buf), f) != NULL)
 	{
 		/* skip heading */
 		if (buf[0] != ' ' || buf[0] == '\n')
+		{
 			continue;
-		if (sscanf(buf, "%u %u %llu %s", &devmaj, &devmin, &nop,
-			   part_name) != 4)
+		}
+		if (sscanf(buf, "%u %u %llu %s", &devmaj, &devmin, &nop, part_name) !=
+			4)
+		{
 			goto err_out;
-		if (partitions__add_partition(partitions, part_name,
-					      MKDEV(devmaj, devmin)))
+		}
+		if (partitions__add_partition(
+				partitions,
+				part_name,
+				MKDEV(devmaj, devmin)
+			))
+		{
 			goto err_out;
+		}
 	}
 
 	fclose(f);
@@ -276,10 +311,14 @@ void partitions__free(struct partitions *partitions)
 	int i;
 
 	if (!partitions)
+	{
 		return;
+	}
 
 	for (i = 0; i < partitions->sz; i++)
+	{
 		free(partitions->items[i].name);
+	}
 	free(partitions->items);
 	free(partitions);
 }
@@ -292,7 +331,9 @@ partitions__get_by_dev(const struct partitions *partitions, unsigned int dev)
 	for (i = 0; i < partitions->sz; i++)
 	{
 		if (partitions->items[i].dev == dev)
+		{
 			return &partitions->items[i];
+		}
 	}
 
 	return NULL;
@@ -306,7 +347,9 @@ partitions__get_by_name(const struct partitions *partitions, const char *name)
 	for (i = 0; i < partitions->sz; i++)
 	{
 		if (strcmp(partitions->items[i].name, name) == 0)
+		{
 			return &partitions->items[i];
+		}
 	}
 
 	return NULL;
@@ -322,11 +365,17 @@ static void print_stars(unsigned int val, unsigned int val_max, int width)
 	need_plus = val > val_max;
 
 	for (i = 0; i < num_stars; i++)
+	{
 		printf("*");
+	}
 	for (i = 0; i < num_spaces; i++)
+	{
 		printf(" ");
+	}
 	if (need_plus)
+	{
 		printf("+");
+	}
 }
 
 void print_log2_hist(unsigned int *vals, int vals_size, const char *val_type)
@@ -340,41 +389,57 @@ void print_log2_hist(unsigned int *vals, int vals_size, const char *val_type)
 	{
 		val = vals[i];
 		if (val > 0)
+		{
 			idx_max = i;
+		}
 		if (val > val_max)
+		{
 			val_max = val;
+		}
 	}
 
 	if (idx_max < 0)
+	{
 		return;
+	}
 
-	printf("%*s%-*s : count    distribution\n", idx_max <= 32 ? 5 : 15, "",
-	       idx_max <= 32 ? 19 : 29, val_type);
+	printf(
+		"%*s%-*s : count    distribution\n",
+		idx_max <= 32 ? 5 : 15,
+		"",
+		idx_max <= 32 ? 19 : 29,
+		val_type
+	);
 
 	if (idx_max <= 32)
+	{
 		stars = stars_max;
+	}
 	else
+	{
 		stars = stars_max / 2;
+	}
 
 	for (i = 0; i <= idx_max; i++)
 	{
 		low = (1ULL << (i + 1)) >> 1;
 		high = (1ULL << (i + 1)) - 1;
 		if (low == high)
+		{
 			low -= 1;
+		}
 		val = vals[i];
 		width = idx_max <= 32 ? 10 : 20;
-		printf("%*lld -> %-*lld : %-8d |", width, low, width, high,
-		       val);
+		printf("%*lld -> %-*lld : %-8d |", width, low, width, high, val);
 		print_stars(val, val_max, stars);
 		printf("|\n");
 	}
 }
 
-static int print_log2_hists(struct bpf_map *hists,
-			    struct partitions *partitions)
+static int
+print_log2_hists(struct bpf_map *hists, struct partitions *partitions)
 {
-	struct hist_key lookup_key = { .cmd_flags = -1 }, next_key;
+	struct hist_key lookup_key = {.cmd_flags = -1}, next_key;
 	const char *units = env.milliseconds ? "msecs" : "usecs";
 	const struct partition *partition;
 	int err, fd = bpf_map__fd(hists);
@@ -390,13 +455,13 @@ static int print_log2_hists(struct bpf_map *hists,
 		}
 		if (env.per_disk)
 		{
-			partition = partitions__get_by_dev(partitions,
-							   next_key.dev);
-			printf("\ndisk = %s\t",
-			       partition ? partition->name : "Unknown");
+			partition = partitions__get_by_dev(partitions, next_key.dev);
+			printf("\ndisk = %s\t", partition ? partition->name : "Unknown");
 		}
 		if (env.per_flag)
+		{
 			print_cmd_flags(next_key.cmd_flags);
+		}
 		printf("\n");
 		print_log2_hist(hist.slots, MAX_SLOTS, units);
 		lookup_key = next_key;
@@ -419,21 +484,30 @@ static int print_log2_hists(struct bpf_map *hists,
 
 bool probe_tp_btf(const char *name)
 {
-	LIBBPF_OPTS(bpf_prog_load_opts, opts,
-		    .expected_attach_type = BPF_TRACE_RAW_TP);
+	LIBBPF_OPTS(
+		bpf_prog_load_opts,
+		opts,
+		.expected_attach_type = BPF_TRACE_RAW_TP
+	);
 	struct bpf_insn insns[] = {
-		{ .code = BPF_ALU64 | BPF_MOV | BPF_K,
-		  .dst_reg = BPF_REG_0,
-		  .imm = 0 },
-		{ .code = BPF_JMP | BPF_EXIT },
+		{.code = BPF_ALU64 | BPF_MOV | BPF_K, .dst_reg = BPF_REG_0, .imm = 0},
+		{.code = BPF_JMP | BPF_EXIT},
 	};
 	int fd, insn_cnt = sizeof(insns) / sizeof(struct bpf_insn);
 
 	opts.attach_btf_id = libbpf_find_vmlinux_btf_id(name, BPF_TRACE_RAW_TP);
-	fd = bpf_prog_load(BPF_PROG_TYPE_TRACING, NULL, "GPL", insns, insn_cnt,
-			   &opts);
+	fd = bpf_prog_load(
+		BPF_PROG_TYPE_TRACING,
+		NULL,
+		"GPL",
+		insns,
+		insn_cnt,
+		&opts
+	);
 	if (fd >= 0)
+	{
 		close(fd);
+	}
 	return fd >= 0;
 }
 
@@ -452,22 +526,33 @@ static bool has_block_rq_issue_single_arg(void)
 	__s32 type_id;
 	bool ret = true; // assuming recent kernels
 
-	type_id = btf__find_by_name_kind(btf, "btf_trace_block_rq_issue",
-					 BTF_KIND_TYPEDEF);
+	type_id = btf__find_by_name_kind(
+		btf,
+		"btf_trace_block_rq_issue",
+		BTF_KIND_TYPEDEF
+	);
 	if (type_id < 0)
+	{
 		return false;
+	}
 
 	t1 = btf__type_by_id(btf, type_id);
 	if (t1 == NULL)
+	{
 		return false;
+	}
 
 	t2 = btf__type_by_id(btf, t1->type);
 	if (t2 == NULL || !btf_is_ptr(t2))
+	{
 		return false;
+	}
 
 	t3 = btf__type_by_id(btf, t2->type);
 	if (t3 && btf_is_func_proto(t3))
+	{
 		ret = (btf_vlen(t3) == 2); // ctx + arg
+	}
 
 	return ret;
 }
@@ -492,7 +577,9 @@ int main(int argc, char **argv)
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	libbpf_set_print(libbpf_print_fn);
 
@@ -550,8 +637,7 @@ int main(int argc, char **argv)
 		cgfd = open(env.cgroupspath, O_RDONLY);
 		if (cgfd < 0)
 		{
-			fprintf(stderr, "Failed opening Cgroup path: %s",
-				env.cgroupspath);
+			fprintf(stderr, "Failed opening Cgroup path: %s", env.cgroupspath);
 			goto cleanup;
 		}
 		if (bpf_map_update_elem(cg_map_fd, &idx, &cgfd, BPF_ANY))
@@ -570,8 +656,9 @@ int main(int argc, char **argv)
 
 	signal(SIGINT, sig_handler);
 
-	printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` "
-	       "to see output of the BPF programs.\n");
+	printf("Successfully started! Please run `sudo cat "
+		   "/sys/kernel/debug/tracing/trace_pipe` "
+		   "to see output of the BPF programs.\n");
 	printf("Tracing block device I/O... Hit Ctrl-C to end.\n");
 
 	/* main: poll */
@@ -590,17 +677,23 @@ int main(int argc, char **argv)
 
 		err = print_log2_hists(obj->maps.hists, partitions);
 		if (err)
+		{
 			break;
+		}
 
 		if (exiting || --env.times == 0)
+		{
 			break;
+		}
 	}
 
 cleanup:
 	urblat_bpf__destroy(obj);
 	partitions__free(partitions);
 	if (cgfd > 0)
+	{
 		close(cgfd);
+	}
 
 	return err != 0;
 }

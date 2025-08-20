@@ -25,32 +25,44 @@ int dkcallback(void *ctx, const void *_data, size_t data_sz)
 		{
 			switch (data->type)
 			{
-			case DKapture::PROC_PID_STAT: {
-				const struct ProcPidStat *stat =
-					(typeof(stat))data->data;
-				pr_info("PID: %d, Comm: %s, State: %d",
-					data->pid, data->comm, stat->state);
+			case DKapture::PROC_PID_STAT:
+			{
+				const struct ProcPidStat *stat = (typeof(stat))data->data;
+				pr_info(
+					"PID: %d, Comm: %s, State: %d",
+					data->pid,
+					data->comm,
+					stat->state
+				);
 			}
 			break;
-			case DKapture::PROC_PID_IO: {
-				const struct ProcPidIo *io =
-					(typeof(io))data->data;
-				pr_info("PID: %d, Comm: %s, Read: %zu, Write: %zu",
-					data->pid, data->comm, io->rchar,
-					io->wchar);
+			case DKapture::PROC_PID_IO:
+			{
+				const struct ProcPidIo *io = (typeof(io))data->data;
+				pr_info(
+					"PID: %d, Comm: %s, Read: %zu, Write: %zu",
+					data->pid,
+					data->comm,
+					io->rchar,
+					io->wchar
+				);
 			}
 			break;
-			case DKapture::PROC_PID_traffic: {
+			case DKapture::PROC_PID_traffic:
+			{
 				const struct ProcPidTraffic *traffic =
 					(typeof(traffic))data->data;
-				if (traffic->rbytes == 0 &&
-				    traffic->wbytes == 0)
+				if (traffic->rbytes == 0 && traffic->wbytes == 0)
 				{
 					break;
 				}
-				pr_info("PID: %d, Comm: %s, Read: %zu, Write: %zu",
-					data->pid, data->comm, traffic->rbytes,
-					traffic->wbytes);
+				pr_info(
+					"PID: %d, Comm: %s, Read: %zu, Write: %zu",
+					data->pid,
+					data->comm,
+					traffic->rbytes,
+					traffic->wbytes
+				);
 			}
 			break;
 			default:
@@ -66,10 +78,10 @@ int dkcallback(void *ctx, const void *_data, size_t data_sz)
 
 template <class T> class Releaser
 {
-    private:
+  private:
 	T *obj;
 
-    public:
+  public:
 	Releaser(T *obj)
 	{
 		this->obj = obj;
@@ -154,8 +166,7 @@ TEST(DKaptureTest, read_overload5)
 	{
 		ProcPidStat *stat = (struct ProcPidStat *)dh->data;
 		pids_got.insert(dh->pid);
-		ASSERT_EQ(dh->dsz,
-			  sizeof(DKapture::DataHdr) + sizeof(ProcPidStat));
+		ASSERT_EQ(dh->dsz, sizeof(DKapture::DataHdr) + sizeof(ProcPidStat));
 		ASSERT_EQ(dh->type, DKapture::PROC_PID_STAT);
 		ret -= dh->dsz;
 		dh = (DKapture::DataHdr *)((char *)dh + dh->dsz);
@@ -239,8 +250,11 @@ TEST(DKaptureTest, read_PROC_PID_IO)
 	Releaser r(dk);
 	ASSERT_EQ(dk->open(gtest_fp, DKapture::DEBUG), 0);
 	// DKapture::DataHdr *dh = (DKapture::DataHdr *)buf;
-	ret = dk->read(DKapture::PROC_PID_IO, dkcallback,
-		       (void *)DKapture::PROC_PID_IO);
+	ret = dk->read(
+		DKapture::PROC_PID_IO,
+		dkcallback,
+		(void *)DKapture::PROC_PID_IO
+	);
 	if (ret < 0)
 	{
 		pr_error("dkapture::read failed: %s", strerror(-ret));
@@ -255,8 +269,11 @@ TEST(DKaptureTest, read_PROC_PID_traffic)
 	Releaser r(dk);
 	ASSERT_EQ(dk->open(gtest_fp, DKapture::DEBUG), 0);
 	// DKapture::DataHdr *dh = (DKapture::DataHdr *)buf;
-	ret = dk->read(DKapture::PROC_PID_traffic, dkcallback,
-		       (void *)DKapture::PROC_PID_traffic);
+	ret = dk->read(
+		DKapture::PROC_PID_traffic,
+		dkcallback,
+		(void *)DKapture::PROC_PID_traffic
+	);
 	if (ret < 0)
 	{
 		pr_error("dkapture::read failed: %s", strerror(-ret));

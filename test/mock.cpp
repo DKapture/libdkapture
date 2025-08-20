@@ -125,7 +125,9 @@ void dump_task(bpf_program *p)
 int bpf_map_get_next_id(uint32_t start_id, uint32_t *next_id)
 {
 	if (start_id > g_obj.maps.size())
+	{
 		return -(errno = ENOENT);
+	}
 	*next_id = start_id + 1;
 	return 0;
 }
@@ -133,12 +135,17 @@ int bpf_map_get_next_id(uint32_t start_id, uint32_t *next_id)
 int bpf_map_get_fd_by_id(uint32_t id)
 {
 	if (id > g_obj.maps.size())
+	{
 		return -(errno = ENOENT);
+	}
 	return g_obj.maps[id - 1].fd;
 }
 
-int bpf_map_get_info_by_fd(int map_fd, struct bpf_map_info *info,
-			   __u32 *info_len)
+int bpf_map_get_info_by_fd(
+	int map_fd,
+	struct bpf_map_info *info,
+	__u32 *info_len
+)
 {
 	for (int i = 0; i < g_obj.maps.size(); i++)
 	{
@@ -174,8 +181,8 @@ int bpf_link__unpin(struct bpf_link *link)
 	return 0;
 }
 
-struct bpf_program *bpf_object__next_program(const struct bpf_object *obj,
-					     struct bpf_program *prev)
+struct bpf_program *
+bpf_object__next_program(const struct bpf_object *obj, struct bpf_program *prev)
 {
 	if (prev == nullptr)
 	{
@@ -225,8 +232,8 @@ int bpf_object__pin_maps(struct bpf_object *obj, const char *path)
 	return 0;
 }
 
-struct bpf_program *bpf_object__prev_program(const struct bpf_object *obj,
-					     struct bpf_program *prog)
+struct bpf_program *
+bpf_object__prev_program(const struct bpf_object *obj, struct bpf_program *prog)
 {
 	return nullptr;
 }
@@ -239,7 +246,9 @@ libbpf_print_fn_t libbpf_set_print(libbpf_print_fn_t fn)
 void bpf_object__destroy_skeleton(struct bpf_object_skeleton *s)
 {
 	if (!s)
+	{
 		return;
+	}
 
 	int fd;
 	char buf[PATH_MAX];
@@ -262,8 +271,10 @@ void bpf_object__destroy_skeleton(struct bpf_object_skeleton *s)
 	free(s);
 }
 
-int bpf_object__find_map_fd_by_name(const struct bpf_object *obj,
-				    const char *name)
+int bpf_object__find_map_fd_by_name(
+	const struct bpf_object *obj,
+	const char *name
+)
 {
 	for (int i = 0; i < obj->maps.size(); i++)
 	{
@@ -275,8 +286,10 @@ int bpf_object__find_map_fd_by_name(const struct bpf_object *obj,
 	return -(errno = ENOENT);
 }
 
-int bpf_object__open_skeleton(struct bpf_object_skeleton *s,
-			      const struct bpf_object_open_opts *opts)
+int bpf_object__open_skeleton(
+	struct bpf_object_skeleton *s,
+	const struct bpf_object_open_opts *opts
+)
 {
 	if (access(BPF_PIN_PATH, F_OK) != 0)
 	{
@@ -302,7 +315,9 @@ int bpf_object__open_skeleton(struct bpf_object_skeleton *s,
 		snprintf(buf, PATH_MAX, "%s/map-%s", BPF_PIN_PATH, name);
 		fd = open(buf, O_RDWR | O_TRUNC | O_CREAT, 0600);
 		if (fd < 0)
+		{
 			return -errno;
+		}
 		map.fd = fd;
 		map.pin_path = buf;
 		map.name = name;
@@ -314,9 +329,14 @@ int bpf_object__open_skeleton(struct bpf_object_skeleton *s,
 			ret = ftruncate(fd, page_size * 2 + RB_MAP_SIZE);
 			assert(ret == 0);
 			map.type = BPF_MAP_TYPE_RINGBUF;
-			map.mem = mmap(NULL, page_size * 2 + RB_MAP_SIZE,
-				       PROT_READ | PROT_WRITE, MAP_SHARED, fd,
-				       0);
+			map.mem = mmap(
+				NULL,
+				page_size * 2 + RB_MAP_SIZE,
+				PROT_READ | PROT_WRITE,
+				MAP_SHARED,
+				fd,
+				0
+			);
 			assert(map.mem != MAP_FAILED);
 			memset(map.mem, 0, page_size * 2 + RB_MAP_SIZE);
 		}
@@ -334,7 +354,9 @@ int bpf_object__open_skeleton(struct bpf_object_skeleton *s,
 		snprintf(buf, PATH_MAX, "%s/prog-%s", BPF_PIN_PATH, name);
 		fd = open(buf, O_RDWR | O_TRUNC | O_CREAT, 0600);
 		if (fd < 0)
+		{
 			return -errno;
+		}
 		prog.fd = fd;
 		prog.pin_path = buf;
 		prog.name = name;
@@ -358,7 +380,9 @@ int bpf_object__open_skeleton(struct bpf_object_skeleton *s,
 		snprintf(buf, PATH_MAX, "%s/link-%s", BPF_PIN_PATH, name);
 		fd = open(buf, O_RDWR | O_TRUNC | O_CREAT, 0600);
 		if (fd < 0)
+		{
 			return -errno;
+		}
 		link.fd = fd;
 		link.pin_path = buf;
 		link.prog = &g_obj.progs[i];
@@ -368,8 +392,11 @@ int bpf_object__open_skeleton(struct bpf_object_skeleton *s,
 	return 0;
 }
 
-int bpf_ringbuffer_push(RingBuffer *m_bpf_rb, int bpf_idx,
-			DKapture::DataHdr *dh)
+int bpf_ringbuffer_push(
+	RingBuffer *m_bpf_rb,
+	int bpf_idx,
+	DKapture::DataHdr *dh
+)
 {
 	int ret = 0;
 	size_t page_size = getpagesize();
@@ -377,7 +404,9 @@ int bpf_ringbuffer_push(RingBuffer *m_bpf_rb, int bpf_idx,
 	bpf_idx += page_size * 2 + BPF_RINGBUF_HDR_SZ;
 	ret = lseek(m_bpf_rb->map_fd, bpf_idx, SEEK_SET);
 	if (ret < 0)
+	{
 		return -1;
+	}
 	return write(m_bpf_rb->map_fd, dh, sizeof(DKapture::DataHdr) + dh->dsz);
 }
 
@@ -397,9 +426,12 @@ int bpf_map_update_elem(int fd, const void *key, const void *value, __u64 flags)
 	return 0;
 }
 
-struct ring_buffer *ring_buffer__new(int map_fd,
-				     ring_buffer_sample_fn sample_cb, void *ctx,
-				     const struct ring_buffer_opts *opts)
+struct ring_buffer *ring_buffer__new(
+	int map_fd,
+	ring_buffer_sample_fn sample_cb,
+	void *ctx,
+	const struct ring_buffer_opts *opts
+)
 {
 	return (struct ring_buffer *)malloc(1024);
 }
@@ -476,12 +508,18 @@ int epoll_ctl(int __epfd, int __op, int __fd, struct epoll_event *__event)
 	return 0;
 }
 
-int epoll_wait(int __epfd, struct epoll_event *__events, int __maxevents,
-	       int __timeout)
+int epoll_wait(
+	int __epfd,
+	struct epoll_event *__events,
+	int __maxevents,
+	int __timeout
+)
 {
 	auto it = ep_list.find(__epfd);
 	if (it == ep_list.end())
+	{
 		return -1;
+	}
 	EpollCtl &ctl = it->second;
 	if (ctl.notify)
 	{
@@ -501,11 +539,15 @@ ssize_t read(int __fd, void *__buf, size_t __nbytes)
 	{
 		std::string path = fd_path(__fd);
 		if (path != g_obj.links[i].pin_path)
+		{
 			continue;
+		}
 
 		bpf_program *prog = g_obj.links[i].prog;
 		if (prog->function)
+		{
 			prog->function(prog);
+		}
 		for (auto &it : ep_list)
 		{
 			if (prog->map && it.second.fd == prog->map->fd)
@@ -523,29 +565,38 @@ static void *vaddr;
  * @brief 拦截c库的mmap函数，我们需要利用mock它来模拟内核
  *        ringbuffer的功能。
  */
-void *mmap(void *__addr, size_t __len, int __prot, int __flags, int __fd,
-	   __off_t __offset)
+void *mmap(
+	void *__addr,
+	size_t __len,
+	int __prot,
+	int __flags,
+	int __fd,
+	__off_t __offset
+)
 {
 	int page_size = getpagesize();
 	int data_area_sz = (__len - page_size) / 2;
 	if (__addr == NULL && __len > page_size && __offset == page_size &&
-	    __prot == PROT_READ && __flags == MAP_SHARED &&
-	    data_area_sz >= page_size &&
-	    ((data_area_sz & (data_area_sz - 1)) == 0))
+		__prot == PROT_READ && __flags == MAP_SHARED &&
+		data_area_sz >= page_size && ((data_area_sz & (data_area_sz - 1)) == 0))
 	{
 		// 第一次映射只是为了获取一个足够大的、未使用的地址空间
-		vaddr = (void *)syscall(__NR_mmap, __addr, __len, __prot,
-					__flags, __fd, __offset);
+		vaddr = (void *)
+			syscall(__NR_mmap, __addr, __len, __prot, __flags, __fd, __offset);
 		if (vaddr == MAP_FAILED)
+		{
 			return MAP_FAILED;
+		}
 		munmap(vaddr, __len);
 
 		// 开始真正功能映射，模拟bpf ringbuffer的映射模式
 		char *p = (char *)vaddr;
-		vaddr = (void *)syscall(__NR_mmap, p, page_size, __prot,
-					__flags, __fd, __offset);
+		vaddr = (void *)
+			syscall(__NR_mmap, p, page_size, __prot, __flags, __fd, __offset);
 		if (vaddr == MAP_FAILED)
+		{
 			return MAP_FAILED;
+		}
 		p += page_size;
 		__offset += page_size;
 
@@ -553,29 +604,51 @@ void *mmap(void *__addr, size_t __len, int __prot, int __flags, int __fd,
 		lseek(__fd, __offset, SEEK_SET);
 		write(__fd, "abcdefgh", sizeof("abcdefgh"));
 
-		p = (char *)syscall(__NR_mmap, p, data_area_sz, __prot, __flags,
-				    __fd, __offset);
+		p = (char *)syscall(
+			__NR_mmap,
+			p,
+			data_area_sz,
+			__prot,
+			__flags,
+			__fd,
+			__offset
+		);
 		if (p == MAP_FAILED)
+		{
 			return MAP_FAILED;
+		}
 
 		// 验证第一个空间映射的区域。
 		if (strncmp(p, "abcdefgh", sizeof("abcdefgh")))
+		{
 			return MAP_FAILED;
+		}
 		p += data_area_sz;
 
-		p = (char *)syscall(__NR_mmap, p, data_area_sz, __prot, __flags,
-				    __fd, __offset);
+		p = (char *)syscall(
+			__NR_mmap,
+			p,
+			data_area_sz,
+			__prot,
+			__flags,
+			__fd,
+			__offset
+		);
 		if (p == MAP_FAILED)
+		{
 			return MAP_FAILED;
+		}
 
 		// 验证第二个空间映射的区域。
 		if (strncmp(p, "abcdefgh", sizeof("abcdefgh")))
+		{
 			return MAP_FAILED;
+		}
 
 		return vaddr;
 	}
-	return (void *)syscall(__NR_mmap, __addr, __len, __prot, __flags, __fd,
-			       __offset);
+	return (void *)
+		syscall(__NR_mmap, __addr, __len, __prot, __flags, __fd, __offset);
 }
 
 /**
