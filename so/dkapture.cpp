@@ -225,6 +225,10 @@ pid_t dkapture::parse_path(const char *path, DataType &dt)
 		{
 			dt = PROC_PID_NS;
 		}
+		else if (strcmp(path, "loginuid") == 0)
+		{
+			dt = PROC_PID_LOGINUID;
+		}
 		else
 		{
 			return -ENOSYS;

@@ -747,6 +747,33 @@ static int dump_proc_ns(struct task_struct *task)
 	return 0;
 }
 
+static int dump_proc_loginuid(struct task_struct *task)
+{
+	skip_kthread(task);
+	thread_leader_only(task);
+
+	size_t dsz;
+	struct DataHdr *hdr;
+	struct ProcPidLoginuid *loginuid;
+
+	dsz = sizeof(struct DataHdr) + sizeof(struct ProcPidLoginuid);
+	hdr = (struct DataHdr *)bpf_ringbuf_reserve(&dk_shared_mem, dsz, 0);
+	if (!hdr)
+	{
+		bpf_err("ringbuf allocation failure for loginuid");
+		return 1;
+	}
+
+	fill_hdr(hdr, task, dsz, PROC_PID_LOGINUID);
+	loginuid = (struct ProcPidLoginuid *)hdr->data;
+	__builtin_memset(loginuid, 0, sizeof(struct ProcPidLoginuid));
+
+	loginuid->loginuid.val = BPF_CORE_READ(task, loginuid.val);
+
+	bpf_ringbuf_submit(hdr, 0);
+	return 0;
+}
+
 static int put_prologue(void)
 {
 	return 0;
@@ -804,6 +831,14 @@ int dump_task(struct bpf_iter__task *ctx)
 		return 1;
 	}
 	if (dump_proc_ns(task))
+	{
+		return 1;
+	}
+	if (dump_proc_loginuid(task))
+	{
+		return 1;
+	}
+	if (dump_proc_loginuid(task))
 	{
 		return 1;
 	}

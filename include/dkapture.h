@@ -45,6 +45,7 @@ class DKapture
 		PROC_PID_MAPS,		// /proc/<pid>/maps
 		PROC_PID_sock,		// /proc/<pid>/sock
 		PROC_PID_NS,		// /proc/<pid>/ns
+		PROC_PID_LOGINUID,	// /proc/<pid>/loginuid
 		PROC_END,
 		// 待扩展
 	};
@@ -450,6 +451,14 @@ struct ProcPidNs
 	unsigned int uts;
 	unsigned int time;
 	unsigned int time_for_children;
+};
+
+struct ProcPidLoginuid
+{
+	struct
+	{
+		uid_t val;
+	} loginuid;
 };
 
 /**

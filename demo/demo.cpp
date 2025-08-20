@@ -98,6 +98,10 @@ DKapture::DataType string_to_datatype(const std::string &node_name)
 	{
 		return DKapture::PROC_PID_NS;
 	}
+	if (node_name == "loginuid")
+	{
+		return DKapture::PROC_PID_LOGINUID;
+	}
 	// 默认返回STAT类型
 	return DKapture::PROC_NONE;
 }
@@ -335,6 +339,19 @@ int print_proc_info(void *ctx, const void *_data, size_t data_sz)
 				ns->time_for_children,
 				ns->user,
 				ns->uts
+			);
+		}
+		break;
+		case DKapture::PROC_PID_LOGINUID:
+		{
+			const struct ProcPidLoginuid *loginuid =
+				(typeof(loginuid))data->data;
+			printf(
+				"pid: %d tgid: %d comm: %s loginuid: %d\n",
+				data->pid,
+				data->tgid,
+				data->comm,
+				loginuid->loginuid.val
 			);
 		}
 		break;
@@ -876,6 +893,7 @@ void run_procfs_read(DKapture *dk)
 			DKapture::PROC_PID_FD,
 			DKapture::PROC_PID_STATUS,
 			DKapture::PROC_PID_NS,
+			DKapture::PROC_PID_LOGINUID,
 		};
 		printf("Reading all procfs nodes\n");
 	}
