@@ -23,9 +23,9 @@ struct AddrEntry
 class DataMap
 {
 #ifdef __GTEST__
-    public:
+  public:
 #else
-    private:
+  private:
 #endif
 	AddrEntry *m_entrys = nullptr;
 	RingBuffer *m_rb = nullptr;
@@ -47,7 +47,7 @@ class DataMap
 	void push(ulong bpf_idx, ulong hash, ulong dsz);
 	static int handle_event(void *ctx, void *data, size_t data_sz);
 
-    public:
+  public:
 	DataMap();
 	~DataMap();
 	int find(ulong hash, ulong lifetime, void *buf, size_t bsz);

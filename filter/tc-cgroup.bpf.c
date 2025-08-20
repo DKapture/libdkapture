@@ -22,15 +22,15 @@ struct event_t
 // Rate limiting rule structure
 struct cgroup_rule
 {
-	__u64 rate_bps; // Bandwidth limit (bytes/second)
-	__u8 gress; // Direction: EGRESS=1, INGRESS=0
+	__u64 rate_bps;	  // Bandwidth limit (bytes/second)
+	__u8 gress;		  // Direction: EGRESS=1, INGRESS=0
 	__u32 time_scale; // Time scale (seconds)
 };
 
 // Token bucket for rate limiting
 struct rate_bucket
 {
-	__u64 ts_ns; // Last update time
+	__u64 ts_ns;  // Last update time
 	__u64 tokens; // Current token count
 };
 
@@ -69,9 +69,13 @@ static __inline __u64 now_ns(void)
 }
 
 // Send event to ring buffer
-static __inline void send_event(__u32 pid, __u64 bytes_sent,
-				__u64 bytes_dropped, __u64 packets_sent,
-				__u64 packets_dropped)
+static __inline void send_event(
+	__u32 pid,
+	__u64 bytes_sent,
+	__u64 bytes_dropped,
+	__u64 packets_sent,
+	__u64 packets_dropped
+)
 {
 	struct event_t *e;
 
@@ -136,8 +140,7 @@ static int cgroup_handle(struct __sk_buff *ctx, int gress)
 	b = bpf_map_lookup_elem(&buckets, &bucket_key);
 	if (!b)
 	{
-		struct rate_bucket init = { .ts_ns = now,
-					    .tokens = max_bucket };
+		struct rate_bucket init = {.ts_ns = now, .tokens = max_bucket};
 		bpf_map_update_elem(&buckets, &bucket_key, &init, BPF_ANY);
 		b = bpf_map_lookup_elem(&buckets, &bucket_key);
 		if (!b)
@@ -151,7 +154,9 @@ static int cgroup_handle(struct __sk_buff *ctx, int gress)
 	delta_ns = now - b->ts_ns;
 	b->tokens += (delta_ns * rule->rate_bps) / NSEC_PER_SEC;
 	if (b->tokens > max_bucket)
+	{
 		b->tokens = max_bucket;
+	}
 
 	b->ts_ns = now;
 

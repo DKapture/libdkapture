@@ -25,14 +25,16 @@ static __always_inline struct gendisk *get_disk(void *request)
 	struct request___x *r = request;
 
 	if (bpf_core_field_exists(r->rq_disk))
+	{
 		return BPF_CORE_READ(r, rq_disk);
+	}
 	return BPF_CORE_READ(r, q, disk);
 }
 _Pragma("GCC diagnostic pop")
 
 #define MAX_ENTRIES 10240
 
-	extern int LINUX_KERNEL_VERSION __kconfig;
+extern int LINUX_KERNEL_VERSION __kconfig;
 
 const volatile bool filter_cg = false;
 const volatile bool targ_per_disk = false;
@@ -77,15 +79,21 @@ static int handle_urb_complete(struct urb *urb)
 	s64 delta;
 
 	if (filter_cg && !bpf_current_task_under_cgroup(&cgroup_map, 0))
+	{
 		return 0;
+	}
 
 	tsp = bpf_map_lookup_elem(&start, &urb);
 	if (!tsp)
+	{
 		return 0;
+	}
 
 	delta = (s64)(ts - *tsp);
 	if (delta < 0)
+	{
 		goto cleanup;
+	}
 
 	// if (targ_per_disk) {
 	// 	struct gendisk *disk = get_disk(urb);
@@ -102,16 +110,24 @@ static int handle_urb_complete(struct urb *urb)
 		bpf_map_update_elem(&hists, &hkey, &initial_hist, 0);
 		histp = bpf_map_lookup_elem(&hists, &hkey);
 		if (!histp)
+		{
 			goto cleanup;
+		}
 	}
 
 	if (targ_ms)
+	{
 		delta /= 1000000U;
+	}
 	else
+	{
 		delta /= 1000U;
+	}
 	slot = log2l(delta);
 	if (slot >= MAX_SLOTS)
+	{
 		slot = MAX_SLOTS - 1;
+	}
 	__sync_fetch_and_add(&histp->slots[slot], 1);
 
 cleanup:
@@ -124,7 +140,9 @@ static int __always_inline trace_urb_start(struct urb *urb)
 	u64 ts;
 
 	if (filter_cg && !bpf_current_task_under_cgroup(&cgroup_map, 0))
+	{
 		return 0;
+	}
 
 	// if (issue && targ_queued && BPF_CORE_READ(urb, q, elevator))
 	// 	return 0;
@@ -152,9 +170,13 @@ static int handle_urb_submit(struct urb *urb)
 	 * to TP_PROTO(struct request *rq)
 	 */
 	if (!targ_single)
+	{
 		return trace_urb_start(urb);
+	}
 	else
+	{
 		return trace_urb_start(urb);
+	}
 }
 
 SEC("kprobe/usb_submit_urb")

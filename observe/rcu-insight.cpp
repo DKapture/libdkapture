@@ -26,7 +26,7 @@ struct rcu_event
 		struct
 		{
 			char rcuname[16]; // rcu_stall_warning的rcuname字段
-			char msg[64]; // rcu_stall_warning的msg字段
+			char msg[64];	  // rcu_stall_warning的msg字段
 		} stall;
 	};
 };
@@ -51,7 +51,7 @@ struct rcu_stats
 };
 
 // 全局变量
-static struct rcu_stats stats = { 0 };
+static struct rcu_stats stats = {0};
 static volatile bool exiting = false;
 
 // 程序参数结构
@@ -78,7 +78,8 @@ const char *argp_program_bug_address = "https://github.com/example/dkapture";
 const char argp_program_doc[] =
 	"Monitor RCU (Read-Copy-Update) subsystem activity.\n"
 	"\n"
-	"USAGE: rcu-insight [--help] [-v] [-i INTERVAL] [-d DURATION] [-p PID] [-c CPU] [--utilization-only] [--stall-only]\n"
+	"USAGE: rcu-insight [--help] [-v] [-i INTERVAL] [-d DURATION] [-p PID] [-c "
+	"CPU] [--utilization-only] [--stall-only]\n"
 	"\n"
 	"EXAMPLES:\n"
 	"    rcu-insight                     # Monitor all RCU events\n"
@@ -88,14 +89,14 @@ const char argp_program_doc[] =
 	"    rcu-insight --stall-only        # Monitor only stall warning events\n";
 
 static const struct argp_option opts[] = {
-	{ "verbose", 'v', NULL, 0, "Verbose debug output" },
-	{ "interval", 'i', "INTERVAL", 0, "Summary interval (seconds)" },
-	{ "duration", 'd', "DURATION", 0, "Duration of trace (seconds)" },
-	{ "timestamp", 'T', NULL, 0, "Include timestamp on output" },
-	{ "pid", 'p', "PID", 0, "Process ID to trace" },
-	{ "cpu", 'c', "CPU", 0, "CPU to trace" },
-	{ "utilization-only", 'u', NULL, 0, "Monitor only utilization events" },
-	{ "stall-only", 's', NULL, 0, "Monitor only stall warning events" },
+	{"verbose", 'v', NULL, 0, "Verbose debug output"},
+	{"interval", 'i', "INTERVAL", 0, "Summary interval (seconds)"},
+	{"duration", 'd', "DURATION", 0, "Duration of trace (seconds)"},
+	{"timestamp", 'T', NULL, 0, "Include timestamp on output"},
+	{"pid", 'p', "PID", 0, "Process ID to trace"},
+	{"cpu", 'c', "CPU", 0, "CPU to trace"},
+	{"utilization-only", 'u', NULL, 0, "Monitor only utilization events"},
+	{"stall-only", 's', NULL, 0, "Monitor only stall warning events"},
 	{},
 };
 
@@ -170,8 +171,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 	if (env.timestamp)
 	{
-		print_timestamp(timestamp_buf, sizeof(timestamp_buf),
-				e->timestamp);
+		print_timestamp(timestamp_buf, sizeof(timestamp_buf), e->timestamp);
 		printf("%-12s ", timestamp_buf);
 	}
 
@@ -187,8 +187,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	{
 		// rcu_stall_warning event
 		stats.stall_events++;
-		printf("%-13s rcuname=%s msg=%s\n", "STALL_WARNING",
-		       e->stall.rcuname, e->stall.msg);
+		printf(
+			"%-13s rcuname=%s msg=%s\n",
+			"STALL_WARNING",
+			e->stall.rcuname,
+			e->stall.msg
+		);
 	}
 
 	return 0;
@@ -201,31 +205,39 @@ static void print_stats(void)
 	uint64_t duration = current_time - stats.start_time;
 
 	if (duration == 0)
+	{
 		duration = 1;
+	}
 
 	printf("\n=== RCU Monitoring Statistics ===\n");
 	printf("Total events: %lu\n", stats.total_events);
 	printf("Utilization events: %lu\n", stats.utilization_events);
 	printf("Stall warning events: %lu\n", stats.stall_events);
 	printf("Duration: %lu seconds\n", duration);
-	printf("Event rate: %.2f events/second\n",
-	       (double)stats.total_events / duration);
+	printf(
+		"Event rate: %.2f events/second\n",
+		(double)stats.total_events / duration
+	);
 }
 
 // 打印表头
 static void print_header(void)
 {
 	if (env.timestamp)
+	{
 		printf("%-12s ", "TIME");
+	}
 	printf("%-8s %-4s %-13s %s\n", "PID", "CPU", "EVENT_TYPE", "DETAILS");
 }
 
 // libbpf打印回调
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -241,13 +253,18 @@ int main(int argc, char **argv)
 	// 解析命令行参数
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	// 参数验证
 	if (env.utilization_only && env.stall_only)
 	{
-		fprintf(stderr,
-			"Error: --utilization-only and --stall-only are mutually exclusive\n");
+		fprintf(
+			stderr,
+			"Error: --utilization-only and --stall-only are mutually "
+			"exclusive\n"
+		);
 		return 1;
 	}
 
@@ -283,14 +300,18 @@ int main(int argc, char **argv)
 	}
 
 	// 设置过滤规则
-	filter.enabled = (env.pid || env.cpu != -1 || env.utilization_only ||
-			  env.stall_only);
+	filter.enabled =
+		(env.pid || env.cpu != -1 || env.utilization_only || env.stall_only);
 	filter.target_pid = (uint32_t)env.pid;
 	filter.target_cpu = (uint32_t)env.cpu;
 	filter.monitor_utilization = !env.stall_only;
 	filter.monitor_stall = !env.utilization_only;
-	err = bpf_map_update_elem(bpf_map__fd(skel->maps.filter_map), &key,
-				  &filter, 0);
+	err = bpf_map_update_elem(
+		bpf_map__fd(skel->maps.filter_map),
+		&key,
+		&filter,
+		0
+	);
 	if (err)
 	{
 		fprintf(stderr, "Failed to update filter map: %d\n", err);
@@ -298,8 +319,12 @@ int main(int argc, char **argv)
 	}
 
 	// 设置环形缓冲区
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event,
-			      NULL, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.events),
+		handle_event,
+		NULL,
+		NULL
+	);
 	if (!rb)
 	{
 		fprintf(stderr, "Failed to create ring buffer\n");
@@ -330,7 +355,7 @@ int main(int argc, char **argv)
 
 		// 检查是否到达运行时间限制
 		if (env.times != 99999999 &&
-		    (long)(time(NULL) - stats.start_time) >= env.times)
+			(long)(time(NULL) - stats.start_time) >= env.times)
 		{
 			break;
 		}

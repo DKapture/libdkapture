@@ -43,41 +43,52 @@
 #define NF_STOP 5
 
 #define IPPROTO_ICMPV6 58
-#define PF_INET 2 /* IP protocol family.  */
+#define PF_INET 2	/* IP protocol family.  */
 #define PF_INET6 10 /* IP version 6.  */
 
 #if !__x86_64__ && !__arm__ && !__aarch64__ && !__loongarch__ && !__sw_64__
-#error "net-monitor support only x86 arm loongarch and __sw_64__ four architecture now"
+#error                                                                         \
+	"net-monitor support only x86 arm loongarch and __sw_64__ four architecture now"
 #endif
 
 // read kernel memory to bpf memory
-#define bpf_read_mem(kaddr, bpf_addr) \
+#define bpf_read_mem(kaddr, bpf_addr)                                          \
 	bpf_probe_read_kernel(kaddr, sizeof(*(kaddr)), bpf_addr)
 
 // read kernel memory to bpf memory, return 'ret' while error
-#define bpf_read_mem_ret(kaddr, bpf_addr, ret)              \
-	{                                                   \
-		int err = 0;                                \
-		err = bpf_read_mem(kaddr, bpf_addr);        \
-		if (err < 0)                                \
-		{                                           \
-			bpf_printk("error: bpf read kernel" \
-				   "(%d:%d)\n",             \
-				   err, __LINE__);          \
-			return ret;                         \
-		}                                           \
+#define bpf_read_mem_ret(kaddr, bpf_addr, ret)                                 \
+	{                                                                          \
+		int err = 0;                                                           \
+		err = bpf_read_mem(kaddr, bpf_addr);                                   \
+		if (err < 0)                                                           \
+		{                                                                      \
+			bpf_printk(                                                        \
+				"error: bpf read kernel"                                       \
+				"(%d:%d)\n",                                                   \
+				err,                                                           \
+				__LINE__                                                       \
+			);                                                                 \
+			return ret;                                                        \
+		}                                                                      \
 	}
 
 #if !defined(__sw_64__)
-int bpf_dynptr_from_skb(struct sk_buff *skb, __u64 flags,
-			struct bpf_dynptr *ptr__uninit) __ksym;
+int bpf_dynptr_from_skb(
+	struct sk_buff *skb,
+	__u64 flags,
+	struct bpf_dynptr *ptr__uninit
+) __ksym;
 
-void *bpf_dynptr_slice(const struct bpf_dynptr *ptr, uint32_t offset,
-		       void *buffer, uint32_t buffer__sz) __ksym;
+void *bpf_dynptr_slice(
+	const struct bpf_dynptr *ptr,
+	uint32_t offset,
+	void *buffer,
+	uint32_t buffer__sz
+) __ksym;
 #endif
 
-static void debug_tuple(const struct ip_tuple *tuple, const char *title,
-			int type);
+static void
+debug_tuple(const struct ip_tuple *tuple, const char *title, int type);
 
 struct
 {
@@ -136,7 +147,9 @@ static int ipv6_cmp(const struct in6_addr *ipa, const struct in6_addr *ipb)
 	for (int i = mem_sz - 1; i >= 0; i--)
 	{
 		if (a[i] != b[i])
+		{
 			return a[i] > b[i] ? 1 : -1;
+		}
 	}
 	return 0;
 }
@@ -149,7 +162,9 @@ static bool ipv6_zero(const struct in6_addr *ip)
 	for (u32 i = 0; i < mem_sz; i++)
 	{
 		if (a[i] != 0)
+		{
 			return false;
+		}
 	}
 	return true;
 }
@@ -161,10 +176,14 @@ static struct iphdr *ip_hdr(struct sk_buff *skb)
 	struct iphdr *p, iph = {};
 
 	if (skb->len <= 20)
+	{
 		return NULL;
+	}
 
 	if (bpf_dynptr_from_skb(skb, 0, &ptr))
+	{
 		return NULL;
+	}
 
 	p = bpf_dynptr_slice(&ptr, 0, &iph, sizeof(iph));
 	return p;
@@ -176,10 +195,14 @@ static struct ipv6hdr *ipv6_hdr(struct sk_buff *skb)
 	struct ipv6hdr *p, iph = {};
 
 	if (skb->len <= 40)
+	{
 		return NULL;
+	}
 
 	if (bpf_dynptr_from_skb(skb, 0, &ptr))
+	{
 		return NULL;
+	}
 
 	p = bpf_dynptr_slice(&ptr, 0, &iph, sizeof(iph));
 	return p;
@@ -191,10 +214,14 @@ static struct tcphdr *tcp_hdr(struct sk_buff *skb, u32 offset)
 	struct tcphdr *p, tcph = {};
 
 	if (skb->len <= offset)
+	{
 		return NULL;
+	}
 
 	if (bpf_dynptr_from_skb(skb, 0, &ptr))
+	{
 		return NULL;
+	}
 
 	p = bpf_dynptr_slice(&ptr, offset, &tcph, sizeof(tcph));
 	return p;
@@ -206,10 +233,14 @@ static struct udphdr *udp_hdr(struct sk_buff *skb, u32 offset)
 	struct udphdr *p, udph = {};
 
 	if (skb->len <= offset)
+	{
 		return NULL;
+	}
 
 	if (bpf_dynptr_from_skb(skb, 0, &ptr))
+	{
 		return NULL;
+	}
 
 	p = bpf_dynptr_slice(&ptr, offset, &udph, sizeof(udph));
 	return p;
@@ -221,10 +252,14 @@ static struct icmphdr *icmp_hdr(struct sk_buff *skb, u32 offset)
 	struct icmphdr *p, icmph = {};
 
 	if (skb->len <= offset)
+	{
 		return NULL;
+	}
 
 	if (bpf_dynptr_from_skb(skb, 0, &ptr))
+	{
 		return NULL;
+	}
 
 	p = bpf_dynptr_slice(&ptr, offset, &icmph, sizeof(icmph));
 	return p;
@@ -236,10 +271,14 @@ static struct icmp6hdr *icmp6_hdr(struct sk_buff *skb, u32 offset)
 	struct icmp6hdr *p, icmph = {};
 
 	if (skb->len <= offset)
+	{
 		return NULL;
+	}
 
 	if (bpf_dynptr_from_skb(skb, 0, &ptr))
+	{
 		return NULL;
+	}
 
 	p = bpf_dynptr_slice(&ptr, offset, &icmph, sizeof(icmph));
 	return p;
@@ -262,9 +301,13 @@ static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 	case ETH_P_IP:
 		iph = ip_hdr(skb);
 		if (!iph)
+		{
 			return false;
+		}
 		if (iph->saddr == iph->daddr)
+		{
 			return false;
+		}
 		iphl = iph->ihl * 4;
 		log->tuple.ip_proto = 4; // ipv4
 		log->tuple.tl_proto = iph->protocol;
@@ -274,9 +317,13 @@ static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 	case ETH_P_IPV6:
 		ipv6h = ipv6_hdr(skb);
 		if (!ipv6h)
+		{
 			return false;
+		}
 		if (ipv6_cmp(&ipv6h->saddr, &ipv6h->daddr) == 0)
+		{
 			return false;
+		}
 		iphl = 40;
 		log->tuple.ip_proto = 6; // ipv6
 		log->tuple.tl_proto = ipv6h->nexthdr;
@@ -303,7 +350,9 @@ static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 	case IPPROTO_TCP:
 		tcph = tcp_hdr(skb, iphl);
 		if (tcph == NULL)
+		{
 			return false;
+		}
 		log->data_len -= tcph->doff;
 		log->tuple.sport = bpf_ntohs(tcph->source);
 		log->tuple.dport = bpf_ntohs(tcph->dest);
@@ -312,7 +361,9 @@ static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 	case IPPROTO_UDP:
 		udph = udp_hdr(skb, iphl);
 		if (udph == NULL)
+		{
 			return false;
+		}
 		log->data_len -= 8;
 		log->tuple.sport = bpf_ntohs(udph->source);
 		log->tuple.dport = bpf_ntohs(udph->dest);
@@ -321,7 +372,9 @@ static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 	case IPPROTO_ICMP:
 		icmph = icmp_hdr(skb, iphl);
 		if (icmph == NULL)
+		{
 			return false;
+		}
 		log->data_len -= 8;
 		log->tuple.sport = icmph->un.echo.id;
 		log->tuple.dport = icmph->un.echo.id;
@@ -329,7 +382,9 @@ static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 	case IPPROTO_ICMPV6:
 		icmp6h = icmp6_hdr(skb, iphl);
 		if (icmp6h == NULL)
+		{
 			return false;
+		}
 		log->data_len -= 8;
 		log->tuple.sport = icmp6h->icmp6_dataun.u_echo.identifier;
 		log->tuple.dport = icmp6h->icmp6_dataun.u_echo.identifier;
@@ -357,9 +412,13 @@ static int strncmp(const char *s1, const char *s2, int n)
 	for (int i = 0; i < n; i++)
 	{
 		if (s1[i] != s2[i])
+		{
 			return s1[i] - s2[i];
+		}
 		if (s1[i] == 0)
+		{
 			return 0;
+		}
 	}
 	return 0;
 }
@@ -371,96 +430,129 @@ static bool rule_match(const struct ip_tuple *t1, const struct Rule *rule)
 	debug_tuple(t1, "rule_match_1", DEBUG_RULE_MATCH);
 
 	if (rule->ip_proto != t1->ip_proto)
+	{
 		return false;
+	}
 
 	if (t1->tl_proto != rule->tl_proto)
+	{
 		return false;
+	}
 
 	if (!(t1->pkg_dir & rule->pkg_dir))
+	{
 		return false;
+	}
 
 	// if process comm exists, it means pkg comes from process layer
 	if (t1->comm[0])
 	{
 		if (!rule->comm[0])
+		{
 			return false;
+		}
 
 		if (strncmp(t1->comm, rule->comm, 16) != 0)
+		{
 			return false;
+		}
 
 		debug_tuple(t1, "rule_match_2", DEBUG_RULE_MATCH);
 	}
 	else
 	{
 		if (rule->comm[0])
+		{
 			return false;
+		}
 	}
 
 	debug_tuple(t1, "rule_match_3", DEBUG_RULE_MATCH);
 
 	ret = (rule->sport == 0 ||
-	       (rule->sport <= t1->sport && t1->sport <= rule->sport_end)) &&
-	      (rule->dport == 0 ||
-	       (rule->dport <= t1->dport && t1->dport <= rule->dport_end));
+		   (rule->sport <= t1->sport && t1->sport <= rule->sport_end)) &&
+		  (rule->dport == 0 ||
+		   (rule->dport <= t1->dport && t1->dport <= rule->dport_end));
 
 	if (!ret)
+	{
 		return ret;
+	}
 
 	debug_tuple(t1, "rule_match_4", DEBUG_RULE_MATCH);
 
 	if (rule->ip_proto == 4)
 	{
 		ret = (rule->sip == 0 ||
-		       (rule->sip <= t1->sip && t1->sip <= rule->sip_end)) &&
-		      (rule->dip == 0 ||
-		       (rule->dip <= t1->dip && t1->dip <= rule->dip_end));
+			   (rule->sip <= t1->sip && t1->sip <= rule->sip_end)) &&
+			  (rule->dip == 0 ||
+			   (rule->dip <= t1->dip && t1->dip <= rule->dip_end));
 	}
 	else
 	{
 		ret = (ipv6_zero(&rule->sipv6) ||
-		       (ipv6_cmp(&rule->sipv6, &t1->sipv6) <= 0 &&
-			ipv6_cmp(&t1->sipv6, &rule->sipv6_end) <= 0)) &&
-		      (ipv6_zero(&rule->dipv6) ||
-		       (ipv6_cmp(&rule->dipv6, &t1->dipv6) <= 0 &&
-			ipv6_cmp(&t1->dipv6, &rule->dipv6_end) <= 0));
+			   (ipv6_cmp(&rule->sipv6, &t1->sipv6) <= 0 &&
+				ipv6_cmp(&t1->sipv6, &rule->sipv6_end) <= 0)) &&
+			  (ipv6_zero(&rule->dipv6) ||
+			   (ipv6_cmp(&rule->dipv6, &t1->dipv6) <= 0 &&
+				ipv6_cmp(&t1->dipv6, &rule->dipv6_end) <= 0));
 	}
 
 	return ret;
 }
 
-static void debug_tuple(const struct ip_tuple *tuple, const char *title,
-			int type)
+static void
+debug_tuple(const struct ip_tuple *tuple, const char *title, int type)
 {
 	if (conf()->debug != type)
+	{
 		return;
+	}
 
 	if (tuple->ip_proto == 4)
 	{
-		bpf_printk("%s: %u.%u.%u.%u:%u %s %u.%u.%u.%u:%u", title,
-			   SLICE_IP(tuple->sip), tuple->sport,
-			   tuple->pkg_dir == PKG_DIR_IN ? "<-" : "->",
-			   SLICE_IP(tuple->dip), tuple->dport);
+		bpf_printk(
+			"%s: %u.%u.%u.%u:%u %s %u.%u.%u.%u:%u",
+			title,
+			SLICE_IP(tuple->sip),
+			tuple->sport,
+			tuple->pkg_dir == PKG_DIR_IN ? "<-" : "->",
+			SLICE_IP(tuple->dip),
+			tuple->dport
+		);
 	}
 	else
 	{
-		bpf_printk("%s: src: %x:%x:%x:%x:%x:%x:%x:%x:%u", title,
-			   SLICE_IPv6(tuple->sipv6), tuple->sport);
-		bpf_printk("%s: dst: %x:%x:%x:%x:%x:%x:%x:%x:%u", title,
-			   SLICE_IPv6(tuple->dipv6), tuple->dport);
+		bpf_printk(
+			"%s: src: %x:%x:%x:%x:%x:%x:%x:%x:%u",
+			title,
+			SLICE_IPv6(tuple->sipv6),
+			tuple->sport
+		);
+		bpf_printk(
+			"%s: dst: %x:%x:%x:%x:%x:%x:%x:%x:%u",
+			title,
+			SLICE_IPv6(tuple->dipv6),
+			tuple->dport
+		);
 	}
 }
 
-static long match_callback(struct bpf_map *map, const void *key, void *value,
-			   void *ctx)
+static long
+match_callback(struct bpf_map *map, const void *key, void *value, void *ctx)
 {
 	struct Rule *rule = (struct Rule *)value;
 	struct CbCtx *ctx_ip = (struct CbCtx *)ctx;
 
 	if (!rule_match(ctx_ip->tuple, rule))
+	{
 		return 0;
+	}
 
 	if (rule->action == NM_DROP)
+	{
 		debug_tuple(ctx_ip->tuple, "rule_match", DEBUG_RULE_MATCH);
+	}
 
 	ctx_ip->action = rule->action;
 
@@ -469,7 +561,7 @@ static long match_callback(struct bpf_map *map, const void *key, void *value,
 
 static int rules_match(const struct ip_tuple *tuple)
 {
-	struct CbCtx ctx = { .tuple = tuple, .action = NM_ACCEPT };
+	struct CbCtx ctx = {.tuple = tuple, .action = NM_ACCEPT};
 
 	bpf_for_each_map_elem(&rules, match_callback, &ctx, 0);
 
@@ -477,14 +569,16 @@ static int rules_match(const struct ip_tuple *tuple)
 }
 
 static bool parse_sock(struct socket *sock, struct BpfData *log);
-#define comtainer_of(ptr, type, member) \
+#define comtainer_of(ptr, type, member)                                        \
 	(type *)((char *)ptr - offsetof(type, member))
 
 SEC("netfilter")
 int netfilter_hook(struct bpf_nf_ctx *ctx)
 {
 	if (!conf()->enable)
+	{
 		return NF_ACCEPT;
+	}
 
 	struct sk_buff *skb = ctx->skb;
 	const struct nf_hook_state *state = ctx->state;
@@ -494,9 +588,13 @@ int netfilter_hook(struct bpf_nf_ctx *ctx)
 	struct BpfData log;
 
 	if (state->hook == NF_INET_LOCAL_IN)
+	{
 		log.tuple.pkg_dir = PKG_DIR_IN;
+	}
 	else
+	{
 		log.tuple.pkg_dir = PKG_DIR_OUT;
+	}
 
 #if defined(__sw_64__)
 	struct socket *sock;
@@ -506,7 +604,9 @@ int netfilter_hook(struct bpf_nf_ctx *ctx)
 	ret = parse_sk_buff(skb, &log);
 #endif
 	if (!ret)
+	{
 		return NF_ACCEPT;
+	}
 
 	action = rules_match(&log.tuple);
 
@@ -514,11 +614,15 @@ int netfilter_hook(struct bpf_nf_ctx *ctx)
 	{
 		ret = bpf_ringbuf_output(&logs, &log, sizeof(log), 0);
 		if (ret != 0)
+		{
 			bpf_printk("bpf_map_push_elem: %d\n", ret);
+		}
 	}
 
 	if (action & NM_DROP)
+	{
 		return NF_DROP;
+	}
 
 	return NF_ACCEPT;
 }
@@ -533,20 +637,25 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 	// kprobe can't access kernel memory directly
 	bpf_read_mem_ret(&sk, &sock->sk, false);
 	if (!sk)
+	{
 		return false;
+	}
 	bpf_read_mem_ret(&sk_protocol, &sk->sk_protocol, false);
 	bpf_read_mem_ret(&pf, &sk->__sk_common.skc_family, false);
 #else
 	sk = sock->sk;
 	if (!sk)
+	{
 		return false;
+	}
 	sk_protocol = sk->sk_protocol;
 	pf = sk->__sk_common.skc_family;
 #endif
 
 	switch (pf)
 	{
-	case PF_INET: {
+	case PF_INET:
+	{
 		u32 dst_addr;
 		u32 src_addr;
 #if !defined(__loongarch__) && !defined(__sw_64__)
@@ -554,14 +663,15 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 		src_addr = bpf_ntohl(sk->__sk_common.skc_rcv_saddr);
 #else
 		bpf_read_mem_ret(&dst_addr, &sk->__sk_common.skc_daddr, false);
-		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_rcv_saddr,
-				 false);
+		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_rcv_saddr, false);
 		dst_addr = bpf_ntohl(dst_addr);
 		src_addr = bpf_ntohl(src_addr);
 #endif
 
 		if (dst_addr == src_addr)
+		{
 			return false;
+		}
 
 		log->tuple.sip = src_addr;
 		log->tuple.dip = dst_addr;
@@ -569,21 +679,22 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 
 		break;
 	}
-	case PF_INET6: {
+	case PF_INET6:
+	{
 		struct in6_addr dst_addr;
 		struct in6_addr src_addr;
 #if !defined(__loongarch__) && !defined(__sw_64__)
 		dst_addr = sk->__sk_common.skc_v6_daddr;
 		src_addr = sk->__sk_common.skc_v6_rcv_saddr;
 #else
-		bpf_read_mem_ret(&dst_addr, &sk->__sk_common.skc_v6_daddr,
-				 false);
-		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_v6_rcv_saddr,
-				 false);
+		bpf_read_mem_ret(&dst_addr, &sk->__sk_common.skc_v6_daddr, false);
+		bpf_read_mem_ret(&src_addr, &sk->__sk_common.skc_v6_rcv_saddr, false);
 #endif
 
 		if (ipv6_cmp(&src_addr, &dst_addr) == 0)
+		{
 			return false;
+		}
 
 		ntoh16(&dst_addr);
 		ntoh16(&src_addr);
@@ -638,8 +749,13 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 
 #if !defined(__loongarch__) && !defined(__sw_64__)
 SEC("lsm/socket_sendmsg")
-int BPF_PROG(lsm_socket_sendmsg, struct socket *sock, struct msghdr *msg,
-	     int size, int ret)
+int BPF_PROG(
+	lsm_socket_sendmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int size,
+	int ret
+)
 #else
 /**
  * loongarch bpf-lsm isn't complete, so kprobe is used instead,
@@ -647,24 +763,34 @@ int BPF_PROG(lsm_socket_sendmsg, struct socket *sock, struct msghdr *msg,
  * value is ignored by the bpf subsystem
  */
 SEC("kprobe/security_socket_sendmsg")
-int BPF_KPROBE(k_socket_sendmsg, struct socket *sock, struct msghdr *msg,
-	       int size)
+int BPF_KPROBE(
+	k_socket_sendmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int size
+)
 #endif
 {
 #if !defined(__loongarch__) && !defined(__sw_64__)
 	if (ret)
+	{
 		return ret;
+	}
 #endif
 
 	if (!conf()->enable)
+	{
 		return 0;
+	}
 
 	int action = NM_ACCEPT;
 
-	struct BpfData log = { .tuple.pkg_dir = PKG_DIR_OUT };
+	struct BpfData log = {.tuple.pkg_dir = PKG_DIR_OUT};
 
 	if (!parse_sock(sock, &log))
+	{
 		return 0;
+	}
 
 	action = rules_match(&log.tuple);
 	log.action = action;
@@ -691,8 +817,14 @@ int BPF_KPROBE(k_socket_sendmsg, struct socket *sock, struct msghdr *msg,
 
 #if !defined(__loongarch__) && !defined(__sw_64__)
 SEC("lsm/socket_recvmsg")
-int BPF_PROG(lsm_socket_recvmsg, struct socket *sock, struct msghdr *msg,
-	     int size, int flags, int ret)
+int BPF_PROG(
+	lsm_socket_recvmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int size,
+	int flags,
+	int ret
+)
 #else
 /**
  * loongarch bpf-lsm isn't complete, so kprobe is used instead,
@@ -700,31 +832,46 @@ int BPF_PROG(lsm_socket_recvmsg, struct socket *sock, struct msghdr *msg,
  * value is ignored by the bpf subsystem
  */
 SEC("kprobe/security_socket_recvmsg")
-int BPF_KPROBE(k_socket_recvmsg, struct socket *sock, struct msghdr *msg,
-	       int size, int flags)
+int BPF_KPROBE(
+	k_socket_recvmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int size,
+	int flags
+)
 #endif
 {
 #if !defined(__loongarch__) && !defined(__sw_64__)
 	if (ret)
+	{
 		return ret;
+	}
 #endif
 
 	if (!conf()->enable)
+	{
 		return 0;
+	}
 
 	int action = NM_ACCEPT;
 
-	struct BpfData log = { .tuple.pkg_dir = PKG_DIR_IN };
+	struct BpfData log = {.tuple.pkg_dir = PKG_DIR_IN};
 
 	if (!parse_sock(sock, &log))
+	{
 		return 0;
+	}
 
 	// for receiving, addrs are reversed in sock
 	swap(log.tuple.sport, log.tuple.dport);
 	if (log.tuple.ip_proto == 4)
+	{
 		swap(log.tuple.sip, log.tuple.dip);
+	}
 	else
+	{
 		swap(log.tuple.sipv6, log.tuple.dipv6);
+	}
 
 	action = rules_match(&log.tuple);
 	log.action = action;
@@ -752,7 +899,9 @@ int BPF_KPROBE(k_socket_recvmsg, struct socket *sock, struct msghdr *msg,
 static int stat_pkg_sz(int sz)
 {
 	if (!conf()->enable)
+	{
 		return 0;
+	}
 
 	pid_t pid = bpf_get_current_pid_tgid();
 	struct BpfData *log = bpf_map_lookup_elem(&sk_map, &pid);

@@ -84,7 +84,7 @@ struct BpfData
 		// For SCHED_STAT_* events
 		struct
 		{
-			u64 delay; // delay time in nanoseconds
+			u64 delay;	 // delay time in nanoseconds
 			u64 runtime; // runtime in nanoseconds
 		} stat_data;
 
@@ -110,35 +110,47 @@ static int rule_filter(struct Rule *rule, u32 pid, int cpu, u32 event_type)
 {
 	// Check event type filter
 	if (rule->event_mask && !(rule->event_mask & (1 << event_type)))
+	{
 		return 0;
+	}
 
 	if (rule->target_pid && rule->target_pid != pid)
+	{
 		return 0;
+	}
 
 	if (rule->target_cpu >= 0 && rule->target_cpu != cpu)
+	{
 		return 0;
+	}
 
 	return 1;
 }
 
-static int send_event(u32 event_type, struct task_struct *task,
-		      void *extra_data)
+static int
+send_event(u32 event_type, struct task_struct *task, void *extra_data)
 {
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = BPF_CORE_READ(task, pid);
 
 	// Apply basic filters
 	if (!rule_filter(rule, pid, cpu, event_type))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -153,24 +165,36 @@ static int send_event(u32 event_type, struct task_struct *task,
 		switch (event_type)
 		{
 		case SCHED_WAKEUP:
-			__builtin_memcpy(&log->wakeup_data, extra_data,
-					 sizeof(log->wakeup_data));
+			__builtin_memcpy(
+				&log->wakeup_data,
+				extra_data,
+				sizeof(log->wakeup_data)
+			);
 			break;
 		case SCHED_MIGRATE:
-			__builtin_memcpy(&log->migrate_data, extra_data,
-					 sizeof(log->migrate_data));
+			__builtin_memcpy(
+				&log->migrate_data,
+				extra_data,
+				sizeof(log->migrate_data)
+			);
 			break;
 		case SCHED_FORK:
-			__builtin_memcpy(&log->fork_data, extra_data,
-					 sizeof(log->fork_data));
+			__builtin_memcpy(
+				&log->fork_data,
+				extra_data,
+				sizeof(log->fork_data)
+			);
 			break;
 		case SCHED_STAT_RUNTIME:
 		case SCHED_STAT_WAIT:
 		case SCHED_STAT_SLEEP:
 		case SCHED_STAT_BLOCKED:
 		case SCHED_STAT_IOWAIT:
-			__builtin_memcpy(&log->stat_data, extra_data,
-					 sizeof(log->stat_data));
+			__builtin_memcpy(
+				&log->stat_data,
+				extra_data,
+				sizeof(log->stat_data)
+			);
 			break;
 		}
 	}
@@ -185,7 +209,9 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 prev_pid = ctx->prev_pid;
@@ -193,12 +219,16 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx)
 
 	// Check if we should trace this event
 	if (!rule_filter(rule, prev_pid, cpu, SCHED_SWITCH) &&
-	    !rule_filter(rule, next_pid, cpu, SCHED_SWITCH))
+		!rule_filter(rule, next_pid, cpu, SCHED_SWITCH))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -210,14 +240,20 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx)
 	bpf_probe_read_kernel_str(log->comm, TASK_COMM_LEN, ctx->prev_comm);
 
 	// Fill switch-specific data
-	bpf_probe_read_kernel_str(log->switch_data.prev_comm, TASK_COMM_LEN,
-				  ctx->prev_comm);
+	bpf_probe_read_kernel_str(
+		log->switch_data.prev_comm,
+		TASK_COMM_LEN,
+		ctx->prev_comm
+	);
 	log->switch_data.prev_pid = prev_pid;
 	log->switch_data.prev_prio = ctx->prev_prio;
 	log->switch_data.prev_state = ctx->prev_state;
 
-	bpf_probe_read_kernel_str(log->switch_data.next_comm, TASK_COMM_LEN,
-				  ctx->next_comm);
+	bpf_probe_read_kernel_str(
+		log->switch_data.next_comm,
+		TASK_COMM_LEN,
+		ctx->next_comm
+	);
 	log->switch_data.next_pid = next_pid;
 	log->switch_data.next_prio = ctx->next_prio;
 
@@ -231,17 +267,23 @@ int handle_sched_wakeup(struct trace_event_raw_sched_wakeup_template *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_WAKEUP))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -262,17 +304,23 @@ int handle_sched_wakeup_new(struct trace_event_raw_sched_wakeup_template *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_WAKEUP_NEW))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -293,17 +341,23 @@ int handle_sched_migrate(struct trace_event_raw_sched_migrate_task *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_MIGRATE))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -325,17 +379,23 @@ int handle_sched_fork(struct trace_event_raw_sched_process_fork *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 parent_pid = ctx->parent_pid;
 
 	if (!rule_filter(rule, parent_pid, cpu, SCHED_FORK))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -344,11 +404,17 @@ int handle_sched_fork(struct trace_event_raw_sched_process_fork *ctx)
 	log->prio = 120; // Default priority
 	bpf_probe_read_kernel_str(log->comm, TASK_COMM_LEN, ctx->parent_comm);
 
-	bpf_probe_read_kernel_str(log->fork_data.parent_comm, TASK_COMM_LEN,
-				  ctx->parent_comm);
+	bpf_probe_read_kernel_str(
+		log->fork_data.parent_comm,
+		TASK_COMM_LEN,
+		ctx->parent_comm
+	);
 	log->fork_data.parent_pid = parent_pid;
-	bpf_probe_read_kernel_str(log->fork_data.child_comm, TASK_COMM_LEN,
-				  ctx->child_comm);
+	bpf_probe_read_kernel_str(
+		log->fork_data.child_comm,
+		TASK_COMM_LEN,
+		ctx->child_comm
+	);
 	log->fork_data.child_pid = ctx->child_pid;
 
 	bpf_ringbuf_submit(log, 0);
@@ -361,17 +427,23 @@ int handle_sched_exit(struct trace_event_raw_sched_process_template *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_EXIT))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -390,17 +462,23 @@ int handle_sched_exec(struct trace_event_raw_sched_process_exec *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_EXEC))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -424,17 +502,23 @@ int handle_sched_stat_runtime(struct trace_event_raw_sched_stat_runtime *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_STAT_RUNTIME))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -456,17 +540,23 @@ int handle_sched_stat_wait(struct trace_event_raw_sched_stat_template *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_STAT_WAIT))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -488,17 +578,23 @@ int handle_sched_stat_sleep(struct trace_event_raw_sched_stat_template *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_STAT_SLEEP))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -520,17 +616,23 @@ int handle_sched_stat_blocked(struct trace_event_raw_sched_stat_template *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_STAT_BLOCKED))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;
@@ -552,17 +654,23 @@ int handle_sched_stat_iowait(struct trace_event_raw_sched_stat_template *ctx)
 	u32 key = 0;
 	struct Rule *rule = bpf_map_lookup_elem(&filter, &key);
 	if (!rule)
+	{
 		return 0;
+	}
 
 	u32 cpu = bpf_get_smp_processor_id();
 	u32 pid = ctx->pid;
 
 	if (!rule_filter(rule, pid, cpu, SCHED_STAT_IOWAIT))
+	{
 		return 0;
+	}
 
 	struct BpfData *log = bpf_ringbuf_reserve(&logs, sizeof(*log), 0);
 	if (!log)
+	{
 		return 0;
+	}
 
 	log->timestamp = bpf_ktime_get_ns();
 	log->cpu = cpu;

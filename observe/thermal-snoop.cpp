@@ -68,10 +68,13 @@ const char argp_program_doc[] =
 	"    thermal-snoop                           # Trace all thermal events\n"
 	"    thermal-snoop -p 1234                   # Trace specific process\n"
 	"    thermal-snoop -c 0                      # Trace specific CPU\n"
-	"    thermal-snoop -e 0x03                   # Trace temp updates and trips\n"
+	"    thermal-snoop -e 0x03                   # Trace temp updates and "
+	"trips\n"
 	"    thermal-snoop --min-temp 50000          # Trace temperatures >= 50°C\n"
-	"    thermal-snoop -z 1                      # Trace specific thermal zone\n"
-	"    thermal-snoop -v -t                     # Verbose output with timestamps\n"
+	"    thermal-snoop -z 1                      # Trace specific thermal "
+	"zone\n"
+	"    thermal-snoop -v -t                     # Verbose output with "
+	"timestamps\n"
 	"    thermal-snoop -s                        # Show statistics\n"
 	"\n"
 	"Event types (for -e bitmask):\n"
@@ -82,21 +85,27 @@ const char argp_program_doc[] =
 	"    16  POWER_PID       PID power control events\n";
 
 static const struct argp_option opts[] = {
-	{ "pid", 'p', "PID", 0, "Process ID to trace", 0 },
-	{ "cpu", 'c', "CPU", 0, "CPU ID to trace", 0 },
-	{ "comm", 'C', "COMM", 0, "Process name to trace", 0 },
-	{ "events", 'e', "MASK", 0, "Event types to trace (bitmask)", 0 },
-	{ "zone", 'z', "ZONE", 0, "Thermal zone ID to trace", 0 },
-	{ "min-temp", ARG_MIN_TEMP, "TEMP", 0,
-	  "Minimum temperature to trace (millicelsius)", 0 },
-	{ "max-temp", ARG_MAX_TEMP, "TEMP", 0,
-	  "Maximum temperature to trace (millicelsius)", 0 },
-	{ "verbose", 'v', NULL, 0, "Verbose output", 0 },
-	{ "timestamp", 't', NULL, 0, "Show timestamps", 0 },
-	{ "stats", 's', NULL, 0, "Show statistics", 0 },
-	{ "celsius", ARG_CELSIUS, NULL, 0,
-	  "Display temperatures in Celsius (default)", 0 },
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0 },
+	{"pid", 'p', "PID", 0, "Process ID to trace", 0},
+	{"cpu", 'c', "CPU", 0, "CPU ID to trace", 0},
+	{"comm", 'C', "COMM", 0, "Process name to trace", 0},
+	{"events", 'e', "MASK", 0, "Event types to trace (bitmask)", 0},
+	{"zone", 'z', "ZONE", 0, "Thermal zone ID to trace", 0},
+	{"min-temp",
+	 ARG_MIN_TEMP, "TEMP",
+	 0, "Minimum temperature to trace (millicelsius)",
+	 0},
+	{"max-temp",
+	 ARG_MAX_TEMP, "TEMP",
+	 0, "Maximum temperature to trace (millicelsius)",
+	 0},
+	{"verbose", 'v', NULL, 0, "Verbose output", 0},
+	{"timestamp", 't', NULL, 0, "Show timestamps", 0},
+	{"stats", 's', NULL, 0, "Show statistics", 0},
+	{"celsius",
+	 ARG_CELSIUS, NULL,
+	 0, "Display temperatures in Celsius (default)",
+	 0},
+	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0},
 	{},
 };
 
@@ -201,8 +210,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		}
 		else
 		{
-			fprintf(stderr,
-				"unrecognized positional argument: %s\n", arg);
+			fprintf(stderr, "unrecognized positional argument: %s\n", arg);
 			argp_usage(state);
 		}
 		pos_args++;
@@ -219,11 +227,13 @@ static const struct argp argp = {
 	.doc = argp_program_doc,
 };
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -257,13 +267,21 @@ static const char *format_temperature(__s32 milli_temp)
 
 	if (env.celsius)
 	{
-		snprintf(temp_str, sizeof(temp_str), "%.1f°C",
-			 (double)milli_temp / 1000.0);
+		snprintf(
+			temp_str,
+			sizeof(temp_str),
+			"%.1f°C",
+			(double)milli_temp / 1000.0
+		);
 	}
 	else
 	{
-		snprintf(temp_str, sizeof(temp_str), "%.1f°F",
-			 ((double)milli_temp / 1000.0) * 9.0 / 5.0 + 32.0);
+		snprintf(
+			temp_str,
+			sizeof(temp_str),
+			"%.1f°F",
+			((double)milli_temp / 1000.0) * 9.0 / 5.0 + 32.0
+		);
 	}
 
 	return temp_str;
@@ -272,27 +290,45 @@ static const char *format_temperature(__s32 milli_temp)
 static const char *trip_type_description(const char *trip_type)
 {
 	if (strstr(trip_type, "critical"))
+	{
 		return "CRITICAL";
+	}
 	else if (strstr(trip_type, "hot"))
+	{
 		return "HOT";
+	}
 	else if (strstr(trip_type, "passive"))
+	{
 		return "PASSIVE";
+	}
 	else if (strstr(trip_type, "active"))
+	{
 		return "ACTIVE";
+	}
 	else
+	{
 		return "UNKNOWN";
+	}
 }
 
 static const char *cdev_type_description(const char *cdev_type)
 {
 	if (strstr(cdev_type, "cpufreq"))
+	{
 		return "CPU-FREQ";
+	}
 	else if (strstr(cdev_type, "fan"))
+	{
 		return "FAN";
+	}
 	else if (strstr(cdev_type, "thermal"))
+	{
 		return "THERMAL";
+	}
 	else
+	{
 		return cdev_type;
+	}
 }
 
 static void print_timestamp()
@@ -325,45 +361,54 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.temp_readings++;
 
 		if (global_stats.min_temp_seen == 0 ||
-		    e->data.temp_update.temperature <
-			    global_stats.min_temp_seen)
-			global_stats.min_temp_seen =
-				e->data.temp_update.temperature;
-		if (e->data.temp_update.temperature >
-		    global_stats.max_temp_seen)
-			global_stats.max_temp_seen =
-				e->data.temp_update.temperature;
+			e->data.temp_update.temperature < global_stats.min_temp_seen)
+		{
+			global_stats.min_temp_seen = e->data.temp_update.temperature;
+		}
+		if (e->data.temp_update.temperature > global_stats.max_temp_seen)
+		{
+			global_stats.max_temp_seen = e->data.temp_update.temperature;
+		}
 
 		print_timestamp();
 		if (env.verbose)
 		{
-			printf("CPU[%u] PID:%u %s\n", e->header.cpu,
-			       e->header.pid, e->header.comm);
+			printf(
+				"CPU[%u] PID:%u %s\n",
+				e->header.cpu,
+				e->header.pid,
+				e->header.comm
+			);
 			printf("  Event: TEMP_UPDATE\n");
-			printf("  Zone: zone%u (%s)\n",
-			       e->data.temp_update.thermal_zone_id,
-			       e->data.temp_update.zone_type);
-			printf("  Temperature: %s -> %s\n",
-			       format_temperature(
-				       e->data.temp_update.prev_temp),
-			       format_temperature(
-				       e->data.temp_update.temperature));
-			printf("  Change: %+.1f°C\n",
-			       (double)(e->data.temp_update.temperature -
-					e->data.temp_update.prev_temp) /
-				       1000.0);
+			printf(
+				"  Zone: zone%u (%s)\n",
+				e->data.temp_update.thermal_zone_id,
+				e->data.temp_update.zone_type
+			);
+			printf(
+				"  Temperature: %s -> %s\n",
+				format_temperature(e->data.temp_update.prev_temp),
+				format_temperature(e->data.temp_update.temperature)
+			);
+			printf(
+				"  Change: %+.1f°C\n",
+				(double)(e->data.temp_update.temperature -
+						 e->data.temp_update.prev_temp) /
+					1000.0
+			);
 			printf("\n");
 		}
 		else
 		{
-			printf("[%u] %-12s zone%u (%s): %s -> %s\n",
-			       e->header.cpu, "TEMP_UPDATE",
-			       e->data.temp_update.thermal_zone_id,
-			       e->data.temp_update.zone_type,
-			       format_temperature(
-				       e->data.temp_update.prev_temp),
-			       format_temperature(
-				       e->data.temp_update.temperature));
+			printf(
+				"[%u] %-12s zone%u (%s): %s -> %s\n",
+				e->header.cpu,
+				"TEMP_UPDATE",
+				e->data.temp_update.thermal_zone_id,
+				e->data.temp_update.zone_type,
+				format_temperature(e->data.temp_update.prev_temp),
+				format_temperature(e->data.temp_update.temperature)
+			);
 		}
 		break;
 
@@ -371,47 +416,66 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.trip_events++;
 
 		if (strstr(e->data.trip_event.trip_type, "critical"))
+		{
 			global_stats.critical_trips++;
+		}
 		else if (strstr(e->data.trip_event.trip_type, "hot"))
+		{
 			global_stats.hot_trips++;
+		}
 		else if (strstr(e->data.trip_event.trip_type, "passive"))
+		{
 			global_stats.passive_trips++;
+		}
 		else if (strstr(e->data.trip_event.trip_type, "active"))
+		{
 			global_stats.active_trips++;
+		}
 
 		print_timestamp();
 		if (env.verbose)
 		{
-			printf("CPU[%u] PID:%u %s\n", e->header.cpu,
-			       e->header.pid, e->header.comm);
+			printf(
+				"CPU[%u] PID:%u %s\n",
+				e->header.cpu,
+				e->header.pid,
+				e->header.comm
+			);
 			printf("  Event: TRIP_TRIGGER\n");
-			printf("  Zone: zone%u (ID: %u)\n",
-			       e->data.trip_event.thermal_zone_id,
-			       e->data.trip_event.trip_id);
-			printf("  Trip: %s\n",
-			       trip_type_description(
-				       e->data.trip_event.trip_type));
-			printf("  Trip Temperature: %s\n",
-			       format_temperature(
-				       e->data.trip_event.trip_temp));
-			printf("  Current Temperature: %s\n",
-			       format_temperature(
-				       e->data.trip_event.current_temp));
-			printf("  Hysteresis: %s\n",
-			       format_temperature(
-				       e->data.trip_event.trip_hyst));
+			printf(
+				"  Zone: zone%u (ID: %u)\n",
+				e->data.trip_event.thermal_zone_id,
+				e->data.trip_event.trip_id
+			);
+			printf(
+				"  Trip: %s\n",
+				trip_type_description(e->data.trip_event.trip_type)
+			);
+			printf(
+				"  Trip Temperature: %s\n",
+				format_temperature(e->data.trip_event.trip_temp)
+			);
+			printf(
+				"  Current Temperature: %s\n",
+				format_temperature(e->data.trip_event.current_temp)
+			);
+			printf(
+				"  Hysteresis: %s\n",
+				format_temperature(e->data.trip_event.trip_hyst)
+			);
 			printf("\n");
 		}
 		else
 		{
-			printf("[%u] %-12s zone%u: %s trip at %s (current: %s)\n",
-			       e->header.cpu, "TRIP_TRIGGER",
-			       e->data.trip_event.thermal_zone_id,
-			       trip_type_description(
-				       e->data.trip_event.trip_type),
-			       format_temperature(e->data.trip_event.trip_temp),
-			       format_temperature(
-				       e->data.trip_event.current_temp));
+			printf(
+				"[%u] %-12s zone%u: %s trip at %s (current: %s)\n",
+				e->header.cpu,
+				"TRIP_TRIGGER",
+				e->data.trip_event.thermal_zone_id,
+				trip_type_description(e->data.trip_event.trip_type),
+				format_temperature(e->data.trip_event.trip_temp),
+				format_temperature(e->data.trip_event.current_temp)
+			);
 		}
 		break;
 
@@ -419,35 +483,46 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		global_stats.cdev_update_events++;
 		global_stats.cdev_activations++;
 
-		if (e->data.cdev_update.new_state >
-		    e->data.cdev_update.old_state)
+		if (e->data.cdev_update.new_state > e->data.cdev_update.old_state)
+		{
 			global_stats.throttling_events++;
+		}
 
 		print_timestamp();
 		if (env.verbose)
 		{
-			printf("CPU[%u] PID:%u %s\n", e->header.cpu,
-			       e->header.pid, e->header.comm);
+			printf(
+				"CPU[%u] PID:%u %s\n",
+				e->header.cpu,
+				e->header.pid,
+				e->header.comm
+			);
 			printf("  Event: CDEV_UPDATE\n");
-			printf("  Device: %s (ID: %u)\n",
-			       e->data.cdev_update.cdev_type,
-			       e->data.cdev_update.cdev_id);
-			printf("  State: %u -> %u (max: %u)\n",
-			       e->data.cdev_update.old_state,
-			       e->data.cdev_update.new_state,
-			       e->data.cdev_update.max_state);
+			printf(
+				"  Device: %s (ID: %u)\n",
+				e->data.cdev_update.cdev_type,
+				e->data.cdev_update.cdev_id
+			);
+			printf(
+				"  State: %u -> %u (max: %u)\n",
+				e->data.cdev_update.old_state,
+				e->data.cdev_update.new_state,
+				e->data.cdev_update.max_state
+			);
 			printf("  Power: %llu mW\n", e->data.cdev_update.power);
 			printf("\n");
 		}
 		else
 		{
-			printf("[%u] %-12s %s: state %u -> %u (max: %u)\n",
-			       e->header.cpu, "CDEV_UPDATE",
-			       cdev_type_description(
-				       e->data.cdev_update.cdev_type),
-			       e->data.cdev_update.old_state,
-			       e->data.cdev_update.new_state,
-			       e->data.cdev_update.max_state);
+			printf(
+				"[%u] %-12s %s: state %u -> %u (max: %u)\n",
+				e->header.cpu,
+				"CDEV_UPDATE",
+				cdev_type_description(e->data.cdev_update.cdev_type),
+				e->data.cdev_update.old_state,
+				e->data.cdev_update.new_state,
+				e->data.cdev_update.max_state
+			);
 		}
 		break;
 
@@ -457,32 +532,37 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		print_timestamp();
 		if (env.verbose)
 		{
-			printf("CPU[%u] PID:%u %s\n", e->header.cpu,
-			       e->header.pid, e->header.comm);
+			printf(
+				"CPU[%u] PID:%u %s\n",
+				e->header.cpu,
+				e->header.pid,
+				e->header.comm
+			);
 			printf("  Event: POWER_ALLOC\n");
-			printf("  Zone: zone%u\n",
-			       e->data.power_alloc.thermal_zone_id);
-			printf("  Requested: %u mW\n",
-			       e->data.power_alloc.total_req_power);
-			printf("  Granted: %u mW\n",
-			       e->data.power_alloc.granted_power);
-			printf("  Delta Temp: %s\n",
-			       format_temperature(
-				       e->data.power_alloc.delta_temp));
-			printf("  Switch On: %s\n",
-			       format_temperature(
-				       e->data.power_alloc.switch_on_temp));
+			printf("  Zone: zone%u\n", e->data.power_alloc.thermal_zone_id);
+			printf("  Requested: %u mW\n", e->data.power_alloc.total_req_power);
+			printf("  Granted: %u mW\n", e->data.power_alloc.granted_power);
+			printf(
+				"  Delta Temp: %s\n",
+				format_temperature(e->data.power_alloc.delta_temp)
+			);
+			printf(
+				"  Switch On: %s\n",
+				format_temperature(e->data.power_alloc.switch_on_temp)
+			);
 			printf("\n");
 		}
 		else
 		{
-			printf("[%u] %-12s zone%u: req=%umW granted=%umW delta=%s\n",
-			       e->header.cpu, "POWER_ALLOC",
-			       e->data.power_alloc.thermal_zone_id,
-			       e->data.power_alloc.total_req_power,
-			       e->data.power_alloc.granted_power,
-			       format_temperature(
-				       e->data.power_alloc.delta_temp));
+			printf(
+				"[%u] %-12s zone%u: req=%umW granted=%umW delta=%s\n",
+				e->header.cpu,
+				"POWER_ALLOC",
+				e->data.power_alloc.thermal_zone_id,
+				e->data.power_alloc.total_req_power,
+				e->data.power_alloc.granted_power,
+				format_temperature(e->data.power_alloc.delta_temp)
+			);
 		}
 		break;
 
@@ -492,13 +572,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		print_timestamp();
 		if (env.verbose)
 		{
-			printf("CPU[%u] PID:%u %s\n", e->header.cpu,
-			       e->header.pid, e->header.comm);
+			printf(
+				"CPU[%u] PID:%u %s\n",
+				e->header.cpu,
+				e->header.pid,
+				e->header.comm
+			);
 			printf("  Event: POWER_PID\n");
-			printf("  Zone: zone%u\n",
-			       e->data.power_pid.thermal_zone_id);
-			printf("  Error: %s\n",
-			       format_temperature(e->data.power_pid.err));
+			printf("  Zone: zone%u\n", e->data.power_pid.thermal_zone_id);
+			printf("  Error: %s\n", format_temperature(e->data.power_pid.err));
 			printf("  P Term: %d\n", e->data.power_pid.p_term);
 			printf("  I Term: %d\n", e->data.power_pid.i_term);
 			printf("  D Term: %d\n", e->data.power_pid.d_term);
@@ -507,14 +589,17 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		}
 		else
 		{
-			printf("[%u] %-12s zone%u: err=%s P=%d I=%d D=%d out=%d\n",
-			       e->header.cpu, "POWER_PID",
-			       e->data.power_pid.thermal_zone_id,
-			       format_temperature(e->data.power_pid.err),
-			       e->data.power_pid.p_term,
-			       e->data.power_pid.i_term,
-			       e->data.power_pid.d_term,
-			       e->data.power_pid.output);
+			printf(
+				"[%u] %-12s zone%u: err=%s P=%d I=%d D=%d out=%d\n",
+				e->header.cpu,
+				"POWER_PID",
+				e->data.power_pid.thermal_zone_id,
+				format_temperature(e->data.power_pid.err),
+				e->data.power_pid.p_term,
+				e->data.power_pid.i_term,
+				e->data.power_pid.d_term,
+				e->data.power_pid.output
+			);
 		}
 		break;
 
@@ -530,50 +615,61 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 static void print_stats()
 {
 	if (!env.stats)
+	{
 		return;
+	}
 
 	printf("\nThermal Monitoring Statistics:\n");
 	printf("==============================\n");
 	printf("Total Events:           %llu\n", global_stats.total_events);
-	printf("├─ Temperature Updates: %llu (%.1f%%)\n",
-	       global_stats.temp_update_events,
-	       global_stats.total_events ?
-		       (double)global_stats.temp_update_events * 100.0 /
-			       global_stats.total_events :
-		       0.0);
-	printf("├─ Trip Triggers:       %llu (%.1f%%)\n",
-	       global_stats.trip_events,
-	       global_stats.total_events ?
-		       (double)global_stats.trip_events * 100.0 /
-			       global_stats.total_events :
-		       0.0);
-	printf("├─ Cooling Dev Updates: %llu (%.1f%%)\n",
-	       global_stats.cdev_update_events,
-	       global_stats.total_events ?
-		       (double)global_stats.cdev_update_events * 100.0 /
-			       global_stats.total_events :
-		       0.0);
-	printf("├─ Power Allocator:     %llu (%.1f%%)\n",
-	       global_stats.power_alloc_events,
-	       global_stats.total_events ?
-		       (double)global_stats.power_alloc_events * 100.0 /
-			       global_stats.total_events :
-		       0.0);
-	printf("└─ Power PID Control:   %llu (%.1f%%)\n",
-	       global_stats.power_pid_events,
-	       global_stats.total_events ?
-		       (double)global_stats.power_pid_events * 100.0 /
-			       global_stats.total_events :
-		       0.0);
+	printf(
+		"├─ Temperature Updates: %llu (%.1f%%)\n",
+		global_stats.temp_update_events,
+		global_stats.total_events ? (double)global_stats.temp_update_events *
+										100.0 / global_stats.total_events
+								  : 0.0
+	);
+	printf(
+		"├─ Trip Triggers:       %llu (%.1f%%)\n",
+		global_stats.trip_events,
+		global_stats.total_events ? (double)global_stats.trip_events * 100.0 /
+										global_stats.total_events
+								  : 0.0
+	);
+	printf(
+		"├─ Cooling Dev Updates: %llu (%.1f%%)\n",
+		global_stats.cdev_update_events,
+		global_stats.total_events ? (double)global_stats.cdev_update_events *
+										100.0 / global_stats.total_events
+								  : 0.0
+	);
+	printf(
+		"├─ Power Allocator:     %llu (%.1f%%)\n",
+		global_stats.power_alloc_events,
+		global_stats.total_events ? (double)global_stats.power_alloc_events *
+										100.0 / global_stats.total_events
+								  : 0.0
+	);
+	printf(
+		"└─ Power PID Control:   %llu (%.1f%%)\n",
+		global_stats.power_pid_events,
+		global_stats.total_events ? (double)global_stats.power_pid_events *
+										100.0 / global_stats.total_events
+								  : 0.0
+	);
 	printf("\n");
 
 	if (global_stats.temp_readings > 0)
 	{
 		printf("Temperature Range:\n");
-		printf("├─ Minimum: %s\n",
-		       format_temperature(global_stats.min_temp_seen));
-		printf("├─ Maximum: %s\n",
-		       format_temperature(global_stats.max_temp_seen));
+		printf(
+			"├─ Minimum: %s\n",
+			format_temperature(global_stats.min_temp_seen)
+		);
+		printf(
+			"├─ Maximum: %s\n",
+			format_temperature(global_stats.max_temp_seen)
+		);
 		printf("└─ Readings: %llu\n", global_stats.temp_readings);
 		printf("\n");
 	}
@@ -592,8 +688,7 @@ static void print_stats()
 	{
 		printf("Cooling Device Activity:\n");
 		printf("├─ Activations: %llu\n", global_stats.cdev_activations);
-		printf("└─ Throttling Events: %llu\n",
-		       global_stats.throttling_events);
+		printf("└─ Throttling Events: %llu\n", global_stats.throttling_events);
 		printf("\n");
 	}
 }
@@ -620,7 +715,9 @@ static void thermal_snoop_deinit()
 #endif
 
 	if (rb)
+	{
 		ring_buffer__free(rb);
+	}
 	thermal_snoop_bpf__destroy(obj);
 }
 
@@ -636,7 +733,9 @@ int main(int argc, char **argv)
 	/* Parse command line arguments */
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 #endif
 
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
@@ -681,25 +780,37 @@ int main(int argc, char **argv)
 
 		filter.target_pid = env.pid;
 		filter.target_cpu = env.cpu;
-		strncpy(filter.target_comm, env.comm,
-			sizeof(filter.target_comm) - 1);
+		strncpy(filter.target_comm, env.comm, sizeof(filter.target_comm) - 1);
 		filter.event_mask = env.event_mask;
 		filter.min_temp = env.min_temp;
 		filter.max_temp = env.max_temp;
-		filter.thermal_zone_mask =
-			env.zone_filter ? (1 << env.zone_filter) : 0;
+		filter.thermal_zone_mask = env.zone_filter ? (1 << env.zone_filter) : 0;
 
-		bpf_map__update_elem(obj->maps.filter_map, &key, sizeof(key),
-				     &filter, sizeof(filter), BPF_ANY);
+		bpf_map__update_elem(
+			obj->maps.filter_map,
+			&key,
+			sizeof(key),
+			&filter,
+			sizeof(filter),
+			BPF_ANY
+		);
 	}
 
 	/* Setup ring buffer polling */
 #ifdef BUILTIN
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.thermal_events), callback,
-			      NULL, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.thermal_events),
+		callback,
+		NULL,
+		NULL
+	);
 #else
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.thermal_events),
-			      handle_event, NULL, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.thermal_events),
+		handle_event,
+		NULL,
+		NULL
+	);
 #endif
 	if (!rb)
 	{
@@ -710,7 +821,10 @@ int main(int argc, char **argv)
 
 #ifndef BUILTIN
 	if (env.verbose)
-		printf("thermal-snoop: Tracing thermal management events... Ctrl-C to end.\n");
+	{
+		printf("thermal-snoop: Tracing thermal management events... Ctrl-C to "
+			   "end.\n");
+	}
 
 	/* Main event loop */
 	while (!exiting)
@@ -740,7 +854,9 @@ cleanup:
 	return err != 0;
 #else
 	if (err != 0)
+	{
 		thermal_snoop_deinit();
+	}
 	return err;
 #endif
 }

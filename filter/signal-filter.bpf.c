@@ -58,9 +58,14 @@ struct
 } filter_rules SEC(".maps");
 
 // Helper functions
-static inline void create_trace_event(u32 sender_pid, u32 target_pid, u32 sig,
-				      u64 generate_time, u64 deliver_time,
-				      int result)
+static inline void create_trace_event(
+	u32 sender_pid,
+	u32 target_pid,
+	u32 sig,
+	u64 generate_time,
+	u64 deliver_time,
+	int result
+)
 {
 	struct event_t *evt = bpf_ringbuf_reserve(&ringbuf, sizeof(*evt), 0);
 	if (!evt)
@@ -120,8 +125,8 @@ static inline struct Rule *get_rule(void)
 }
 
 // Rule checking logic
-static inline bool check_all_rules(u32 sender_pid, u32 target_pid, u32 sig,
-				   u32 sender_uid)
+static inline bool
+check_all_rules(u32 sender_pid, u32 target_pid, u32 sig, u32 sender_uid)
 {
 	struct Rule *rule = get_rule();
 	if (!rule)
@@ -132,7 +137,7 @@ static inline bool check_all_rules(u32 sender_pid, u32 target_pid, u32 sig,
 	// Check if any rule is set (non-zero values)
 	bool has_rules = false;
 	if (rule->sender_pid > 0 || rule->recv_pid > 0 || rule->sig > 0 ||
-	    rule->sender_uid > 0)
+		rule->sender_uid > 0)
 	{
 		has_rules = true;
 	}
@@ -168,9 +173,12 @@ static inline bool check_all_rules(u32 sender_pid, u32 target_pid, u32 sig,
 	return true;
 }
 
-static inline bool should_intercept_signal_by_rule(u32 sender_pid,
-						   u32 target_pid, u32 sig,
-						   u32 sender_uid)
+static inline bool should_intercept_signal_by_rule(
+	u32 sender_pid,
+	u32 target_pid,
+	u32 sig,
+	u32 sender_uid
+)
 {
 	u32 current_mode = get_interception_mode();
 	if (current_mode == MODE_RULE_FILTER)
@@ -208,15 +216,27 @@ int on_signal_deliver(struct trace_event_raw_signal_deliver *ctx)
 		return 0;
 	}
 
-	create_trace_event(s->sender_pid, key, s->sig, s->generate_time,
-			   bpf_ktime_get_ns(), ctx->errno);
+	create_trace_event(
+		s->sender_pid,
+		key,
+		s->sig,
+		s->generate_time,
+		bpf_ktime_get_ns(),
+		ctx->errno
+	);
 	bpf_map_delete_elem(&start, &key);
 	return 0;
 }
 
 SEC("lsm/task_kill")
-int BPF_PROG(task_kill, struct task_struct *p, struct kernel_siginfo *info,
-	     int sig, const struct cred *cred, int ret)
+int BPF_PROG(
+	task_kill,
+	struct task_struct *p,
+	struct kernel_siginfo *info,
+	int sig,
+	const struct cred *cred,
+	int ret
+)
 {
 	if (ret)
 	{
@@ -229,8 +249,12 @@ int BPF_PROG(task_kill, struct task_struct *p, struct kernel_siginfo *info,
 	u32 sender_uid = uid_gid >> 32; // Get UID from the high 32 bits
 
 	// Check rule filter mode
-	if (should_intercept_signal_by_rule(sender_pid, target_pid, sig,
-					    sender_uid))
+	if (should_intercept_signal_by_rule(
+			sender_pid,
+			target_pid,
+			sig,
+			sender_uid
+		))
 	{
 		create_intercept_event(target_pid, sig, 1);
 		return -EPERM;

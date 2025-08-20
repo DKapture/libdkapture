@@ -15,15 +15,9 @@
 #define RING_BUF_TYPE_BPF 0
 #define RING_BUF_TYPE_NORMAL 1
 
-RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx)
-	: page_size(0)
-	, epoll_fd(-1)
-	, map_fd(-1)
-	, ctx(ctx)
-	, rci(0)
-	, comsumer_index(NULL)
-	, producer_index(NULL)
-	, cb(cb)
+RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx) :
+	page_size(0), epoll_fd(-1), map_fd(-1), ctx(ctx), rci(0),
+	comsumer_index(NULL), producer_index(NULL), cb(cb)
 {
 	struct bpf_map_info info;
 	struct epoll_event ee;
@@ -36,44 +30,65 @@ RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx)
 	epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 	if (epoll_fd < 0)
 	{
-		exc = std::system_error(errno, std::generic_category(),
-					"failed to create epoll instance");
+		exc = std::system_error(
+			errno,
+			std::generic_category(),
+			"failed to create epoll instance"
+		);
 		pr_error("create ring-buffer: %s", exc.what());
 		goto err_out;
 	}
 	if (0 != bpf_map_get_info_by_fd(map_fd, &info, &len))
 	{
-		exc = std::system_error(errno, std::generic_category(),
-					"bpf_map_get_info_by_fd");
+		exc = std::system_error(
+			errno,
+			std::generic_category(),
+			"bpf_map_get_info_by_fd"
+		);
 		pr_error("create ring-buffer: %s", exc.what());
 		goto err_out;
 	}
 	if (info.type != BPF_MAP_TYPE_RINGBUF)
 	{
-		exc = std::system_error(EINVAL, std::generic_category(),
-					"not a ring buffer map");
+		exc = std::system_error(
+			EINVAL,
+			std::generic_category(),
+			"not a ring buffer map"
+		);
 		pr_error("create ring-buffer: %s", exc.what());
 		goto err_out;
 	}
 	bsz = info.max_entries;
 	DEBUG(0, "ring buffer size: %d", bsz);
 
-	comsumer_index = (ulong *)mmap(NULL, page_size, PROT_READ | PROT_WRITE,
-				       MAP_SHARED, map_fd, 0);
+	comsumer_index = (ulong *)
+		mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, map_fd, 0);
 	if (comsumer_index == MAP_FAILED)
 	{
-		exc = std::system_error(errno, std::generic_category(),
-					"failed to mmap consumer page");
+		exc = std::system_error(
+			errno,
+			std::generic_category(),
+			"failed to mmap consumer page"
+		);
 		pr_error("create ring-buffer(%d): %s", map_fd, exc.what());
 		goto err_out;
 	}
 
-	producer_index = (ulong *)mmap(NULL, page_size + 2 * bsz, PROT_READ,
-				       MAP_SHARED, map_fd, page_size);
+	producer_index = (ulong *)mmap(
+		NULL,
+		page_size + 2 * bsz,
+		PROT_READ,
+		MAP_SHARED,
+		map_fd,
+		page_size
+	);
 	if (producer_index == MAP_FAILED)
 	{
-		exc = std::system_error(errno, std::generic_category(),
-					"failed to mmap producer page");
+		exc = std::system_error(
+			errno,
+			std::generic_category(),
+			"failed to mmap producer page"
+		);
 		pr_error("create ring-buffer: %s", exc.what());
 		goto err_out;
 	}
@@ -82,8 +97,11 @@ RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx)
 	ee.data.fd = map_fd;
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, map_fd, &ee) < 0)
 	{
-		exc = std::system_error(errno, std::generic_category(),
-					"failed to add map fd to epoll");
+		exc = std::system_error(
+			errno,
+			std::generic_category(),
+			"failed to add map fd to epoll"
+		);
 		pr_error("create ring-buffer: %s", exc.what());
 		goto err_out;
 	}
@@ -108,12 +126,12 @@ RingBuffer::RingBuffer(size_t bsz)
 		throw;
 	}
 	/**
-     * TODO：信号中断未解锁场景
-     * 这里原子自增操作满足不了需求，与释放处同步，我们需要在
-     * spinlock->unlock()后，要么新建共享内存，要么引用未被标记为删除
-     * 的共享内存，如果只用原子自增，则会出现引用被标记为删除的共享内存的场景，
-     * 非真正共享，会导致一部分用旧共享内存，另一部分用新共享内存。
-     */
+	 * TODO：信号中断未解锁场景
+	 * 这里原子自增操作满足不了需求，与释放处同步，我们需要在
+	 * spinlock->unlock()后，要么新建共享内存，要么引用未被标记为删除
+	 * 的共享内存，如果只用原子自增，则会出现引用被标记为删除的共享内存的场景，
+	 * 非真正共享，会导致一部分用旧共享内存，另一部分用新共享内存。
+	 */
 	spinlock->lock();
 	(*rb_ref_cnt)++;
 	DEBUG(0, "ring buffer ref cnt: %ld", *rb_ref_cnt);
@@ -123,8 +141,7 @@ RingBuffer::RingBuffer(size_t bsz)
 	key_t key = 0x12345678 + bsz;
 	if (bsz % page_size || bsz & (bsz - 1))
 	{
-		pr_error(
-			"buf size must be power of 2 and a multiple of page size");
+		pr_error("buf size must be power of 2 and a multiple of page size");
 		goto err;
 	}
 	shmid = shmget(key, bsz, IPC_CREAT | 0600);
@@ -180,9 +197,12 @@ RingBuffer::RingBuffer(size_t bsz)
 	return;
 err:
 	this->~RingBuffer();
-	throw std::system_error(1, std::generic_category(),
-				"circle buf memory construction failure"
-				", check stdout for details");
+	throw std::system_error(
+		1,
+		std::generic_category(),
+		"circle buf memory construction failure"
+		", check stdout for details"
+	);
 }
 
 RingBuffer::~RingBuffer()
@@ -190,10 +210,14 @@ RingBuffer::~RingBuffer()
 	if (type == RING_BUF_TYPE_NORMAL)
 	{
 		if (data)
+		{
 			shmdt((void *)data);
+		}
 
 		if (data_mirror)
+		{
 			shmdt((void *)data_mirror);
+		}
 	}
 	else
 	{
@@ -240,7 +264,9 @@ size_t RingBuffer::write(void *data, size_t dsz)
 	// in case overflow happens when usz + dsz
 	size_t usz = wri - rdi;
 	if (usz + dsz > bsz)
+	{
 		dsz = bsz - usz;
+	}
 	size_t off = wri % bsz;
 	memcpy((char *)data + off, data, dsz);
 	wri += dsz;
@@ -251,7 +277,9 @@ size_t RingBuffer::read(void *data, size_t dsz)
 {
 	size_t usz = wri - rdi;
 	if (usz < dsz)
+	{
 		dsz = usz;
+	}
 	size_t off = rdi & (bsz - 1);
 	memcpy(data, (char *)data + off, dsz);
 	rdi += dsz;
@@ -261,7 +289,9 @@ size_t RingBuffer::read(void *data, size_t dsz)
 void *RingBuffer::buf(ulong idx)
 {
 	if (type == RING_BUF_TYPE_BPF)
+	{
 		idx += BPF_RINGBUF_HDR_SZ;
+	}
 
 	idx &= (bsz - 1);
 	return (char *)data + idx;
@@ -284,15 +314,21 @@ int RingBuffer::poll(int timeout)
 	struct epoll_event events;
 	int cnt = epoll_wait(epoll_fd, &events, 1, timeout);
 	if (cnt < 0)
+	{
 		return (-errno);
+	}
 
 	if (cnt == 0)
+	{
 		return 0;
+	}
 
 	if (events.data.fd != map_fd)
 	{
-		pr_error("ringbuf: epoll_wait returned unexpected fd %d",
-			 events.data.fd);
+		pr_error(
+			"ringbuf: epoll_wait returned unexpected fd %d",
+			events.data.fd
+		);
 		return -1;
 	}
 
@@ -300,8 +336,7 @@ int RingBuffer::poll(int timeout)
 	cnt = 0;
 	rci = *comsumer_index;
 
-	DEBUG(0, "producer: %ld comsumer: %ld", *producer_index,
-	      *comsumer_index);
+	DEBUG(0, "producer: %ld comsumer: %ld", *producer_index, *comsumer_index);
 	assert(*producer_index >= *comsumer_index);
 
 	while (rci < *producer_index)
@@ -309,7 +344,9 @@ int RingBuffer::poll(int timeout)
 		volatile int *plen = (int *)((char *)data + (rci & (bsz - 1)));
 		int len = *plen;
 		if (len & BPF_RINGBUF_BUSY_BIT)
+		{
 			break;
+		}
 		rci += roundup_len(len);
 
 		if ((len & BPF_RINGBUF_DISCARD_BIT) == 0)

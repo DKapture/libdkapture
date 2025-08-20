@@ -15,10 +15,10 @@ char __license[] SEC("license") = "GPL";
 struct flow_rate_info
 {
 	__u64 window_start_ns; // Start of current time window
-	__u64 total_packets; // Total packets in window
-	__u64 total_bytes; // Total bytes in window
-	__u64 rate_bps; // Calculated rate in bps
-	__u64 peak_rate_bps; // Peak rate observed
+	__u64 total_packets;   // Total packets in window
+	__u64 total_bytes;	   // Total bytes in window
+	__u64 rate_bps;		   // Calculated rate in bps
+	__u64 peak_rate_bps;   // Peak rate observed
 	__u64 smooth_rate_bps; // Smoothed rate using EMA
 };
 
@@ -27,18 +27,18 @@ struct flow_rate_info
  */
 struct event_t
 {
-	__u32 action; // Action taken (pass/drop)
-	__u32 bytes_sent; // Bytes sent
-	__u32 bytes_dropped; // Bytes dropped
-	__u32 packets_sent; // Packets sent
-	__u32 packets_dropped; // Packets dropped
-	__u64 timestamp; // Timestamp
-	__u8 eth_src[6]; // Source MAC address
-	__u8 eth_dst[6]; // Destination MAC address
-	__u16 eth_type; // Ethernet type
-	__u32 packet_size; // Total packet size
-	__u32 packet_type; // Packet type identifier
-	__u64 type_rate_bps; // Current rate for this packet type
+	__u32 action;				// Action taken (pass/drop)
+	__u32 bytes_sent;			// Bytes sent
+	__u32 bytes_dropped;		// Bytes dropped
+	__u32 packets_sent;			// Packets sent
+	__u32 packets_dropped;		// Packets dropped
+	__u64 timestamp;			// Timestamp
+	__u8 eth_src[6];			// Source MAC address
+	__u8 eth_dst[6];			// Destination MAC address
+	__u16 eth_type;				// Ethernet type
+	__u32 packet_size;			// Total packet size
+	__u32 packet_type;			// Packet type identifier
+	__u64 type_rate_bps;		// Current rate for this packet type
 	__u64 type_smooth_rate_bps; // Smoothed rate using EMA
 };
 
@@ -62,8 +62,8 @@ struct event_params_t
  */
 struct traffic_rule
 {
-	__u64 rate_bps; // Rate limit in bps
-	__u8 gress; // Traffic direction (0=ingress, 1=egress)
+	__u64 rate_bps;	  // Rate limit in bps
+	__u8 gress;		  // Traffic direction (0=ingress, 1=egress)
 	__u32 time_scale; // Time scale for burst tolerance
 };
 
@@ -72,9 +72,9 @@ struct traffic_rule
  */
 struct rate_bucket
 {
-	__u64 tokens; // Current token count
+	__u64 tokens;	   // Current token count
 	__u64 last_update; // Last update timestamp
-	__u64 max_tokens; // Maximum token capacity
+	__u64 max_tokens;  // Maximum token capacity
 };
 
 /**
@@ -136,9 +136,14 @@ static __inline __u64 now_ns(void)
 /**
  * Parse Ethernet header
  */
-static __inline bool parse_ethernet_header(struct __sk_buff *ctx, void *data,
-					   void *data_end, __u8 *src_mac,
-					   __u8 *dst_mac, __u16 *eth_type)
+static __inline bool parse_ethernet_header(
+	struct __sk_buff *ctx,
+	void *data,
+	void *data_end,
+	__u8 *src_mac,
+	__u8 *dst_mac,
+	__u16 *eth_type
+)
 {
 	if (data + 14 > data_end)
 	{
@@ -175,14 +180,12 @@ get_or_create_bucket(__u32 bucket_key, __u64 rate_bps, __u32 time_scale)
 	if (!b)
 	{
 		struct rate_bucket new_bucket = {
-			.tokens =
-				rate_bps * time_scale, // Start with full tokens
+			.tokens = rate_bps * time_scale, // Start with full tokens
 			.last_update = now_ns(),
 			.max_tokens = rate_bps * time_scale
 		};
 
-		bpf_map_update_elem(&buckets, &bucket_key, &new_bucket,
-				    BPF_ANY);
+		bpf_map_update_elem(&buckets, &bucket_key, &new_bucket, BPF_ANY);
 		b = bpf_map_lookup_elem(&buckets, &bucket_key);
 	}
 
@@ -192,8 +195,8 @@ get_or_create_bucket(__u32 bucket_key, __u64 rate_bps, __u32 time_scale)
 /**
  * Update token bucket
  */
-static __inline void update_token_bucket(struct rate_bucket *b, __u64 rate_bps,
-					 __u32 time_scale)
+static __inline void
+update_token_bucket(struct rate_bucket *b, __u64 rate_bps, __u32 time_scale)
 {
 	__u64 now = now_ns();
 	__u64 time_elapsed = now - b->last_update;
@@ -211,8 +214,8 @@ static __inline void update_token_bucket(struct rate_bucket *b, __u64 rate_bps,
 /**
  * Check and consume tokens
  */
-static __inline bool check_and_consume_tokens(struct rate_bucket *b,
-					      __u32 packet_size)
+static __inline bool
+check_and_consume_tokens(struct rate_bucket *b, __u32 packet_size)
 {
 	__u64 tokens_needed = packet_size; // Convert packet size to tokens
 
@@ -228,9 +231,12 @@ static __inline bool check_and_consume_tokens(struct rate_bucket *b,
 /**
  * Apply basic rate limiting
  */
-static __inline int apply_basic_rate_limiting(__u32 bucket_key, __u64 rate_bps,
-					      __u32 time_scale,
-					      __u32 packet_size)
+static __inline int apply_basic_rate_limiting(
+	__u32 bucket_key,
+	__u64 rate_bps,
+	__u32 time_scale,
+	__u32 packet_size
+)
 {
 	struct rate_bucket *b =
 		get_or_create_bucket(bucket_key, rate_bps, time_scale);
@@ -253,10 +259,12 @@ static __inline int apply_basic_rate_limiting(__u32 bucket_key, __u64 rate_bps,
 /**
  * Apply advanced rate limiting with burst tolerance
  */
-static __inline int apply_advanced_rate_limiting(__u32 bucket_key,
-						 __u64 rate_bps,
-						 __u32 time_scale,
-						 __u32 packet_size)
+static __inline int apply_advanced_rate_limiting(
+	__u32 bucket_key,
+	__u64 rate_bps,
+	__u32 time_scale,
+	__u32 packet_size
+)
 {
 	struct rate_bucket *b =
 		get_or_create_bucket(bucket_key, rate_bps, time_scale);
@@ -286,24 +294,44 @@ static __inline int apply_advanced_rate_limiting(__u32 bucket_key,
 /**
  * Apply rate limiting policy
  */
-static __inline int apply_rate_limiting_policy(__u32 bucket_key, __u64 rate_bps,
-					       __u32 time_scale,
-					       __u32 packet_size, __u8 policy)
+static __inline int apply_rate_limiting_policy(
+	__u32 bucket_key,
+	__u64 rate_bps,
+	__u32 time_scale,
+	__u32 packet_size,
+	__u8 policy
+)
 {
 	switch (policy)
 	{
 	case 0: // Basic rate limiting
-		return apply_basic_rate_limiting(bucket_key, rate_bps,
-						 time_scale, packet_size);
+		return apply_basic_rate_limiting(
+			bucket_key,
+			rate_bps,
+			time_scale,
+			packet_size
+		);
 	case 1: // Advanced rate limiting with 2x burst tolerance
-		return apply_advanced_rate_limiting(bucket_key, rate_bps,
-						    time_scale, packet_size);
+		return apply_advanced_rate_limiting(
+			bucket_key,
+			rate_bps,
+			time_scale,
+			packet_size
+		);
 	case 2: // Strict rate limiting (no burst tolerance)
-		return apply_basic_rate_limiting(bucket_key, rate_bps,
-						 time_scale, packet_size);
+		return apply_basic_rate_limiting(
+			bucket_key,
+			rate_bps,
+			time_scale,
+			packet_size
+		);
 	case 3: // Lenient rate limiting (3x burst tolerance)
-		return apply_advanced_rate_limiting(bucket_key, rate_bps,
-						    time_scale, packet_size);
+		return apply_advanced_rate_limiting(
+			bucket_key,
+			rate_bps,
+			time_scale,
+			packet_size
+		);
 	default:
 		return TC_ACT_OK; // Allow by default
 	}
@@ -321,9 +349,12 @@ static __inline struct traffic_rule *get_traffic_rule(void)
 /**
  * Report traffic event to ring buffer
  */
-static __inline void report_traffic_event(__u64 bytes_sent, __u64 bytes_dropped,
-					  __u64 packets_sent,
-					  __u64 packets_dropped)
+static __inline void report_traffic_event(
+	__u64 bytes_sent,
+	__u64 bytes_dropped,
+	__u64 packets_sent,
+	__u64 packets_dropped
+)
 {
 	struct event_t *e = bpf_ringbuf_reserve(&ringbuf, sizeof(*e), 0);
 	if (!e)
@@ -419,8 +450,8 @@ static __inline __u32 get_packet_type_id(__u16 eth_type)
 /**
  * Update flow rate statistics
  */
-static __inline void update_flow_rate_stats(__u32 packet_type_id,
-					    __u32 packet_size)
+static __inline void
+update_flow_rate_stats(__u32 packet_type_id, __u32 packet_size)
 {
 	if (packet_type_id == 0)
 	{
@@ -438,28 +469,23 @@ static __inline void update_flow_rate_stats(__u32 packet_type_id,
 			if (flow_info->total_bytes > 0)
 			{
 				flow_info->rate_bps =
-					(flow_info->total_bytes * 8 *
-					 NSEC_PER_SEC) /
+					(flow_info->total_bytes * 8 * NSEC_PER_SEC) /
 					(now - flow_info->window_start_ns);
-				if (flow_info->rate_bps >
-				    flow_info->peak_rate_bps)
+				if (flow_info->rate_bps > flow_info->peak_rate_bps)
 				{
-					flow_info->peak_rate_bps =
-						flow_info->rate_bps;
+					flow_info->peak_rate_bps = flow_info->rate_bps;
 				}
 
 				if (flow_info->smooth_rate_bps != 0)
 				{
 					flow_info->smooth_rate_bps =
 						(flow_info->smooth_rate_bps -
-						 (flow_info->smooth_rate_bps >>
-						  3)) +
+						 (flow_info->smooth_rate_bps >> 3)) +
 						(flow_info->rate_bps >> 3);
 				}
 				else
 				{
-					flow_info->smooth_rate_bps =
-						flow_info->rate_bps;
+					flow_info->smooth_rate_bps = flow_info->rate_bps;
 				}
 			}
 
@@ -473,18 +499,28 @@ static __inline void update_flow_rate_stats(__u32 packet_type_id,
 			flow_info->total_bytes += packet_size;
 		}
 
-		bpf_map_update_elem(&flow_rate_stats, &packet_type_id,
-				    flow_info, BPF_ANY);
+		bpf_map_update_elem(
+			&flow_rate_stats,
+			&packet_type_id,
+			flow_info,
+			BPF_ANY
+		);
 	}
 	else
 	{
-		struct flow_rate_info new_flow = { .window_start_ns = now,
-						   .total_packets = 1,
-						   .total_bytes = packet_size,
-						   .rate_bps = 0,
-						   .peak_rate_bps = 0 };
-		bpf_map_update_elem(&flow_rate_stats, &packet_type_id,
-				    &new_flow, BPF_ANY);
+		struct flow_rate_info new_flow = {
+			.window_start_ns = now,
+			.total_packets = 1,
+			.total_bytes = packet_size,
+			.rate_bps = 0,
+			.peak_rate_bps = 0
+		};
+		bpf_map_update_elem(
+			&flow_rate_stats,
+			&packet_type_id,
+			&new_flow,
+			BPF_ANY
+		);
 	}
 }
 
@@ -496,7 +532,8 @@ static __inline struct flow_rate_info *get_flow_rate_stats(__u32 packet_type_id)
 	return bpf_map_lookup_elem(&flow_rate_stats, &packet_type_id);
 }
 
-// Main TC packet processing function - enhanced with Ethernet header parsing and statistics
+// Main TC packet processing function - enhanced with Ethernet header parsing
+// and statistics
 static int tc_handle(struct __sk_buff *ctx, int gress)
 {
 	__u32 bucket_key = gress;
@@ -513,12 +550,12 @@ static int tc_handle(struct __sk_buff *ctx, int gress)
 		return TC_ACT_OK;
 	}
 
-	__u8 src_mac[6] = { 0 };
-	__u8 dst_mac[6] = { 0 };
+	__u8 src_mac[6] = {0};
+	__u8 dst_mac[6] = {0};
 	__u16 eth_type = 0;
 
-	bool eth_parsed = parse_ethernet_header(ctx, data, data_end, src_mac,
-						dst_mac, &eth_type);
+	bool eth_parsed =
+		parse_ethernet_header(ctx, data, data_end, src_mac, dst_mac, &eth_type);
 	if (!eth_parsed)
 	{
 		report_traffic_event(ctx->len, 0, 1, 0);
@@ -544,47 +581,55 @@ static int tc_handle(struct __sk_buff *ctx, int gress)
 			return TC_ACT_OK;
 		}
 
-		struct event_params_t params = { .bytes_sent = 0,
-						 .bytes_dropped = 0,
-						 .src_mac = src_mac,
-						 .dst_mac = dst_mac,
-						 .eth_type = eth_type,
-						 .packet_size = ctx->len,
-						 .packet_type_id =
-							 packet_type_id,
-						 .flow_info = flow_info };
+		struct event_params_t params = {
+			.bytes_sent = 0,
+			.bytes_dropped = 0,
+			.src_mac = src_mac,
+			.dst_mac = dst_mac,
+			.eth_type = eth_type,
+			.packet_size = ctx->len,
+			.packet_type_id = packet_type_id,
+			.flow_info = flow_info
+		};
 		report_traffic_event_with_params(&params);
 		return TC_ACT_OK;
 	}
 
 	// Apply rate limiting using policy 0 (default)
-	int result = apply_rate_limiting_policy(bucket_key, rule->rate_bps,
-						rule->time_scale, ctx->len, 0);
+	int result = apply_rate_limiting_policy(
+		bucket_key,
+		rule->rate_bps,
+		rule->time_scale,
+		ctx->len,
+		0
+	);
 
 	if (result == TC_ACT_OK)
 	{
-		struct event_params_t params = { .bytes_sent = ctx->len,
-						 .bytes_dropped = 0,
-						 .src_mac = src_mac,
-						 .dst_mac = dst_mac,
-						 .eth_type = eth_type,
-						 .packet_size = ctx->len,
-						 .packet_type_id =
-							 packet_type_id,
-						 .flow_info = flow_info };
+		struct event_params_t params = {
+			.bytes_sent = ctx->len,
+			.bytes_dropped = 0,
+			.src_mac = src_mac,
+			.dst_mac = dst_mac,
+			.eth_type = eth_type,
+			.packet_size = ctx->len,
+			.packet_type_id = packet_type_id,
+			.flow_info = flow_info
+		};
 		report_traffic_event_with_params(&params);
 	}
 	else
 	{
-		struct event_params_t params = { .bytes_sent = 0,
-						 .bytes_dropped = ctx->len,
-						 .src_mac = src_mac,
-						 .dst_mac = dst_mac,
-						 .eth_type = eth_type,
-						 .packet_size = ctx->len,
-						 .packet_type_id =
-							 packet_type_id,
-						 .flow_info = flow_info };
+		struct event_params_t params = {
+			.bytes_sent = 0,
+			.bytes_dropped = ctx->len,
+			.src_mac = src_mac,
+			.dst_mac = dst_mac,
+			.eth_type = eth_type,
+			.packet_size = ctx->len,
+			.packet_type_id = packet_type_id,
+			.flow_info = flow_info
+		};
 		report_traffic_event_with_params(&params);
 	}
 

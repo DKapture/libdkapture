@@ -23,11 +23,11 @@
 /* Thermal Event Types - Based on available thermal tracepoints */
 enum thermal_event_type
 {
-	THERMAL_TEMP_UPDATE = 1, /* thermal_temperature */
+	THERMAL_TEMP_UPDATE = 1,	/* thermal_temperature */
 	THERMAL_TRIP_TRIGGERED = 2, /* thermal_zone_trip */
-	THERMAL_CDEV_UPDATE = 3, /* cdev_update */
-	THERMAL_POWER_ALLOC = 4, /* thermal_power_allocator */
-	THERMAL_POWER_PID = 5, /* thermal_power_allocator_pid */
+	THERMAL_CDEV_UPDATE = 3,	/* cdev_update */
+	THERMAL_POWER_ALLOC = 4,	/* thermal_power_allocator */
+	THERMAL_POWER_PID = 5,		/* thermal_power_allocator_pid */
 };
 
 /* Common thermal event header */
@@ -53,10 +53,10 @@ struct thermal_event
 		struct
 		{
 			__u32 thermal_zone_id;
-			__s32 temperature; /* Temperature value (millicelsius) */
+			__s32 temperature;	/* Temperature value (millicelsius) */
 			char zone_type[32]; /* Thermal zone type name */
-			__u32 zone_temp; /* Current temperature */
-			__u32 prev_temp; /* Previous temperature */
+			__u32 zone_temp;	/* Current temperature */
+			__u32 prev_temp;	/* Previous temperature */
 		} temp_update;
 
 		/* Trip point triggered event */
@@ -65,9 +65,9 @@ struct thermal_event
 			__u32 thermal_zone_id;
 			__u32 trip_id;
 			char trip_type[16]; /* passive, active, hot, critical */
-			__s32 trip_temp; /* Trip point temperature */
+			__s32 trip_temp;	/* Trip point temperature */
 			__s32 current_temp; /* Current temperature */
-			__u32 trip_hyst; /* Hysteresis value */
+			__u32 trip_hyst;	/* Hysteresis value */
 		} trip_event;
 
 		/* Cooling device update event */
@@ -75,28 +75,28 @@ struct thermal_event
 		{
 			__u32 cdev_id;
 			char cdev_type[32]; /* Cooling device type */
-			__u32 old_state; /* Previous state */
-			__u32 new_state; /* New state */
-			__u32 max_state; /* Maximum state */
-			__u64 power; /* Power information */
+			__u32 old_state;	/* Previous state */
+			__u32 new_state;	/* New state */
+			__u32 max_state;	/* Maximum state */
+			__u64 power;		/* Power information */
 		} cdev_update;
 
 		/* Power allocator event */
 		struct
 		{
 			__u32 thermal_zone_id;
-			__u32 total_req_power; /* Total requested power */
-			__u32 granted_power; /* Actually allocated power */
+			__u32 total_req_power;	 /* Total requested power */
+			__u32 granted_power;	 /* Actually allocated power */
 			__u32 extra_actor_power; /* Extra actor power */
-			__s32 delta_temp; /* Temperature delta */
-			__s32 switch_on_temp; /* Switch on temperature */
+			__s32 delta_temp;		 /* Temperature delta */
+			__s32 switch_on_temp;	 /* Switch on temperature */
 		} power_alloc;
 
 		/* PID power control event */
 		struct
 		{
 			__u32 thermal_zone_id;
-			__s32 err; /* PID error value */
+			__s32 err;	  /* PID error value */
 			__s32 p_term; /* Proportional term */
 			__s32 i_term; /* Integral term */
 			__s32 d_term; /* Derivative term */
@@ -108,14 +108,14 @@ struct thermal_event
 /* Filter configuration */
 struct thermal_filter
 {
-	__u32 target_pid; /* 0 means no filter */
-	__u32 target_cpu; /* -1 means no filter */
-	char target_comm[16]; /* Empty means no filter */
-	__u32 event_mask; /* Bitmask of events to trace */
-	__s32 min_temp; /* Minimum temperature threshold */
-	__s32 max_temp; /* Maximum temperature threshold */
+	__u32 target_pid;		 /* 0 means no filter */
+	__u32 target_cpu;		 /* -1 means no filter */
+	char target_comm[16];	 /* Empty means no filter */
+	__u32 event_mask;		 /* Bitmask of events to trace */
+	__s32 min_temp;			 /* Minimum temperature threshold */
+	__s32 max_temp;			 /* Maximum temperature threshold */
 	__u32 thermal_zone_mask; /* Thermal zone ID bitmask */
-	__u32 cdev_type_mask; /* Cooling device type mask */
+	__u32 cdev_type_mask;	 /* Cooling device type mask */
 };
 
 /* Thermal statistics */
@@ -160,9 +160,9 @@ struct thermal_stats
 
 /* Map sizes */
 #define MAX_THERMAL_EVENTS 262144 /* Ring buffer size */
-#define MAX_FILTER_RULES 1 /* Filter rules map size */
-#define MAX_ZONE_HISTORY 128 /* Thermal zone history */
-#define MAX_CDEV_TRACK 64 /* Cooling device tracking */
+#define MAX_FILTER_RULES 1		  /* Filter rules map size */
+#define MAX_ZONE_HISTORY 128	  /* Thermal zone history */
+#define MAX_CDEV_TRACK 64		  /* Cooling device tracking */
 
 /* Trip type definitions */
 #define TRIP_TYPE_ACTIVE "active"
@@ -172,7 +172,7 @@ struct thermal_stats
 
 /* Temperature conversion helpers */
 #define MILLICELSIUS_TO_CELSIUS(temp) ((double)(temp) / 1000.0)
-#define MILLICELSIUS_TO_FAHRENHEIT(temp) \
+#define MILLICELSIUS_TO_FAHRENHEIT(temp)                                       \
 	(((double)(temp) / 1000.0) * 9.0 / 5.0 + 32.0)
 
 #endif /* __THERMAL_SNOOP_H */

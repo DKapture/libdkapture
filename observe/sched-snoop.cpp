@@ -39,7 +39,7 @@ enum sched_event_type
 struct Rule
 {
 	uint32_t target_pid; // 0 means no filter
-	int target_cpu; // -1 means no filter
+	int target_cpu;		 // -1 means no filter
 	char target_comm[TASK_COMM_LEN];
 	uint32_t event_mask; // Bitmask of events to trace
 };
@@ -96,7 +96,7 @@ struct BpfData
 		// For SCHED_STAT_* events
 		struct
 		{
-			uint64_t delay; // delay time in nanoseconds
+			uint64_t delay;	  // delay time in nanoseconds
 			uint64_t runtime; // runtime in nanoseconds
 		} stat_data;
 
@@ -105,7 +105,7 @@ struct BpfData
 };
 
 static struct sched_snoop_bpf *skel;
-static struct Rule rule = { 0, -1, "", 0x3F }; // Default: trace all events
+static struct Rule rule = {0, -1, "", 0x3F}; // Default: trace all events
 
 static const char *event_type_str(uint32_t event_type)
 {
@@ -188,10 +188,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		// For switch events, also check prev/next comm
 		if (!match_found && log->event_type == SCHED_SWITCH)
 		{
-			if (strstr(log->switch_data.prev_comm,
-				   rule.target_comm) != nullptr ||
-			    strstr(log->switch_data.next_comm,
-				   rule.target_comm) != nullptr)
+			if (strstr(log->switch_data.prev_comm, rule.target_comm) !=
+					nullptr ||
+				strstr(log->switch_data.next_comm, rule.target_comm) != nullptr)
 			{
 				match_found = true;
 			}
@@ -200,10 +199,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		// For fork events, check parent/child comm
 		if (!match_found && log->event_type == SCHED_FORK)
 		{
-			if (strstr(log->fork_data.parent_comm,
-				   rule.target_comm) != nullptr ||
-			    strstr(log->fork_data.child_comm,
-				   rule.target_comm) != nullptr)
+			if (strstr(log->fork_data.parent_comm, rule.target_comm) !=
+					nullptr ||
+				strstr(log->fork_data.child_comm, rule.target_comm) != nullptr)
 			{
 				match_found = true;
 			}
@@ -219,80 +217,135 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 
-	printf("%-8s [%03d] %-7s ", ts, log->cpu,
-	       event_type_str(log->event_type));
+	printf("%-8s [%03d] %-7s ", ts, log->cpu, event_type_str(log->event_type));
 
 	switch (log->event_type)
 	{
 	case SCHED_SWITCH:
-		printf("%16s:%-7d [%3d] %s ==> %16s:%-7d [%3d]\n",
-		       log->switch_data.prev_comm, log->switch_data.prev_pid,
-		       log->switch_data.prev_prio,
-		       state_to_str(log->switch_data.prev_state),
-		       log->switch_data.next_comm, log->switch_data.next_pid,
-		       log->switch_data.next_prio);
+		printf(
+			"%16s:%-7d [%3d] %s ==> %16s:%-7d [%3d]\n",
+			log->switch_data.prev_comm,
+			log->switch_data.prev_pid,
+			log->switch_data.prev_prio,
+			state_to_str(log->switch_data.prev_state),
+			log->switch_data.next_comm,
+			log->switch_data.next_pid,
+			log->switch_data.next_prio
+		);
 		break;
 
 	case SCHED_WAKEUP:
-		printf("%16s:%-7d [%3d] target_cpu=%d\n", log->comm, log->pid,
-		       log->prio, log->wakeup_data.target_cpu);
+		printf(
+			"%16s:%-7d [%3d] target_cpu=%d\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->wakeup_data.target_cpu
+		);
 		break;
 
 	case SCHED_WAKEUP_NEW:
-		printf("%16s:%-7d [%3d] target_cpu=%d (new)\n", log->comm,
-		       log->pid, log->prio, log->wakeup_data.target_cpu);
+		printf(
+			"%16s:%-7d [%3d] target_cpu=%d (new)\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->wakeup_data.target_cpu
+		);
 		break;
 
 	case SCHED_MIGRATE:
-		printf("%16s:%-7d [%3d] %d => %d\n", log->comm, log->pid,
-		       log->prio, log->migrate_data.orig_cpu,
-		       log->migrate_data.dest_cpu);
+		printf(
+			"%16s:%-7d [%3d] %d => %d\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->migrate_data.orig_cpu,
+			log->migrate_data.dest_cpu
+		);
 		break;
 
 	case SCHED_FORK:
-		printf("%16s:%-7d => %16s:%-7d\n", log->fork_data.parent_comm,
-		       log->fork_data.parent_pid, log->fork_data.child_comm,
-		       log->fork_data.child_pid);
+		printf(
+			"%16s:%-7d => %16s:%-7d\n",
+			log->fork_data.parent_comm,
+			log->fork_data.parent_pid,
+			log->fork_data.child_comm,
+			log->fork_data.child_pid
+		);
 		break;
 
 	case SCHED_EXIT:
-		printf("%16s:%-7d [%3d] exited\n", log->comm, log->pid,
-		       log->prio);
+		printf("%16s:%-7d [%3d] exited\n", log->comm, log->pid, log->prio);
 		break;
 
 	case SCHED_EXEC:
-		printf("%16s:%-7d [%3d] exec: %s\n", log->comm, log->pid,
-		       log->prio, log->comm);
+		printf(
+			"%16s:%-7d [%3d] exec: %s\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->comm
+		);
 		break;
 
 	case SCHED_STAT_RUNTIME:
-		printf("%16s:%-7d [%3d] runtime=%lu ns\n", log->comm, log->pid,
-		       log->prio, log->stat_data.runtime);
+		printf(
+			"%16s:%-7d [%3d] runtime=%lu ns\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->stat_data.runtime
+		);
 		break;
 
 	case SCHED_STAT_WAIT:
-		printf("%16s:%-7d [%3d] wait_delay=%lu ns\n", log->comm,
-		       log->pid, log->prio, log->stat_data.delay);
+		printf(
+			"%16s:%-7d [%3d] wait_delay=%lu ns\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->stat_data.delay
+		);
 		break;
 
 	case SCHED_STAT_SLEEP:
-		printf("%16s:%-7d [%3d] sleep_delay=%lu ns\n", log->comm,
-		       log->pid, log->prio, log->stat_data.delay);
+		printf(
+			"%16s:%-7d [%3d] sleep_delay=%lu ns\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->stat_data.delay
+		);
 		break;
 
 	case SCHED_STAT_BLOCKED:
-		printf("%16s:%-7d [%3d] blocked_delay=%lu ns\n", log->comm,
-		       log->pid, log->prio, log->stat_data.delay);
+		printf(
+			"%16s:%-7d [%3d] blocked_delay=%lu ns\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->stat_data.delay
+		);
 		break;
 
 	case SCHED_STAT_IOWAIT:
-		printf("%16s:%-7d [%3d] iowait_delay=%lu ns\n", log->comm,
-		       log->pid, log->prio, log->stat_data.delay);
+		printf(
+			"%16s:%-7d [%3d] iowait_delay=%lu ns\n",
+			log->comm,
+			log->pid,
+			log->prio,
+			log->stat_data.delay
+		);
 		break;
 
 	default:
-		printf("%16s:%-7d [%3d] unknown event\n", log->comm, log->pid,
-		       log->prio);
+		printf(
+			"%16s:%-7d [%3d] unknown event\n",
+			log->comm,
+			log->pid,
+			log->prio
+		);
 		break;
 	}
 
@@ -339,19 +392,26 @@ static void print_usage(const char *prog_name)
 	printf("                Default: switch,wakeup,migrate,fork,exit,exec\n");
 	printf("  -h            Show this help\n");
 	printf("\nExamples:\n");
-	printf("  %s                    # Trace basic scheduler events\n",
-	       prog_name);
-	printf("  %s -p 1234            # Trace events for PID 1234\n",
-	       prog_name);
+	printf(
+		"  %s                    # Trace basic scheduler events\n",
+		prog_name
+	);
+	printf("  %s -p 1234            # Trace events for PID 1234\n", prog_name);
 	printf("  %s -c 0               # Trace events on CPU 0\n", prog_name);
-	printf("  %s -C ssh             # Trace events for processes containing 'ssh'\n",
-	       prog_name);
-	printf("  %s -e switch,fork     # Trace only switch and fork events\n",
-	       prog_name);
-	printf("  %s -e all             # Trace all available events\n",
-	       prog_name);
-	printf("  %s -e stat_runtime    # Trace only runtime statistics\n",
-	       prog_name);
+	printf(
+		"  %s -C ssh             # Trace events for processes containing "
+		"'ssh'\n",
+		prog_name
+	);
+	printf(
+		"  %s -e switch,fork     # Trace only switch and fork events\n",
+		prog_name
+	);
+	printf("  %s -e all             # Trace all available events\n", prog_name);
+	printf(
+		"  %s -e stat_runtime    # Trace only runtime statistics\n",
+		prog_name
+	);
 }
 
 static uint32_t parse_events(const char *events_str)
@@ -450,8 +510,7 @@ int main(int argc, char **argv)
 			rule.event_mask = parse_events(optarg);
 			if (rule.event_mask == 0)
 			{
-				fprintf(stderr,
-					"Invalid event specification\n");
+				fprintf(stderr, "Invalid event specification\n");
 				return 1;
 			}
 			break;
@@ -492,8 +551,12 @@ int main(int argc, char **argv)
 
 	// Set filter rules
 	uint32_t key = 0;
-	err = bpf_map_update_elem(bpf_map__fd(skel->maps.filter), &key, &rule,
-				  BPF_ANY);
+	err = bpf_map_update_elem(
+		bpf_map__fd(skel->maps.filter),
+		&key,
+		&rule,
+		BPF_ANY
+	);
 	if (err)
 	{
 		fprintf(stderr, "Failed to set filter rules: %d\n", err);
@@ -501,8 +564,12 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.logs), handle_event,
-			      nullptr, nullptr);
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.logs),
+		handle_event,
+		nullptr,
+		nullptr
+	);
 	if (!rb)
 	{
 		fprintf(stderr, "Failed to create ring buffer\n");
@@ -514,8 +581,7 @@ int main(int argc, char **argv)
 
 	// Print header
 	printf("%-8s %-5s %-7s %s\n", "TIME", "CPU", "EVENT", "DETAILS");
-	printf("%-8s %-5s %-7s %s\n", "--------", "-----", "-------",
-	       "-------");
+	printf("%-8s %-5s %-7s %s\n", "--------", "-----", "-------", "-------");
 
 	while (true)
 	{

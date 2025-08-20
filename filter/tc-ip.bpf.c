@@ -24,53 +24,60 @@ char __license[] SEC("license") = "GPL";
 #define NSEC_PER_SEC 1000000000ull
 
 // Event types
-#define EVENT_PACKET_PASS 0 // Packet passed through
-#define EVENT_PACKET_DROP 1 // Packet dropped
-#define EVENT_RATE_LIMIT 2 // Rate limit applied
+#define EVENT_PACKET_PASS 0	 // Packet passed through
+#define EVENT_PACKET_DROP 1	 // Packet dropped
+#define EVENT_RATE_LIMIT 2	 // Rate limit applied
 #define EVENT_STATS_UPDATE 3 // Statistics updated
 
-int bpf_dynptr_from_skb(struct sk_buff *skb, __u64 flags,
-			struct bpf_dynptr *ptr__uninit) __ksym;
+int bpf_dynptr_from_skb(
+	struct sk_buff *skb,
+	__u64 flags,
+	struct bpf_dynptr *ptr__uninit
+) __ksym;
 
-void *bpf_dynptr_slice(const struct bpf_dynptr *ptr, uint32_t offset,
-		       void *buffer, uint32_t buffer__sz) __ksym;
+void *bpf_dynptr_slice(
+	const struct bpf_dynptr *ptr,
+	uint32_t offset,
+	void *buffer,
+	uint32_t buffer__sz
+) __ksym;
 
 // 数据结构定义
 
 // Event structure for traffic monitoring
 struct event_t
 {
-	__u32 sip; // Source IP address
-	__u32 dip; // Destination IP address
-	__u32 sport; // Source port
-	__u32 dport; // Destination port
-	__u32 protocol; // Protocol type
-	__u32 action; // Action taken (pass/drop)
-	__u32 bytes_sent; // Bytes sent
-	__u32 bytes_dropped; // Bytes dropped
-	__u32 packets_sent; // Packets sent
+	__u32 sip;			   // Source IP address
+	__u32 dip;			   // Destination IP address
+	__u32 sport;		   // Source port
+	__u32 dport;		   // Destination port
+	__u32 protocol;		   // Protocol type
+	__u32 action;		   // Action taken (pass/drop)
+	__u32 bytes_sent;	   // Bytes sent
+	__u32 bytes_dropped;   // Bytes dropped
+	__u32 packets_sent;	   // Packets sent
 	__u32 packets_dropped; // Packets dropped
-	__u64 timestamp; // Timestamp
-	__u8 event_type; // Event type for different operations
+	__u64 timestamp;	   // Timestamp
+	__u8 event_type;	   // Event type for different operations
 };
 
 // Traffic control rule structure - enhanced for combination matching
 struct traffic_rule
 {
-	__u32 target_ip; // Target IP address to match (0 = any IP)
-	__u16 target_port; // Target port to match (0 = any port)
+	__u32 target_ip;	  // Target IP address to match (0 = any IP)
+	__u16 target_port;	  // Target port to match (0 = any port)
 	__u8 target_protocol; // Target protocol to match (0 = any protocol)
-	__u64 rate_bps; // Rate limit in bytes per second
-	__u8 gress; // Direction: EGRESS=1, INGRESS=0
-	__u32 time_scale; // Time scale in seconds for burst tolerance
-	__u32 match_mask; // Bit mask for which fields to match
-	__u8 rule_type; // Rule type: 0=rate_limit, 1=drop, 2=log
+	__u64 rate_bps;		  // Rate limit in bytes per second
+	__u8 gress;			  // Direction: EGRESS=1, INGRESS=0
+	__u32 time_scale;	  // Time scale in seconds for burst tolerance
+	__u32 match_mask;	  // Bit mask for which fields to match
+	__u8 rule_type;		  // Rule type: 0=rate_limit, 1=drop, 2=log
 };
 
 // Simple token bucket structure for rate limiting
 struct rate_bucket
 {
-	__u64 ts_ns; // Last update timestamp in nanoseconds
+	__u64 ts_ns;  // Last update timestamp in nanoseconds
 	__u64 tokens; // Current token count
 };
 
@@ -249,11 +256,17 @@ static struct iphdr *ip_hdr(struct sk_buff *skb)
 // ============================================================================
 
 // Enhanced send event function with event type
-static __inline void send_event_enhanced(__u32 sip, __u32 dip, __u32 sport,
-					 __u32 dport, __u64 bytes_sent,
-					 __u64 bytes_dropped,
-					 __u64 packets_sent,
-					 __u64 packets_dropped, __u8 event_type)
+static __inline void send_event_enhanced(
+	__u32 sip,
+	__u32 dip,
+	__u32 sport,
+	__u32 dport,
+	__u64 bytes_sent,
+	__u64 bytes_dropped,
+	__u64 packets_sent,
+	__u64 packets_dropped,
+	__u8 event_type
+)
 {
 	struct event_t *e;
 
@@ -278,8 +291,8 @@ static __inline void send_event_enhanced(__u32 sip, __u32 dip, __u32 sport,
 }
 
 // Check if packet matches the rule based on match mask
-static __inline bool packet_matches_rule(struct traffic_rule *rule,
-					 struct packet_tuple *tuple)
+static __inline bool
+packet_matches_rule(struct traffic_rule *rule, struct packet_tuple *tuple)
 {
 	if (rule->match_mask == 0)
 	{
@@ -292,26 +305,35 @@ static __inline bool packet_matches_rule(struct traffic_rule *rule,
 	__u32 check_ip = tuple->dst_ip;
 	__u16 check_port = tuple->dst_port;
 
-	DEBUG(DEBUG_ON, "Rule target_ip=%u, tuple dst_ip=%u, match_mask=%u",
-	      rule->target_ip, tuple->dst_ip, rule->match_mask);
+	DEBUG(
+		DEBUG_ON,
+		"Rule target_ip=%u, tuple dst_ip=%u, match_mask=%u",
+		rule->target_ip,
+		tuple->dst_ip,
+		rule->match_mask
+	);
 
 	if ((rule->match_mask & 1) && rule->target_ip != 0 &&
-	    rule->target_ip != check_ip)
+		rule->target_ip != check_ip)
 	{
-		DEBUG(DEBUG_ON, "IP mismatch: target=%u, actual=%u",
-		      rule->target_ip, check_ip);
+		DEBUG(
+			DEBUG_ON,
+			"IP mismatch: target=%u, actual=%u",
+			rule->target_ip,
+			check_ip
+		);
 		return false;
 	}
 
 	if ((rule->match_mask & 2) && rule->target_port != 0 &&
-	    rule->target_port != check_port)
+		rule->target_port != check_port)
 	{
 		DEBUG(DEBUG_ON, "Port mismatch");
 		return false;
 	}
 
 	if ((rule->match_mask & 4) && rule->target_protocol != 0 &&
-	    rule->target_protocol != tuple->protocol)
+		rule->target_protocol != tuple->protocol)
 	{
 		DEBUG(DEBUG_ON, "Protocol mismatch");
 		return false;
@@ -322,8 +344,11 @@ static __inline bool packet_matches_rule(struct traffic_rule *rule,
 }
 
 // Enhanced packet parsing function based on tc-process.bpf.c implementation
-static __inline bool parse_sk_buff_enhanced(struct sk_buff *skb, __u8 direction,
-					    struct packet_tuple *tuple)
+static __inline bool parse_sk_buff_enhanced(
+	struct sk_buff *skb,
+	__u8 direction,
+	struct packet_tuple *tuple
+)
 {
 	DEBUG(DEBUG_ON, "parse_sk_buff_enhanced");
 
@@ -366,8 +391,13 @@ static __inline bool parse_sk_buff_enhanced(struct sk_buff *skb, __u8 direction,
 	tuple->dst_ip = bpf_ntohl(iph->daddr);
 	tuple->protocol = iph->protocol;
 
-	DEBUG(DEBUG_ON, "Basic IP: src=%u, dst=%u, protocol=%u", tuple->src_ip,
-	      tuple->dst_ip, tuple->protocol);
+	DEBUG(
+		DEBUG_ON,
+		"Basic IP: src=%u, dst=%u, protocol=%u",
+		tuple->src_ip,
+		tuple->dst_ip,
+		tuple->protocol
+	);
 
 	// Parse ports for TCP or UDP protocols only
 	if (iph->protocol == IPPROTO_UDP)
@@ -443,8 +473,8 @@ static __inline bool parse_sk_buff_enhanced(struct sk_buff *skb, __u8 direction,
 }
 
 // Simplified packet validation function
-static __inline int validate_netfilter_packet(struct bpf_nf_ctx *ctx,
-					      struct packet_tuple *tuple)
+static __inline int
+validate_netfilter_packet(struct bpf_nf_ctx *ctx, struct packet_tuple *tuple)
 {
 	if (!ctx || !ctx->skb || !tuple)
 	{
@@ -460,8 +490,8 @@ static __inline int validate_netfilter_packet(struct bpf_nf_ctx *ctx,
 	return NF_ACCEPT;
 }
 
-static __inline void update_stats_generic(void *map, const void *key,
-					  __u32 packet_len, bool dropped)
+static __inline void
+update_stats_generic(void *map, const void *key, __u32 packet_len, bool dropped)
 {
 	struct global_stats *stats = bpf_map_lookup_elem(map, key);
 
@@ -493,8 +523,7 @@ static __inline void update_stats_generic(void *map, const void *key,
 
 	if (time_diff > 0)
 	{
-		stats->current_rate_bps =
-			(packet_len * NSEC_PER_SEC) / time_diff;
+		stats->current_rate_bps = (packet_len * NSEC_PER_SEC) / time_diff;
 		if (stats->current_rate_bps > stats->peak_rate_bps)
 		{
 			stats->peak_rate_bps = stats->current_rate_bps;
@@ -516,14 +545,14 @@ static __inline void update_ip_stats(__u32 ip, __u32 packet_len, bool dropped)
 	update_stats_generic(&ip_stats_map, &ip, packet_len, dropped);
 }
 
-static __inline void update_port_stats(__u16 port, __u32 packet_len,
-				       bool dropped)
+static __inline void
+update_port_stats(__u16 port, __u32 packet_len, bool dropped)
 {
 	update_stats_generic(&port_stats_map, &port, packet_len, dropped);
 }
 
-static __inline void update_all_stats(struct packet_tuple *tuple,
-				      __u32 packet_len, bool dropped)
+static __inline void
+update_all_stats(struct packet_tuple *tuple, __u32 packet_len, bool dropped)
 {
 	update_global_stats(packet_len, dropped);
 	update_ip_stats(tuple->src_ip, packet_len, dropped);
@@ -532,17 +561,23 @@ static __inline void update_all_stats(struct packet_tuple *tuple,
 	update_port_stats(tuple->dst_port, packet_len, dropped);
 }
 
-static __inline struct rate_bucket *get_or_create_bucket_safe(__u64 bucket_key,
-							      __u64 rate_bps,
-							      __u32 time_scale,
-							      int *error_code)
+static __inline struct rate_bucket *get_or_create_bucket_safe(
+	__u64 bucket_key,
+	__u64 rate_bps,
+	__u32 time_scale,
+	int *error_code
+)
 {
 	DEBUG(DEBUG_ON, "get_or_create_bucket_safe");
 
 	if (!is_valid_time_scale(time_scale) || rate_bps == 0)
 	{
-		DEBUG(DEBUG_ON, "Invalid params: time_scale=%u, rate_bps=%llu",
-		      time_scale, rate_bps);
+		DEBUG(
+			DEBUG_ON,
+			"Invalid params: time_scale=%u, rate_bps=%llu",
+			time_scale,
+			rate_bps
+		);
 		*error_code = 0;
 		return NULL;
 	}
@@ -559,11 +594,10 @@ static __inline struct rate_bucket *get_or_create_bucket_safe(__u64 bucket_key,
 			return NULL;
 		}
 
-		struct rate_bucket init = { .ts_ns = now_ns(),
-					    .tokens = max_bucket };
+		struct rate_bucket init = {.ts_ns = now_ns(), .tokens = max_bucket};
 
-		int update_result = bpf_map_update_elem(&buckets, &bucket_key,
-							&init, BPF_ANY);
+		int update_result =
+			bpf_map_update_elem(&buckets, &bucket_key, &init, BPF_ANY);
 		if (update_result != 0)
 		{
 			DEBUG(DEBUG_ON, "Create failed");
@@ -597,8 +631,11 @@ static __inline struct rate_bucket *get_or_create_bucket_safe(__u64 bucket_key,
 	return b;
 }
 
-static __inline int update_token_bucket_safe(struct rate_bucket *b,
-					     __u64 rate_bps, __u32 time_scale)
+static __inline int update_token_bucket_safe(
+	struct rate_bucket *b,
+	__u64 rate_bps,
+	__u32 time_scale
+)
 {
 	DEBUG(DEBUG_ON, "update_token_bucket_safe");
 
@@ -619,9 +656,15 @@ static __inline int update_token_bucket_safe(struct rate_bucket *b,
 	__u64 tokens_to_add = (delta_ns * rate_bps) / NSEC_PER_SEC;
 	__u64 max_bucket = (rate_bps * time_scale) >> 2;
 
-	DEBUG(DEBUG_ON,
-	      "delta_ns=%llu, tokens_to_add=%llu, max_bucket=%llu, current_tokens=%llu",
-	      delta_ns, tokens_to_add, max_bucket, b->tokens);
+	DEBUG(
+		DEBUG_ON,
+		"delta_ns=%llu, tokens_to_add=%llu, max_bucket=%llu, "
+		"current_tokens=%llu",
+		delta_ns,
+		tokens_to_add,
+		max_bucket,
+		b->tokens
+	);
 
 	b->tokens += tokens_to_add;
 	if (b->tokens > max_bucket)
@@ -635,13 +678,20 @@ static __inline int update_token_bucket_safe(struct rate_bucket *b,
 }
 
 // Apply rate limiting with comprehensive safety checks
-static int apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps,
-				    __u32 time_scale, __u32 packet_size,
-				    struct token_bucket_result *result)
+static int apply_rate_limiting_safe(
+	__u64 bucket_key,
+	__u64 rate_bps,
+	__u32 time_scale,
+	__u32 packet_size,
+	struct token_bucket_result *result
+)
 {
-	DEBUG(DEBUG_ON,
-	      "apply_rate_limiting_safe: bucket_key=%llu, packet_size=%u",
-	      bucket_key, packet_size);
+	DEBUG(
+		DEBUG_ON,
+		"apply_rate_limiting_safe: bucket_key=%llu, packet_size=%u",
+		bucket_key,
+		packet_size
+	);
 
 	if (!result)
 	{
@@ -667,7 +717,11 @@ static int apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps,
 
 	int bucket_error = 0;
 	struct rate_bucket *b = get_or_create_bucket_safe(
-		bucket_key, rate_bps, time_scale, &bucket_error);
+		bucket_key,
+		rate_bps,
+		time_scale,
+		&bucket_error
+	);
 	if (!b || bucket_error != 1)
 	{
 		DEBUG(DEBUG_ON, "Bucket error: %d", bucket_error);
@@ -689,8 +743,12 @@ static int apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps,
 
 	result->current_tokens = b->tokens;
 
-	DEBUG(DEBUG_ON, "Current tokens: %llu, packet_size: %u", b->tokens,
-	      packet_size);
+	DEBUG(
+		DEBUG_ON,
+		"Current tokens: %llu, packet_size: %u",
+		b->tokens,
+		packet_size
+	);
 
 	if (b->tokens < packet_size)
 	{
@@ -703,8 +761,11 @@ static int apply_rate_limiting_safe(__u64 bucket_key, __u64 rate_bps,
 		result->should_drop = false;
 		result->tokens_consumed = packet_size;
 		b->tokens -= packet_size;
-		DEBUG(DEBUG_ON, "Sufficient tokens, will pass, remaining: %llu",
-		      b->tokens);
+		DEBUG(
+			DEBUG_ON,
+			"Sufficient tokens, will pass, remaining: %llu",
+			b->tokens
+		);
 	}
 
 	return 1;
@@ -715,7 +776,7 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 {
 	struct traffic_rule *rule;
 	__u32 rule_key = 0;
-	struct packet_tuple tuple = { 0 };
+	struct packet_tuple tuple = {0};
 
 	DEBUG(DEBUG_ON, "netfilter_handle entered");
 
@@ -750,9 +811,17 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 	if (!rule)
 	{
 		DEBUG(DEBUG_ON, "No rule found");
-		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-				    tuple.dst_port, packet_len, 0, 1, 0,
-				    EVENT_PACKET_PASS);
+		send_event_enhanced(
+			tuple.src_ip,
+			tuple.dst_ip,
+			tuple.src_port,
+			tuple.dst_port,
+			packet_len,
+			0,
+			1,
+			0,
+			EVENT_PACKET_PASS
+		);
 		return NF_ACCEPT;
 	}
 
@@ -761,9 +830,17 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 	if (!packet_matches_rule(rule, &tuple))
 	{
 		DEBUG(DEBUG_ON, "No match");
-		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-				    tuple.dst_port, packet_len, 0, 1, 0,
-				    EVENT_PACKET_PASS);
+		send_event_enhanced(
+			tuple.src_ip,
+			tuple.dst_ip,
+			tuple.src_port,
+			tuple.dst_port,
+			packet_len,
+			0,
+			1,
+			0,
+			EVENT_PACKET_PASS
+		);
 		return NF_ACCEPT;
 	}
 
@@ -772,17 +849,33 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 	if (rule->rule_type == 1)
 	{
 		update_all_stats(&tuple, packet_len, true);
-		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-				    tuple.dst_port, 0, packet_len, 0, 1,
-				    EVENT_PACKET_DROP);
+		send_event_enhanced(
+			tuple.src_ip,
+			tuple.dst_ip,
+			tuple.src_port,
+			tuple.dst_port,
+			0,
+			packet_len,
+			0,
+			1,
+			EVENT_PACKET_DROP
+		);
 		return NF_DROP;
 	}
 
 	if (rule->rule_type == 2)
 	{
-		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-				    tuple.dst_port, packet_len, 0, 1, 0,
-				    EVENT_STATS_UPDATE);
+		send_event_enhanced(
+			tuple.src_ip,
+			tuple.dst_ip,
+			tuple.src_port,
+			tuple.dst_port,
+			packet_len,
+			0,
+			1,
+			0,
+			EVENT_STATS_UPDATE
+		);
 		return NF_ACCEPT;
 	}
 
@@ -791,9 +884,17 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 	{
 		DEBUG(DEBUG_ON, "No rate limit");
 		// No rate limit, pass through
-		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-				    tuple.dst_port, packet_len, 0, 1, 0,
-				    EVENT_PACKET_PASS);
+		send_event_enhanced(
+			tuple.src_ip,
+			tuple.dst_ip,
+			tuple.src_port,
+			tuple.dst_port,
+			packet_len,
+			0,
+			1,
+			0,
+			EVENT_PACKET_PASS
+		);
 		return NF_ACCEPT;
 	}
 
@@ -807,7 +908,8 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 	}
 	else
 	{
-		// Specific matching: always use destination IP+port (the target being limited)
+		// Specific matching: always use destination IP+port (the target being
+		// limited)
 		bucket_key = ((__u64)tuple.dst_ip << 16) | tuple.dst_port;
 		DEBUG(DEBUG_ON, "Specific");
 	}
@@ -816,15 +918,27 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 	DEBUG(DEBUG_ON, "Apply rate limiting");
 	struct token_bucket_result rate_result;
 	int rate_result_code = apply_rate_limiting_safe(
-		bucket_key, rule->rate_bps, rule->time_scale, packet_len,
-		&rate_result);
+		bucket_key,
+		rule->rate_bps,
+		rule->time_scale,
+		packet_len,
+		&rate_result
+	);
 
 	// Handle rate limiting errors
 	if (rate_result_code != 1 || rate_result.error_code != 1)
 	{
-		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-				    tuple.dst_port, packet_len, 0, 1, 0,
-				    EVENT_PACKET_PASS);
+		send_event_enhanced(
+			tuple.src_ip,
+			tuple.dst_ip,
+			tuple.src_port,
+			tuple.dst_port,
+			packet_len,
+			0,
+			1,
+			0,
+			EVENT_PACKET_PASS
+		);
 		return NF_ACCEPT;
 	}
 
@@ -836,17 +950,33 @@ static int netfilter_handle(struct bpf_nf_ctx *ctx)
 		DEBUG(DEBUG_ON, "Drop packet");
 		// Insufficient tokens, drop packet
 		update_all_stats(&tuple, packet_len, true);
-		send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-				    tuple.dst_port, 0, packet_len, 0, 1,
-				    EVENT_RATE_LIMIT);
+		send_event_enhanced(
+			tuple.src_ip,
+			tuple.dst_ip,
+			tuple.src_port,
+			tuple.dst_port,
+			0,
+			packet_len,
+			0,
+			1,
+			EVENT_RATE_LIMIT
+		);
 		return NF_DROP;
 	}
 
 	DEBUG(DEBUG_ON, "Pass packet");
 	// Sufficient tokens, pass packet
-	send_event_enhanced(tuple.src_ip, tuple.dst_ip, tuple.src_port,
-			    tuple.dst_port, packet_len, 0, 1, 0,
-			    EVENT_PACKET_PASS);
+	send_event_enhanced(
+		tuple.src_ip,
+		tuple.dst_ip,
+		tuple.src_port,
+		tuple.dst_port,
+		packet_len,
+		0,
+		1,
+		0,
+		EVENT_PACKET_PASS
+	);
 	return NF_ACCEPT;
 }
 

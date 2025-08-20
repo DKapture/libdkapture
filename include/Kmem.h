@@ -5,7 +5,7 @@
 #include <bpf/bpf_tracing.h>
 #include "Kcom.h"
 
-static char __page[PAGE_SIZE] = { 0 };
+static char __page[PAGE_SIZE] = {0};
 
 struct
 {
@@ -16,12 +16,13 @@ struct
 } __pages SEC(".maps");
 
 _Pragma("GCC diagnostic push")
-	_Pragma("GCC diagnostic ignored \"-Wunused-function\"")
+_Pragma("GCC diagnostic ignored \"-Wunused-function\"")
 
-	/**
-	* malloc_page and free_page must be called in pair in the same ebpf program context
-	*/
-	static char *malloc_page(u32 key)
+/**
+ * malloc_page and free_page must be called in pair in the same ebpf program
+ * context
+ */
+static char *malloc_page(u32 key)
 {
 	long ret;
 	pid_t pid;
@@ -53,7 +54,8 @@ static char *lookup_page(u32 key)
 }
 
 /**
- * malloc_page and free_page must be called in pair in the same ebpf program context
+ * malloc_page and free_page must be called in pair in the same ebpf program
+ * context
  */
 static void free_page(u32 key)
 {

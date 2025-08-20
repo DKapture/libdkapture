@@ -46,18 +46,18 @@
 
 struct event_t
 {
-	uint32_t sip; // Source IP address
-	uint32_t dip; // Destination IP address
-	uint32_t sport; // Source port
-	uint32_t dport; // Destination port
-	uint32_t protocol; // Protocol type
-	uint32_t action; // Action taken (pass/drop)
-	uint32_t bytes_sent; // Bytes sent
-	uint32_t bytes_dropped; // Bytes dropped
-	uint32_t packets_sent; // Packets sent
+	uint32_t sip;			  // Source IP address
+	uint32_t dip;			  // Destination IP address
+	uint32_t sport;			  // Source port
+	uint32_t dport;			  // Destination port
+	uint32_t protocol;		  // Protocol type
+	uint32_t action;		  // Action taken (pass/drop)
+	uint32_t bytes_sent;	  // Bytes sent
+	uint32_t bytes_dropped;	  // Bytes dropped
+	uint32_t packets_sent;	  // Packets sent
 	uint32_t packets_dropped; // Packets dropped
-	uint64_t timestamp; // Timestamp
-	uint8_t event_type; // Event type for different operations
+	uint64_t timestamp;		  // Timestamp
+	uint8_t event_type;		  // Event type for different operations
 };
 
 struct traffic_rule
@@ -109,16 +109,27 @@ struct ErrorHandler
 	size_t error_count;
 };
 
-static bool parse_ip_address(const char *str, uint32_t *result,
-			     const std::string &context = "");
-static bool parse_protocol(const char *str, uint8_t *result,
-			   const std::string &context = "");
-static uint64_t parse_bandwidth(const char *str,
-				const std::string &context = "");
+static bool parse_ip_address(
+	const char *str,
+	uint32_t *result,
+	const std::string &context = ""
+);
+static bool parse_protocol(
+	const char *str,
+	uint8_t *result,
+	const std::string &context = ""
+);
+static uint64_t
+parse_bandwidth(const char *str, const std::string &context = "");
 static std::string format_ip(uint32_t ip, const std::string &context = "");
 template <typename T>
-static bool safe_str_to_int(const char *str, T *result, T min_val, T max_val,
-			    const std::string &context = "");
+static bool safe_str_to_int(
+	const char *str,
+	T *result,
+	T min_val,
+	T max_val,
+	const std::string &context = ""
+);
 
 static void log_error(ErrorCode code, const std::string &message);
 
@@ -129,22 +140,22 @@ static struct tc_ip_bpf *skel = nullptr;
 static int netfilter_fd_ingress = -1;
 static int netfilter_fd_egress = -1;
 
-static struct traffic_rule rule = { 0 };
+static struct traffic_rule rule = {0};
 
 static ErrorHandler global_error_handler;
 
 static struct option lopts[] = {
-	{ "ip", required_argument, nullptr, 'i' },
-	{ "port", required_argument, nullptr, 'p' },
-	{ "protocol", required_argument, nullptr, 'P' },
-	{ "rate", required_argument, nullptr, 'r' },
-	{ "direction", required_argument, nullptr, 'd' },
-	{ "timescale", required_argument, nullptr, 't' },
-	{ "rule-type", required_argument, nullptr, 'T' },
-	{ "drop", no_argument, nullptr, 'D' },
-	{ "log", no_argument, nullptr, 'L' },
-	{ "help", no_argument, nullptr, 'h' },
-	{ nullptr, 0, nullptr, 0 }
+	{"ip",		   required_argument, nullptr, 'i'},
+	{"port",		 required_argument, nullptr, 'p'},
+	{"protocol",	 required_argument, nullptr, 'P'},
+	{"rate",		 required_argument, nullptr, 'r'},
+	{"direction", required_argument, nullptr, 'd'},
+	{"timescale", required_argument, nullptr, 't'},
+	{"rule-type", required_argument, nullptr, 'T'},
+	{"drop",		 no_argument,		  nullptr, 'D'},
+	{"log",		no_argument,		 nullptr, 'L'},
+	{"help",		 no_argument,		  nullptr, 'h'},
+	{nullptr,	  0,				 nullptr, 0  }
 };
 
 static SafeString *safe_string_create(const char *str, const char *context)
@@ -170,14 +181,18 @@ static void safe_string_destroy(SafeString *safe_str)
 static int safe_string_is_valid(const SafeString *safe_str)
 {
 	if (!safe_str || !safe_str->str_)
+	{
 		return 0;
+	}
 	return 1;
 }
 
 static size_t safe_string_length(const SafeString *safe_str)
 {
 	if (!safe_str || !safe_str->str_)
+	{
 		return 0;
+	}
 	return strlen(safe_str->str_);
 }
 
@@ -195,8 +210,10 @@ static bool safe_check(const void *ptr, const std::string &context)
 {
 	if (!ptr)
 	{
-		log_error(ErrorCode::NULL_POINTER,
-			  "Null pointer detected in " + context);
+		log_error(
+			ErrorCode::NULL_POINTER,
+			"Null pointer detected in " + context
+		);
 		return false;
 	}
 	return true;
@@ -205,17 +222,24 @@ static bool safe_check(const void *ptr, const std::string &context)
 void Usage(const char *arg0)
 {
 	pr_info("Usage: %s [options]", arg0);
-	pr_info("Description: Netfilter-based IP traffic control and monitoring tool");
-	pr_info("             Works at network protocol level, affects all traffic globally");
+	pr_info("Description: Netfilter-based IP traffic control and monitoring "
+			"tool");
+	pr_info("             Works at network protocol level, affects all traffic "
+			"globally");
 	pr_info("");
 	pr_info("Options:");
-	pr_info("  -i, --ip <ip>         IP address to match (optional, use 'any' for all IPs)");
-	pr_info("  -p, --port <port>     Port to match (optional, use 'any' for all ports)");
-	pr_info("  -P, --protocol <proto> Protocol to match (optional: tcp/udp/any)");
+	pr_info("  -i, --ip <ip>         IP address to match (optional, use 'any' "
+			"for all IPs)");
+	pr_info("  -p, --port <port>     Port to match (optional, use 'any' for "
+			"all ports)");
+	pr_info("  -P, --protocol <proto> Protocol to match (optional: tcp/udp/any)"
+	);
 	pr_info("  -r, --rate <rate>     Rate limit (supports K/M/G suffixes)");
 	pr_info("  -d, --direction <dir> Match direction (egress/ingress)");
-	pr_info("  -t, --timescale <sec> Time scale (seconds, controls burst tolerance)");
-	pr_info("  -T, --rule-type <type> Rule type (rate/drop/log, default: rate)");
+	pr_info("  -t, --timescale <sec> Time scale (seconds, controls burst "
+			"tolerance)");
+	pr_info("  -T, --rule-type <type> Rule type (rate/drop/log, default: rate)"
+	);
 	pr_info("  -D, --drop            Shortcut for rule-type=drop");
 	pr_info("  -L, --log             Shortcut for rule-type=log");
 	pr_info("  -h, --help            Show help information");
@@ -225,37 +249,55 @@ void Usage(const char *arg0)
 	pr_info("  -p 80                             : Match specific port only");
 	pr_info("  -P tcp                            : Match TCP protocol only");
 	pr_info("  -i 192.168.1.1 -p 80             : Match specific IP and port");
-	pr_info("  -i 192.168.1.1 -P tcp            : Match specific IP and TCP protocol");
-	pr_info("  -p 80 -P tcp                      : Match TCP traffic on port 80");
-	pr_info("  -i any -p any -P any              : Match all traffic (not recommended)");
+	pr_info("  -i 192.168.1.1 -P tcp            : Match specific IP and TCP "
+			"protocol");
+	pr_info("  -p 80 -P tcp                      : Match TCP traffic on port 80"
+	);
+	pr_info("  -i any -p any -P any              : Match all traffic (not "
+			"recommended)");
 	pr_info("");
 	pr_info("Rule Type Examples:");
-	pr_info("  -T rate -r 100M                   : Apply rate limiting at 100 Mbps");
-	pr_info("  -D                                 : Apply drop rule (block traffic)");
-	pr_info("  -L                                 : Apply log rule (monitor traffic)");
-	pr_info("  -T drop -i 192.168.1.100          : Drop traffic from specific IP");
+	pr_info("  -T rate -r 100M                   : Apply rate limiting at 100 "
+			"Mbps");
+	pr_info("  -D                                 : Apply drop rule (block "
+			"traffic)");
+	pr_info("  -L                                 : Apply log rule (monitor "
+			"traffic)");
+	pr_info("  -T drop -i 192.168.1.100          : Drop traffic from specific "
+			"IP");
 	pr_info("  -T log -p 22                      : Log SSH traffic (port 22)");
 	pr_info("");
 	pr_info("Combination Examples:");
-	pr_info("  -i 192.168.1.1 -p 80 -T drop     : Drop HTTP traffic from specific IP");
-	pr_info("  -P tcp -p 443 -T rate -r 50M      : Rate limit HTTPS traffic to 50 Mbps");
-	pr_info("  -i 10.0.0.0/8 -T log             : Log all traffic from 10.0.0.0/8 network");
-	pr_info("  -P tcp -p 443 -T rate -r 50M      : Rate limit HTTPS traffic to 50 Mbps");
-	pr_info("  -i 10.0.0.0/8 -T log             : Log all traffic from 10.0.0.0/8 network");
+	pr_info("  -i 192.168.1.1 -p 80 -T drop     : Drop HTTP traffic from "
+			"specific IP");
+	pr_info("  -P tcp -p 443 -T rate -r 50M      : Rate limit HTTPS traffic to "
+			"50 Mbps");
+	pr_info("  -i 10.0.0.0/8 -T log             : Log all traffic from "
+			"10.0.0.0/8 network");
+	pr_info("  -P tcp -p 443 -T rate -r 50M      : Rate limit HTTPS traffic to "
+			"50 Mbps");
+	pr_info("  -i 10.0.0.0/8 -T log             : Log all traffic from "
+			"10.0.0.0/8 network");
 	pr_info("  -d egress -T drop                 : Drop all outgoing traffic");
-	pr_info("  -T rate -r 100M                   : Rate limit all traffic globally");
+	pr_info("  -T rate -r 100M                   : Rate limit all traffic "
+			"globally");
 	pr_info("  -T log                             : Log all traffic globally");
 	pr_info("");
 	pr_info("Direction Configuration:");
 	pr_info("  -d egress  : Match destination IP:port (outgoing traffic)");
-	pr_info("  -d ingress : Match source IP:port (incoming traffic to local machine)");
+	pr_info("  -d ingress : Match source IP:port (incoming traffic to local "
+			"machine)");
 	pr_info("");
 	pr_info("Time Scale Examples:");
-	pr_info("  -t 1     : 1 second scale, strict rate limiting, low burst tolerance");
-	pr_info("  -t 60    : 1 minute scale, allows short-term bursts, long-term average rate limiting");
-	pr_info("  -t 3600  : 1 hour scale, allows long-term bursts, suitable for long-term bandwidth management");
+	pr_info("  -t 1     : 1 second scale, strict rate limiting, low burst "
+			"tolerance");
+	pr_info("  -t 60    : 1 minute scale, allows short-term bursts, long-term "
+			"average rate limiting");
+	pr_info("  -t 3600  : 1 hour scale, allows long-term bursts, suitable for "
+			"long-term bandwidth management");
 	pr_info("");
-	pr_info("Note: This tool operates at the Netfilter level, affecting all network traffic");
+	pr_info("Note: This tool operates at the Netfilter level, affecting all "
+			"network traffic");
 	pr_info("      globally, not limited to specific network interfaces.");
 }
 
@@ -270,14 +312,12 @@ void parse_args(int argc, char **argv)
 		exit(-1);
 	}
 
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
 		case 'i': // Target IP address
-			if (strcasecmp(optarg, "any") == 0 ||
-			    strcasecmp(optarg, "*") == 0)
+			if (strcasecmp(optarg, "any") == 0 || strcasecmp(optarg, "*") == 0)
 			{
 				rule.target_ip = 0;
 			}
@@ -288,14 +328,16 @@ void parse_args(int argc, char **argv)
 			}
 			break;
 		case 'p': // Target port
-			if (strcasecmp(optarg, "any") == 0 ||
-			    strcasecmp(optarg, "*") == 0)
+			if (strcasecmp(optarg, "any") == 0 || strcasecmp(optarg, "*") == 0)
 			{
 				rule.target_port = 0;
 			}
-			else if (!safe_str_to_int(optarg, &rule.target_port,
-						  static_cast<uint16_t>(1),
-						  static_cast<uint16_t>(65535)))
+			else if (!safe_str_to_int(
+						 optarg,
+						 &rule.target_port,
+						 static_cast<uint16_t>(1),
+						 static_cast<uint16_t>(65535)
+					 ))
 			{
 				pr_error("Invalid port '%s'", optarg);
 				exit(-1);
@@ -306,7 +348,8 @@ void parse_args(int argc, char **argv)
 			{
 				pr_error(
 					"Invalid protocol '%s'. Supported: tcp, udp, any",
-					optarg);
+					optarg
+				);
 				exit(-1);
 			}
 			break;
@@ -334,9 +377,12 @@ void parse_args(int argc, char **argv)
 			}
 			break;
 		case 't': // Time scale
-			if (!safe_str_to_int(optarg, &rule.time_scale,
-					     static_cast<uint32_t>(1),
-					     static_cast<uint32_t>(3600)))
+			if (!safe_str_to_int(
+					optarg,
+					&rule.time_scale,
+					static_cast<uint32_t>(1),
+					static_cast<uint32_t>(3600)
+				))
 			{
 				pr_error("Invalid time scale '%s'", optarg);
 				exit(-1);
@@ -359,7 +405,8 @@ void parse_args(int argc, char **argv)
 			{
 				pr_error(
 					"Invalid rule type '%s'. Supported: rate, drop, log",
-					optarg);
+					optarg
+				);
 				exit(-1);
 			}
 			break;
@@ -382,11 +429,17 @@ void parse_args(int argc, char **argv)
 
 	rule.match_mask = 0;
 	if (rule.target_ip != 0)
+	{
 		rule.match_mask |= 1;
+	}
 	if (rule.target_port != 0)
+	{
 		rule.match_mask |= 2;
+	}
 	if (rule.target_protocol != 0)
+	{
 		rule.match_mask |= 4;
+	}
 
 	if (rule.rule_type == 0 && rule.rate_bps > 0)
 	{
@@ -395,8 +448,7 @@ void parse_args(int argc, char **argv)
 
 	if (rule.rule_type == RULE_TYPE_RATE_LIMIT && rule.rate_bps == 0)
 	{
-		pr_error(
-			"Rate limit must be specified for rate limiting rules (-r)");
+		pr_error("Rate limit must be specified for rate limiting rules (-r)");
 		Usage(argv[0]);
 		exit(-1);
 	}
@@ -434,9 +486,13 @@ void parse_args(int argc, char **argv)
 		{
 			pr_info("  Protocol: %d", (int)rule.target_protocol);
 			if (rule.target_protocol == IPPROTO_TCP)
+			{
 				pr_info(" (TCP)");
+			}
 			else if (rule.target_protocol == IPPROTO_UDP)
+			{
 				pr_info(" (UDP)");
+			}
 		}
 		else
 		{
@@ -465,19 +521,28 @@ void parse_args(int argc, char **argv)
 		break;
 	}
 
-	pr_info("Match direction: %s",
-		(rule.gress ? "EGRESS (destination)" : "INGRESS (source)"));
+	pr_info(
+		"Match direction: %s",
+		(rule.gress ? "EGRESS (destination)" : "INGRESS (source)")
+	);
 	if (rule.rule_type == RULE_TYPE_RATE_LIMIT)
 	{
-		pr_info("Time scale: %u seconds (max bucket capacity: %.2f MB)",
+		pr_info(
+			"Time scale: %u seconds (max bucket capacity: %.2f MB)",
 			rule.time_scale,
-			(rule.rate_bps * rule.time_scale / 1024.0 / 1024.0));
+			(rule.rate_bps * rule.time_scale / 1024.0 / 1024.0)
+		);
 	}
 }
 
 template <typename T>
-static bool safe_str_to_int(const char *str, T *result, T min_val, T max_val,
-			    const std::string &context)
+static bool safe_str_to_int(
+	const char *str,
+	T *result,
+	T min_val,
+	T max_val,
+	const std::string &context
+)
 {
 	if (strlen(str) == 0)
 	{
@@ -494,10 +559,9 @@ static bool safe_str_to_int(const char *str, T *result, T min_val, T max_val,
 	{
 		long val = strtol(str, &endptr, 10);
 		if (errno == ERANGE || val < static_cast<long>(min_val) ||
-		    val > static_cast<long>(max_val))
+			val > static_cast<long>(max_val))
 		{
-			pr_error("Value out of range in %s: %ld",
-				 context.c_str(), val);
+			pr_error("Value out of range in %s: %ld", context.c_str(), val);
 			return false;
 		}
 		*result = static_cast<T>(val);
@@ -505,11 +569,9 @@ static bool safe_str_to_int(const char *str, T *result, T min_val, T max_val,
 	else
 	{
 		unsigned long val = strtoul(str, &endptr, 10);
-		if (errno == ERANGE ||
-		    val > static_cast<unsigned long>(max_val))
+		if (errno == ERANGE || val > static_cast<unsigned long>(max_val))
 		{
-			pr_error("Value out of range in %s: %lu",
-				 context.c_str(), val);
+			pr_error("Value out of range in %s: %lu", context.c_str(), val);
 			return false;
 		}
 		*result = static_cast<T>(val);
@@ -517,16 +579,15 @@ static bool safe_str_to_int(const char *str, T *result, T min_val, T max_val,
 
 	if (*endptr != '\0')
 	{
-		pr_error("Invalid characters in %s: %s", context.c_str(),
-			 endptr);
+		pr_error("Invalid characters in %s: %s", context.c_str(), endptr);
 		return false;
 	}
 
 	return true;
 }
 
-static bool parse_ip_address(const char *str, uint32_t *result,
-			     const std::string &context)
+static bool
+parse_ip_address(const char *str, uint32_t *result, const std::string &context)
 {
 	if (strlen(str) == 0)
 	{
@@ -543,8 +604,7 @@ static bool parse_ip_address(const char *str, uint32_t *result,
 	struct in_addr addr;
 	if (inet_pton(AF_INET, str, &addr) != 1)
 	{
-		pr_error("Invalid IP address format in %s: %s", context.c_str(),
-			 str);
+		pr_error("Invalid IP address format in %s: %s", context.c_str(), str);
 		return false;
 	}
 
@@ -556,15 +616,16 @@ static uint64_t parse_bandwidth(const char *str, const std::string &context)
 {
 	if (!str)
 	{
-		pr_warn("Null bandwidth string pointer in %s, using default",
-			context.c_str());
+		pr_warn(
+			"Null bandwidth string pointer in %s, using default",
+			context.c_str()
+		);
 		return DEFAULT_RATE_BPS;
 	}
 
 	if (strlen(str) == 0)
 	{
-		pr_warn("Empty bandwidth string in %s, using default",
-			context.c_str());
+		pr_warn("Empty bandwidth string in %s, using default", context.c_str());
 		return DEFAULT_RATE_BPS;
 	}
 
@@ -588,13 +649,16 @@ static uint64_t parse_bandwidth(const char *str, const std::string &context)
 		return value * 1024 * 1024 * 1024;
 	}
 
-	pr_warn("Invalid bandwidth suffix in %s: %s, using default",
-		context.c_str(), endptr);
+	pr_warn(
+		"Invalid bandwidth suffix in %s: %s, using default",
+		context.c_str(),
+		endptr
+	);
 	return DEFAULT_RATE_BPS;
 }
 
-static bool parse_protocol(const char *str, uint8_t *result,
-			   const std::string &context)
+static bool
+parse_protocol(const char *str, uint8_t *result, const std::string &context)
 {
 	if (strlen(str) == 0)
 	{
@@ -616,11 +680,19 @@ static bool parse_protocol(const char *str, uint8_t *result,
 	}
 	else
 	{
-		if (!safe_str_to_int(str, result, static_cast<uint8_t>(0),
-				     static_cast<uint8_t>(255), context))
+		if (!safe_str_to_int(
+				str,
+				result,
+				static_cast<uint8_t>(0),
+				static_cast<uint8_t>(255),
+				context
+			))
 		{
-			pr_error("Failed to parse protocol number in %s: %s",
-				 context.c_str(), str);
+			pr_error(
+				"Failed to parse protocol number in %s: %s",
+				context.c_str(),
+				str
+			);
 			return false;
 		}
 	}
@@ -637,8 +709,11 @@ static std::string format_ip(uint32_t ip, const std::string &context)
 
 		if (!result)
 		{
-			pr_error("Failed to format IP address in %s: %u",
-				 context.c_str(), ip);
+			pr_error(
+				"Failed to format IP address in %s: %u",
+				context.c_str(),
+				ip
+			);
 			return "0.0.0.0";
 		}
 
@@ -646,14 +721,23 @@ static std::string format_ip(uint32_t ip, const std::string &context)
 	}
 	catch (const std::exception &e)
 	{
-		pr_error("Exception in IP formatting in %s: %s",
-			 context.c_str(), e.what());
+		pr_error(
+			"Exception in IP formatting in %s: %s",
+			context.c_str(),
+			e.what()
+		);
 		return "0.0.0.0";
 	}
 }
 
-static void error_info_init(ErrorInfo *info, ErrorCode code, const char *msg,
-			    const char *func, const char *file, int line)
+static void error_info_init(
+	ErrorInfo *info,
+	ErrorCode code,
+	const char *msg,
+	const char *func,
+	const char *file,
+	int line
+)
 {
 	if (!info)
 	{
@@ -691,8 +775,8 @@ static void error_handler_cleanup(ErrorHandler *handler)
 	}
 }
 
-static void error_handler_log_error(ErrorHandler *handler,
-				    const ErrorInfo *error)
+static void
+error_handler_log_error(ErrorHandler *handler, const ErrorInfo *error)
 {
 	if (!handler || !error)
 	{
@@ -713,8 +797,14 @@ static void error_handler_log_error(ErrorHandler *handler,
 		handler->error_log_[99] = *error;
 	}
 
-	pr_error("Error [%d] in %s (%s:%d): %s", (int)error->code,
-		 error->function, error->file, error->line, error->message);
+	pr_error(
+		"Error [%d] in %s (%s:%d): %s",
+		(int)error->code,
+		error->function,
+		error->file,
+		error->line,
+		error->message
+	);
 }
 
 static size_t error_handler_get_error_count(const ErrorHandler *handler)
@@ -742,8 +832,14 @@ static void error_handler_clear_error_log(ErrorHandler *handler)
 static void log_error(ErrorCode code, const std::string &message)
 {
 	ErrorInfo error_info;
-	error_info_init(&error_info, code, message.c_str(), __FUNCTION__,
-			__FILE__, __LINE__);
+	error_info_init(
+		&error_info,
+		code,
+		message.c_str(),
+		__FUNCTION__,
+		__FILE__,
+		__LINE__
+	);
 	error_handler_log_error(&global_error_handler, &error_info);
 }
 
@@ -767,15 +863,19 @@ auto retry_operation(Func &&func, size_t max_retries) -> decltype(func())
 				throw;
 			}
 
-			pr_warn("Operation failed (attempt %zu/%zu): %s. Retrying in %ldms...",
-				attempt, max_retries, e.what(), delay.count());
+			pr_warn(
+				"Operation failed (attempt %zu/%zu): %s. Retrying in %ldms...",
+				attempt,
+				max_retries,
+				e.what(),
+				delay.count()
+			);
 
 			std::this_thread::sleep_for(delay);
 			delay *= 2;
 			if (delay.count() > MAX_RETRY_DELAY_MS)
 			{
-				delay = std::chrono::milliseconds(
-					MAX_RETRY_DELAY_MS);
+				delay = std::chrono::milliseconds(MAX_RETRY_DELAY_MS);
 			}
 		}
 	}
@@ -793,14 +893,19 @@ T *safe_allocate(size_t count, const std::string &context = "")
 		{
 			pr_error(
 				"Failed to allocate memory for %zu elements in %s",
-				count, context.c_str());
+				count,
+				context.c_str()
+			);
 		}
 		return ptr;
 	}
 	catch (const std::bad_alloc &e)
 	{
-		pr_error("Memory allocation failed in %s: %s", context.c_str(),
-			 e.what());
+		pr_error(
+			"Memory allocation failed in %s: %s",
+			context.c_str(),
+			e.what()
+		);
 		return nullptr;
 	}
 }
@@ -816,8 +921,11 @@ void safe_deallocate(T *ptr, const std::string &context = "")
 		}
 		catch (const std::exception &e)
 		{
-			pr_error("Memory deallocation failed in %s: %s",
-				 context.c_str(), e.what());
+			pr_error(
+				"Memory deallocation failed in %s: %s",
+				context.c_str(),
+				e.what()
+			);
 		}
 	}
 }
@@ -837,33 +945,58 @@ static int handle_traffic_event(void *ctx, void *data, size_t data_sz)
 	switch (e->event_type)
 	{
 	case 0:
-		pr_info("Traffic: %s:%d -> %s:%d [PASS] %u bytes",
-			src_ip.c_str(), e->sport, dst_ip.c_str(), e->dport,
-			e->bytes_sent);
+		pr_info(
+			"Traffic: %s:%d -> %s:%d [PASS] %u bytes",
+			src_ip.c_str(),
+			e->sport,
+			dst_ip.c_str(),
+			e->dport,
+			e->bytes_sent
+		);
 		break;
 
 	case 1:
-		pr_info("Traffic: %s:%d -> %s:%d [DROP] %u bytes",
-			src_ip.c_str(), e->sport, dst_ip.c_str(), e->dport,
-			e->bytes_dropped);
+		pr_info(
+			"Traffic: %s:%d -> %s:%d [DROP] %u bytes",
+			src_ip.c_str(),
+			e->sport,
+			dst_ip.c_str(),
+			e->dport,
+			e->bytes_dropped
+		);
 		break;
 
 	case 2:
-		pr_info("Traffic: %s:%d -> %s:%d [RATE_LIMIT_DROP] %u bytes",
-			src_ip.c_str(), e->sport, dst_ip.c_str(), e->dport,
-			e->bytes_dropped);
+		pr_info(
+			"Traffic: %s:%d -> %s:%d [RATE_LIMIT_DROP] %u bytes",
+			src_ip.c_str(),
+			e->sport,
+			dst_ip.c_str(),
+			e->dport,
+			e->bytes_dropped
+		);
 		break;
 
 	case 3:
-		pr_info("Traffic: %s:%d -> %s:%d [LOG] %u bytes",
-			src_ip.c_str(), e->sport, dst_ip.c_str(), e->dport,
-			e->bytes_sent);
+		pr_info(
+			"Traffic: %s:%d -> %s:%d [LOG] %u bytes",
+			src_ip.c_str(),
+			e->sport,
+			dst_ip.c_str(),
+			e->dport,
+			e->bytes_sent
+		);
 		break;
 
 	default:
-		pr_info("Traffic: %s:%d -> %s:%d [UNKNOWN] %u bytes",
-			src_ip.c_str(), e->sport, dst_ip.c_str(), e->dport,
-			e->bytes_sent);
+		pr_info(
+			"Traffic: %s:%d -> %s:%d [UNKNOWN] %u bytes",
+			src_ip.c_str(),
+			e->sport,
+			dst_ip.c_str(),
+			e->dport,
+			e->bytes_sent
+		);
 		break;
 	}
 
@@ -876,8 +1009,8 @@ static void sig_handler(int sig)
 	running = false;
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
 }
@@ -885,12 +1018,15 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
 static bool setup_traffic_rules()
 {
 	SafeString *context_str = safe_string_create(
-		"setup_traffic_rules", "traffic control configuration");
+		"setup_traffic_rules",
+		"traffic control configuration"
+	);
 	if (!safe_string_is_valid(context_str))
 	{
 		log_error(
 			ErrorCode::MEMORY_ALLOCATION_FAILED,
-			"Failed to create context string for traffic rules setup");
+			"Failed to create context string for traffic rules setup"
+		);
 		return false;
 	}
 
@@ -898,8 +1034,10 @@ static bool setup_traffic_rules()
 		bpf_object__find_map_by_name(skel->obj, "traffic_rules");
 	if (!map)
 	{
-		log_error(ErrorCode::BPF_OPERATION_FAILED,
-			  "Cannot find traffic_rules map");
+		log_error(
+			ErrorCode::BPF_OPERATION_FAILED,
+			"Cannot find traffic_rules map"
+		);
 		pr_error("Cannot find traffic_rules map");
 		safe_string_destroy(context_str);
 		return false;
@@ -917,36 +1055,50 @@ static bool setup_traffic_rules()
 		__u32 time_scale;
 		__u32 match_mask;
 		__u8 rule_type;
-	} rule_data = { .target_ip = rule.target_ip,
-			.target_port = rule.target_port,
-			.target_protocol = rule.target_protocol,
-			.rate_bps = rule.rate_bps,
-			.gress = rule.gress,
-			.time_scale = rule.time_scale,
-			.match_mask = rule.match_mask,
-			.rule_type = rule.rule_type };
+	} rule_data = {
+		.target_ip = rule.target_ip,
+		.target_port = rule.target_port,
+		.target_protocol = rule.target_protocol,
+		.rate_bps = rule.rate_bps,
+		.gress = rule.gress,
+		.time_scale = rule.time_scale,
+		.match_mask = rule.match_mask,
+		.rule_type = rule.rule_type
+	};
 
-	int err = bpf_map__update_elem(map, &key, sizeof(key), &rule_data,
-				       sizeof(rule_data), BPF_ANY);
+	int err = bpf_map__update_elem(
+		map,
+		&key,
+		sizeof(key),
+		&rule_data,
+		sizeof(rule_data),
+		BPF_ANY
+	);
 	if (err)
 	{
-		log_error(ErrorCode::BPF_OPERATION_FAILED,
-			  "Failed to set traffic control rules: " +
-				  std::to_string(err));
+		log_error(
+			ErrorCode::BPF_OPERATION_FAILED,
+			"Failed to set traffic control rules: " + std::to_string(err)
+		);
 		pr_error("Failed to set traffic control rules: %d", err);
 		safe_string_destroy(context_str);
 		return false;
 	}
 
-	std::string context = safe_string_c_str(context_str) ?
-				      safe_string_c_str(context_str) :
-				      "unknown";
-	std::string context_info = safe_string_context(context_str) ?
-					   safe_string_context(context_str) :
-					   "no context";
+	std::string context = safe_string_c_str(context_str)
+							  ? safe_string_c_str(context_str)
+							  : "unknown";
+	std::string context_info = safe_string_context(context_str)
+								   ? safe_string_context(context_str)
+								   : "no context";
 	size_t context_length = safe_string_length(context_str);
-	pr_info("Traffic rules configured successfully in context: %s (%s, length: %zu)",
-		context.c_str(), context_info.c_str(), context_length);
+	pr_info(
+		"Traffic rules configured successfully in context: %s (%s, length: "
+		"%zu)",
+		context.c_str(),
+		context_info.c_str(),
+		context_length
+	);
 
 	safe_string_destroy(context_str);
 	return true;
@@ -976,16 +1128,20 @@ int main(int argc, char **argv)
 	skel = tc_ip_bpf__open_and_load();
 	if (!skel)
 	{
-		log_error(ErrorCode::BPF_OPERATION_FAILED,
-			  "Failed to open and load BPF skeleton");
+		log_error(
+			ErrorCode::BPF_OPERATION_FAILED,
+			"Failed to open and load BPF skeleton"
+		);
 		pr_error("Failed to open and load BPF skeleton");
 		goto cleanup;
 	}
 
 	if (!setup_traffic_rules())
 	{
-		log_error(ErrorCode::TC_OPERATION_FAILED,
-			  "Failed to setup traffic control rules");
+		log_error(
+			ErrorCode::TC_OPERATION_FAILED,
+			"Failed to setup traffic control rules"
+		);
 		pr_error("Failed to setup traffic control rules");
 		goto cleanup;
 	}
@@ -1000,10 +1156,14 @@ int main(int argc, char **argv)
 		syscall(__NR_bpf, BPF_LINK_CREATE, &attr, sizeof(attr));
 	if (netfilter_fd_ingress < 0)
 	{
-		log_error(ErrorCode::NETWORK_OPERATION_FAILED,
-			  "Failed to attach netfilter ingress program");
-		pr_error("Failed to attach netfilter ingress program: %s",
-			 strerror(errno));
+		log_error(
+			ErrorCode::NETWORK_OPERATION_FAILED,
+			"Failed to attach netfilter ingress program"
+		);
+		pr_error(
+			"Failed to attach netfilter ingress program: %s",
+			strerror(errno)
+		);
 		goto cleanup;
 	}
 
@@ -1012,25 +1172,37 @@ int main(int argc, char **argv)
 		syscall(__NR_bpf, BPF_LINK_CREATE, &attr, sizeof(attr));
 	if (netfilter_fd_egress < 0)
 	{
-		log_error(ErrorCode::NETWORK_OPERATION_FAILED,
-			  "Failed to attach netfilter egress program");
-		pr_error("Failed to attach netfilter egress program: %s",
-			 strerror(errno));
+		log_error(
+			ErrorCode::NETWORK_OPERATION_FAILED,
+			"Failed to attach netfilter egress program"
+		);
+		pr_error(
+			"Failed to attach netfilter egress program: %s",
+			strerror(errno)
+		);
 		close(netfilter_fd_ingress);
 		goto cleanup;
 	}
 
 	pr_info("Successfully attached netfilter program (both directions)");
-	pr_info("Match direction: %s",
-		(rule.gress ? "EGRESS (destination IP:port)" :
-			      "INGRESS (source IP:port)"));
+	pr_info(
+		"Match direction: %s",
+		(rule.gress ? "EGRESS (destination IP:port)"
+					: "INGRESS (source IP:port)")
+	);
 
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.ringbuf),
-			      handle_traffic_event, nullptr, nullptr);
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.ringbuf),
+		handle_traffic_event,
+		nullptr,
+		nullptr
+	);
 	if (!rb)
 	{
-		log_error(ErrorCode::BPF_OPERATION_FAILED,
-			  "Failed to create ring buffer");
+		log_error(
+			ErrorCode::BPF_OPERATION_FAILED,
+			"Failed to create ring buffer"
+		);
 		pr_error("Failed to create ring buffer");
 		err = -1;
 		goto cleanup;
@@ -1047,9 +1219,10 @@ int main(int argc, char **argv)
 		}
 		if (err < 0)
 		{
-			log_error(ErrorCode::BPF_OPERATION_FAILED,
-				  "Ring buffer polling error: " +
-					  std::to_string(err));
+			log_error(
+				ErrorCode::BPF_OPERATION_FAILED,
+				"Ring buffer polling error: " + std::to_string(err)
+			);
 			pr_error("Ring buffer polling error: %d", err);
 			break;
 		}
@@ -1076,12 +1249,10 @@ cleanup:
 
 	error_handler_cleanup(&global_error_handler);
 
-	size_t error_count =
-		error_handler_get_error_count(&global_error_handler);
+	size_t error_count = error_handler_get_error_count(&global_error_handler);
 	if (error_count > 0)
 	{
-		pr_info("Program completed with %zu errors logged",
-			error_count);
+		pr_info("Program completed with %zu errors logged", error_count);
 	}
 
 	return err < 0 ? 1 : 0;

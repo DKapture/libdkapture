@@ -85,7 +85,7 @@ int page_fault_kernel(struct tp_page_fault_t *ctx)
 	event.address = ctx->address;
 	event.ip = ctx->ip;
 	event.error_code = ctx->error_code;
-	event.pid = pid; // Get PID
+	event.pid = pid;				   // Get PID
 	event.tid = pid_tgid & 0xFFFFFFFF; // Get TID
 	ret = bpf_get_current_comm(event.comm, sizeof(event.comm));
 	if (ret)
@@ -101,8 +101,13 @@ int page_fault_kernel(struct tp_page_fault_t *ctx)
 	event.stack_id = stack_id;
 	event.timestamp = bpf_ktime_get_ns();
 
-	DEBUG(0, "Page fault at address: %lx, ip: %lx, error code: %lx",
-	      event.address, event.ip, event.error_code);
+	DEBUG(
+		0,
+		"Page fault at address: %lx, ip: %lx, error code: %lx",
+		event.address,
+		event.ip,
+		event.error_code
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)
@@ -144,15 +149,15 @@ int page_fault_user(struct tp_page_fault_t *ctx)
 	event.address = ctx->address;
 	event.ip = ctx->ip;
 	event.error_code = ctx->error_code;
-	event.pid = pid; // Get PID
+	event.pid = pid;				   // Get PID
 	event.tid = pid_tgid & 0xFFFFFFFF; // Get TID
 	ret = bpf_get_current_comm(event.comm, sizeof(event.comm));
 	if (ret)
 	{
 		bpf_err("bpf_get_current_comm failed: %ld", ret);
 	}
-	stack_id = bpf_get_stackid(ctx, &stack_traces,
-				   skip_frame | BPF_F_USER_STACK);
+	stack_id =
+		bpf_get_stackid(ctx, &stack_traces, skip_frame | BPF_F_USER_STACK);
 	if (stack_id < 0)
 	{
 		bpf_err("bpf_get_stackid failed: %d", stack_id);
@@ -161,8 +166,13 @@ int page_fault_user(struct tp_page_fault_t *ctx)
 	event.stack_id = stack_id;
 	event.timestamp = bpf_ktime_get_ns();
 
-	DEBUG(0, "User page fault at address: %lx, ip: %lx, error code: %lx",
-	      event.address, event.ip, event.error_code);
+	DEBUG(
+		0,
+		"User page fault at address: %lx, ip: %lx, error code: %lx",
+		event.address,
+		event.ip,
+		event.error_code
+	);
 
 	ret = bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	if (ret < 0)

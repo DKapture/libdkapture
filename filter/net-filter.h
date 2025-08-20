@@ -21,12 +21,12 @@
 #define DEBUG_NF_ALL_PKG 8
 #define DEBUG_RULE_MATCH 9
 
-#define NET_DIR_IN (unsigned int)0x100 // only concerned with incoming packets
+#define NET_DIR_IN (unsigned int)0x100	// only concerned with incoming packets
 #define NET_DIR_OUT (unsigned int)0x200 // only concerned with outgoing packets
 #define NET_DIR_MASK (unsigned int)0x300
 
 #define ETH_P_IPV6 0x86DD /* IPv6 over bluebook		*/
-#define ETH_P_IP 0x0800 /* Internet Protocol packet	*/
+#define ETH_P_IP 0x0800	  /* Internet Protocol packet	*/
 
 #define MAX_RULES_LEN 256 // must be order of 2
 
@@ -63,8 +63,8 @@ struct ip_tuple
 	unsigned char tl_proto; // transport layer protocol
 	struct
 	{
-		unsigned char
-			pkg_dir : 2; // package direction: PKG_DIR_IN: input PKG_DIR_OUT: output
+		unsigned char pkg_dir : 2; // package direction: PKG_DIR_IN: input
+								   // PKG_DIR_OUT: output
 		unsigned char reseverd : 6;
 	};
 	char comm[16];
@@ -124,7 +124,7 @@ struct Rule
 #include <vector>
 class NetFilter
 {
-    public:
+  public:
 	typedef void (*LogCallback)(const BpfData &log);
 
 	/**
@@ -180,11 +180,12 @@ class NetFilter
 	 */
 	static bool parse_rule(const char *str, Rule &rule);
 	/**
-	 * @brief 用于调试, 读/sys/kernel/debug/tracing/trace_pipe, 输出到fp指向的文件 
+	 * @brief 用于调试, 读/sys/kernel/debug/tracing/trace_pipe,
+	 * 输出到fp指向的文件
 	 *        trace_pipe的内容包含ebpf程序的调试日志。注意：会包含所有bpf程序的调试日志
 	 *        而不只是net-monitor.bpf
 	 * @param fp 指向目标输出文件，为空是指向标准输出
-	 * @return 这个函数从不返回，直到有其他线程调用NetFilter.exit() 
+	 * @return 这个函数从不返回，直到有其他线程调用NetFilter.exit()
 	 */
 	static void read_trace_pipe(FILE *fp = nullptr);
 	/**
@@ -197,7 +198,7 @@ class NetFilter
 	void exit(void);
 	LogCallback log_cb;
 
-    private: // 私有变量，请勿修改
+  private: // 私有变量，请勿修改
 	int rules_map_fd;
 	int log_map_fd;
 	int conf_map_fd;

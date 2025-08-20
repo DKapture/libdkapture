@@ -30,10 +30,10 @@
 #define XATTR_NAME_MAX 256
 #define XATTR_VALUE_MAX 1024
 
-#define LOG_DUMP(type, log)                     \
-	{                                       \
-		type *slog = (typeof(slog))log; \
-		slog->dump();                   \
+#define LOG_DUMP(type, log)                                                    \
+	{                                                                          \
+		type *slog = (typeof(slog))log;                                        \
+		slog->dump();                                                          \
 	}
 
 static trace_file_bpf *obj;
@@ -96,8 +96,13 @@ struct OpenLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: open, ino: %lu, fmode: %x, ret: %ld(%s)\n",
-		       i_ino, f_mode, ret, strerror(-ret));
+		printf(
+			"event: open, ino: %lu, fmode: %x, ret: %ld(%s)\n",
+			i_ino,
+			f_mode,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -122,13 +127,15 @@ struct XattrLog : public BpfData
 	u32 value; // the value's offset to 'action' field
 	size_t size;
 	long ret;
-	char action[]; // must be less than 4096 - sizeof(BpfData) - sizeof(XattrLog)
+	char action[]; // must be less than 4096 - sizeof(BpfData) -
+				   // sizeof(XattrLog)
 	void dump(void)
 	{
 		this->BpfData::dump();
 		switch (log_type)
 		{
-		case LOG_LISTXATTR: {
+		case LOG_LISTXATTR:
+		{
 			printf("event: %.*s, names: ", 16, action);
 			char *nxt_name = action + name_list;
 			if (ret > 0)
@@ -148,31 +155,56 @@ struct XattrLog : public BpfData
 						nxt_name += slen;
 						if (sz < slen)
 						{
-							pr_error(
-								"\nbugs detected\n");
+							pr_error("\nbugs detected\n");
 							exit(-2);
 						}
 						sz -= slen;
 						if (sz)
+						{
 							printf(",");
+						}
 					}
 				}
 			}
-			printf("(sz:%lu), ino: %lu, ret: %ld(%s)\n", size,
-			       i_ino, ret, strerror(-ret));
+			printf(
+				"(sz:%lu), ino: %lu, ret: %ld(%s)\n",
+				size,
+				i_ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		}
-		case LOG_REMOVEXATTR: {
-			printf("event: %.*s, name: %.*s, ino: %lu, ret: %ld(%s)\n",
-			       16, action, XATTR_NAME_MAX, action + name, i_ino,
-			       ret, strerror(-ret));
+		case LOG_REMOVEXATTR:
+		{
+			printf(
+				"event: %.*s, name: %.*s, ino: %lu, ret: %ld(%s)\n",
+				16,
+				action,
+				XATTR_NAME_MAX,
+				action + name,
+				i_ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		}
-		default: {
-			printf("event: %.*s, name: %.*s, value: %.*s(sz:%lu), ino: %lu, ret: %ld(%s)\n",
-			       16, action, XATTR_NAME_MAX, action + name,
-			       XATTR_VALUE_MAX, action + value, size, i_ino,
-			       ret, strerror(-ret));
+		default:
+		{
+			printf(
+				"event: %.*s, name: %.*s, value: %.*s(sz:%lu), ino: %lu, ret: "
+				"%ld(%s)\n",
+				16,
+				action,
+				XATTR_NAME_MAX,
+				action + name,
+				XATTR_VALUE_MAX,
+				action + value,
+				size,
+				i_ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		}
 		}
@@ -189,7 +221,7 @@ struct AclEntry // posix acl entry
 struct AclLog : public BpfData
 {
 	unsigned long i_ino;
-	u32 name; // the name string offset to 'action' field
+	u32 name;	   // the name string offset to 'action' field
 	u32 acl_entry; // the acl entry's offset to 'action' field
 	size_t count;
 	long ret;
@@ -197,8 +229,13 @@ struct AclLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, name: %.*s, ", 16, action, XATTR_NAME_MAX,
-		       action + name);
+		printf(
+			"event: %.*s, name: %.*s, ",
+			16,
+			action,
+			XATTR_NAME_MAX,
+			action + name
+		);
 
 		printf("acl: ");
 
@@ -224,8 +261,7 @@ struct AclLog : public BpfData
 				printf("user:%s:", user_name(nxt_entry->e_id));
 				break;
 			case ACL_GROUP:
-				printf("group:%s:",
-				       group_name(nxt_entry->e_id));
+				printf("group:%s:", group_name(nxt_entry->e_id));
 				break;
 			default:
 				BUG("acl tag error\n");
@@ -234,8 +270,7 @@ struct AclLog : public BpfData
 			printf("%s|", mode_str(nxt_entry->e_perm));
 			nxt_entry++;
 		}
-		printf(", ino: %lu, ret: %ld(%s)\n", i_ino, ret,
-		       strerror(-ret));
+		printf(", ino: %lu, ret: %ld(%s)\n", i_ino, ret, strerror(-ret));
 	}
 } __attribute__((__packed__));
 
@@ -249,9 +284,18 @@ struct ChownLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, onwer: %s(%d):%s(%d), ino: %lu, ret: %ld(%s)\n",
-		       16, action, user_name(uid), uid, group_name(gid), gid,
-		       i_ino, ret, strerror(-ret));
+		printf(
+			"event: %.*s, onwer: %s(%d):%s(%d), ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			user_name(uid),
+			uid,
+			group_name(gid),
+			gid,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -264,9 +308,17 @@ struct ChmodLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, mode: %s%s%s, ino: %lu, ret: %ld(%s)\n",
-		       16, action, mode_str(mode >> 6), mode_str(mode >> 3),
-		       mode_str(mode), i_ino, ret, strerror(-ret));
+		printf(
+			"event: %.*s, mode: %s%s%s, ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			mode_str(mode >> 6),
+			mode_str(mode >> 3),
+			mode_str(mode),
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -280,9 +332,17 @@ struct StatLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, request_mask: %u, query_flags: %u, ino: %lu, ret: %ld(%s)\n",
-		       16, action, request_mask, query_flags, i_ino, ret,
-		       strerror(-ret));
+		printf(
+			"event: %.*s, request_mask: %u, query_flags: %u, ino: %lu, ret: "
+			"%ld(%s)\n",
+			16,
+			action,
+			request_mask,
+			query_flags,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -299,10 +359,20 @@ struct MmapLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, addr(bpf): 0x%lx, len: %lu, prot: %lu, "
-		       "flag: %lu, pgoff: %lu, ino: %lu, ret: %ld(%s)\n",
-		       16, action, addr, len, prot, flag, pgoff, i_ino, ret,
-		       ret > 0 ? "addr" : strerror(-ret));
+		printf(
+			"event: %.*s, addr(bpf): 0x%lx, len: %lu, prot: %lu, "
+			"flag: %lu, pgoff: %lu, ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			addr,
+			len,
+			prot,
+			flag,
+			pgoff,
+			i_ino,
+			ret,
+			ret > 0 ? "addr" : strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -328,8 +398,16 @@ struct FlckLog : public BpfData
 			lck_str = "F_UNLCK";
 			break;
 		}
-		printf("event: %.*s, arg: 0x%lx(%s), ino: %lu, ret: %ld(%s)\n",
-		       16, action, arg, lck_str, i_ino, ret, strerror(-ret));
+		printf(
+			"event: %.*s, arg: 0x%lx(%s), ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			arg,
+			lck_str,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -343,8 +421,16 @@ struct FcntlLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, cmd: %d, arg: %lx, ino: %lu, ret: %ld(%s)\n",
-		       16, action, cmd, arg, i_ino, ret, strerror(-ret));
+		printf(
+			"event: %.*s, cmd: %d, arg: %lx, ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			cmd,
+			arg,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -361,13 +447,29 @@ struct LinkLog : public BpfData
 		switch (log_type)
 		{
 		case LOG_LINK:
-			printf("event: %.*s, old inode: %lu, new inode: %lu, dir inode: %lu, ino: %lu, ret: %ld(%s)\n",
-			       16, action, i_ino, i_ino_new, dir_ino, i_ino,
-			       ret, strerror(-ret));
+			printf(
+				"event: %.*s, old inode: %lu, new inode: %lu, dir inode: %lu, "
+				"ino: %lu, ret: %ld(%s)\n",
+				16,
+				action,
+				i_ino,
+				i_ino_new,
+				dir_ino,
+				i_ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		case LOG_UNLINK:
-			printf("event: %.*s, inode: %lu, dir inode: %lu, ret: %ld(%s)\n",
-			       16, action, i_ino, dir_ino, ret, strerror(-ret));
+			printf(
+				"event: %.*s, inode: %lu, dir inode: %lu, ret: %ld(%s)\n",
+				16,
+				action,
+				i_ino,
+				dir_ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		default:
 			break;
@@ -384,8 +486,15 @@ struct TruncateLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, length: %lu, ino: %lu, ret: %ld(%s)\n", 16,
-		       action, length, i_ino, ret, strerror(-ret));
+		printf(
+			"event: %.*s, length: %lu, ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			length,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -399,8 +508,16 @@ struct IoctlLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, cmd: %d, arg: %lx, ino: %lu, ret(%ld): %s\n",
-		       16, action, cmd, arg, i_ino, ret, strerror(-ret));
+		printf(
+			"event: %.*s, cmd: %d, arg: %lx, ino: %lu, ret(%ld): %s\n",
+			16,
+			action,
+			cmd,
+			arg,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -414,9 +531,16 @@ struct RenameLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, old name: %s, new name: %s, ino: %lu, ret: %ld(%s)\n",
-		       16, action, action + old_name, action + new_name, i_ino,
-		       ret, strerror(-ret));
+		printf(
+			"event: %.*s, old name: %s, new name: %s, ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			action + old_name,
+			action + new_name,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -431,10 +555,18 @@ struct FallocateLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, mode: %d, offset: %lu, "
-		       "len: %lu, ino: %lu, ret: %ld(%s)\n",
-		       16, action, mode, offset, len, i_ino, ret,
-		       strerror(-ret));
+		printf(
+			"event: %.*s, mode: %d, offset: %lu, "
+			"len: %lu, ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			mode,
+			offset,
+			len,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -451,16 +583,26 @@ struct RwLog : public BpfData
 		switch (log_type)
 		{
 		case LOG_READ:
-			printf("event: read, count: %lu, pos: %lu, "
-			       "ino: %lu, ret: %ld(%s)\n",
-			       count, pos, i_ino, ret,
-			       ret < 0 ? strerror(-ret) : "bytes");
+			printf(
+				"event: read, count: %lu, pos: %lu, "
+				"ino: %lu, ret: %ld(%s)\n",
+				count,
+				pos,
+				i_ino,
+				ret,
+				ret < 0 ? strerror(-ret) : "bytes"
+			);
 			break;
 		case LOG_WRITE:
-			printf("event: write, count: %lu, pos: %lu, "
-			       "ino: %lu, ret: %ld(%s)\n",
-			       count, pos, i_ino, ret,
-			       ret < 0 ? strerror(-ret) : "bytes");
+			printf(
+				"event: write, count: %lu, pos: %lu, "
+				"ino: %lu, ret: %ld(%s)\n",
+				count,
+				pos,
+				i_ino,
+				ret,
+				ret < 0 ? strerror(-ret) : "bytes"
+			);
 			break;
 		default:
 			break;
@@ -471,9 +613,8 @@ struct RwLog : public BpfData
 struct RwvLog : public BpfData
 {
 	unsigned long i_ino;
-	unsigned int
-		sz_arr; // offset(againt 'action') of an array of reading size
-	unsigned int count; // count of 'size' in array
+	unsigned int sz_arr; // offset(againt 'action') of an array of reading size
+	unsigned int count;	 // count of 'size' in array
 	unsigned long pos;
 	long ret;
 	char action[];
@@ -491,16 +632,28 @@ struct RwvLog : public BpfData
 		switch (log_type)
 		{
 		case LOG_READV:
-			printf("event: readv, count: %u, each size: %s, pos: %lu, "
-			       "ino: %lu, ret: %ld(%s)\n",
-			       count, szs.c_str(), pos, i_ino, ret,
-			       ret < 0 ? strerror(-ret) : "bytes");
+			printf(
+				"event: readv, count: %u, each size: %s, pos: %lu, "
+				"ino: %lu, ret: %ld(%s)\n",
+				count,
+				szs.c_str(),
+				pos,
+				i_ino,
+				ret,
+				ret < 0 ? strerror(-ret) : "bytes"
+			);
 			break;
 		case LOG_WRITEV:
-			printf("event: writev, count: %u, each size: %s, pos: %lu, "
-			       "ino: %lu, ret: %ld(%s)\n",
-			       count, szs.c_str(), pos, i_ino, ret,
-			       ret < 0 ? strerror(-ret) : "bytes");
+			printf(
+				"event: writev, count: %u, each size: %s, pos: %lu, "
+				"ino: %lu, ret: %ld(%s)\n",
+				count,
+				szs.c_str(),
+				pos,
+				i_ino,
+				ret,
+				ret < 0 ? strerror(-ret) : "bytes"
+			);
 			break;
 		default:
 			break;
@@ -522,28 +675,52 @@ struct CopyLog : public BpfData
 		this->BpfData::dump();
 		switch (log_type)
 		{
-		case LOG_COPY_FILE_RANGE: {
-			printf("event: copy_file_range, from_ino: %lu, to_ino: %lu, "
-			       "from_pos: %lu, to_pos: %lu, size: %lu, "
-			       "ret: %ld(%s)\n",
-			       from_ino, to_ino, from_pos, to_pos, size, ret,
-			       ret < 0 ? strerror(-ret) : "bytes");
+		case LOG_COPY_FILE_RANGE:
+		{
+			printf(
+				"event: copy_file_range, from_ino: %lu, to_ino: %lu, "
+				"from_pos: %lu, to_pos: %lu, size: %lu, "
+				"ret: %ld(%s)\n",
+				from_ino,
+				to_ino,
+				from_pos,
+				to_pos,
+				size,
+				ret,
+				ret < 0 ? strerror(-ret) : "bytes"
+			);
 			break;
 		}
-		case LOG_SENDFILE: {
-			printf("event: sendfile, from_ino: %lu, to_ino: %lu, "
-			       "from_pos: %lu, to_pos: %lu, size: %lu, "
-			       "ret: %ld(%s)\n",
-			       from_ino, to_ino, from_pos, to_pos, size, ret,
-			       ret < 0 ? strerror(-ret) : "bytes");
+		case LOG_SENDFILE:
+		{
+			printf(
+				"event: sendfile, from_ino: %lu, to_ino: %lu, "
+				"from_pos: %lu, to_pos: %lu, size: %lu, "
+				"ret: %ld(%s)\n",
+				from_ino,
+				to_ino,
+				from_pos,
+				to_pos,
+				size,
+				ret,
+				ret < 0 ? strerror(-ret) : "bytes"
+			);
 			break;
 		}
-		case LOG_SPLICE: {
-			printf("event: splice, from_ino: %lu, to_ino: %lu, "
-			       "from_pos: %lu, to_pos: %lu, size: %lu, "
-			       "ret: %ld(%s)\n",
-			       from_ino, to_ino, from_pos, to_pos, size, ret,
-			       ret < 0 ? strerror(-ret) : "bytes");
+		case LOG_SPLICE:
+		{
+			printf(
+				"event: splice, from_ino: %lu, to_ino: %lu, "
+				"from_pos: %lu, to_pos: %lu, size: %lu, "
+				"ret: %ld(%s)\n",
+				from_ino,
+				to_ino,
+				from_pos,
+				to_pos,
+				size,
+				ret,
+				ret < 0 ? strerror(-ret) : "bytes"
+			);
 			break;
 		}
 		default:
@@ -565,20 +742,40 @@ struct DirLog : public BpfData
 		switch (log_type)
 		{
 		case LOG_MKNOD:
-			printf("event: mknod, mode: %s%s%s, dev: %u, dir_ino: %lu, ino: %lu, ret: %ld(%s)\n",
-			       mode_str(mode >> 6), mode_str(mode >> 3),
-			       mode_str(mode), dev, dir_ino, ino, ret,
-			       strerror(-ret));
+			printf(
+				"event: mknod, mode: %s%s%s, dev: %u, dir_ino: %lu, ino: %lu, "
+				"ret: %ld(%s)\n",
+				mode_str(mode >> 6),
+				mode_str(mode >> 3),
+				mode_str(mode),
+				dev,
+				dir_ino,
+				ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		case LOG_MKDIR:
-			printf("event: mkdir, mode: %s%s%s, dir_ino: %lu, ino: %lu, ret: %ld(%s)\n",
-			       mode_str(mode >> 6), mode_str(mode >> 3),
-			       mode_str(mode), dir_ino, ino, ret,
-			       strerror(-ret));
+			printf(
+				"event: mkdir, mode: %s%s%s, dir_ino: %lu, ino: %lu, ret: "
+				"%ld(%s)\n",
+				mode_str(mode >> 6),
+				mode_str(mode >> 3),
+				mode_str(mode),
+				dir_ino,
+				ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		case LOG_RMDIR:
-			printf("event: rmdir, dir_ino: %lu, ino: %lu, ret: %ld(%s)\n",
-			       dir_ino, ino, ret, strerror(-ret));
+			printf(
+				"event: rmdir, dir_ino: %lu, ino: %lu, ret: %ld(%s)\n",
+				dir_ino,
+				ino,
+				ret,
+				strerror(-ret)
+			);
 			break;
 		default:
 			break;
@@ -596,9 +793,17 @@ struct SymLinkLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, old name: %s, dir inode: %lu, ino: %lu, ret: %ld(%s)\n",
-		       16, action, action + oldname, dir_ino, ino, ret,
-		       strerror(-ret));
+		printf(
+			"event: %.*s, old name: %s, dir inode: %lu, ino: %lu, ret: "
+			"%ld(%s)\n",
+			16,
+			action,
+			action + oldname,
+			dir_ino,
+			ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -612,8 +817,16 @@ struct SeekLog : public BpfData
 	void dump(void)
 	{
 		this->BpfData::dump();
-		printf("event: %.*s, offset: %ld, whence: %d, ino: %lu, ret: %ld(%s)\n",
-		       16, action, offset, whence, i_ino, ret, strerror(-ret));
+		printf(
+			"event: %.*s, offset: %ld, whence: %d, ino: %lu, ret: %ld(%s)\n",
+			16,
+			action,
+			offset,
+			whence,
+			i_ino,
+			ret,
+			strerror(-ret)
+		);
 	}
 } __attribute__((__packed__));
 
@@ -733,40 +946,49 @@ static bool use_inode = false;
 static struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
 
-static struct option lopts[] = { { "path", required_argument, 0, 'p' },
-				 { "uuid", required_argument, 0, 'u' },
-				 { "inode", no_argument, 0, 'i' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"path",	 required_argument, 0, 'p'},
+	{"uuid",	 required_argument, 0, 'u'},
+	{"inode", no_argument,	   0, 'i'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		0,				 0, 0  }
+};
 
 // Structure for help messages
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{ "<path>", "file path to trace\n" },
-	{ "[uuid]", "when using the inode number of <path> as the filter,\n"
-		    "\tthis option specify the uuid of filesystem to which\n"
-		    "\tthe inode belong.\n"
-		    "\tyou can get the uuid by running command 'blkid'\n" },
-	{ "<ino>", "use file inode as filter\n" },
-	{ "", "print this help message\n" },
+	{"<path>", "file path to trace\n"					 },
+	{"[uuid]",
+	 "when using the inode number of <path> as the filter,\n"
+	 "\tthis option specify the uuid of filesystem to which\n"
+	 "\tthe inode belong.\n"
+	 "\tyou can get the uuid by running command 'blkid'\n"},
+	{"<ino>",  "use file inode as filter\n"				  },
+	{"",		 "print this help message\n"				},
 };
 
 // Function to print usage information
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
-	printf("  Trace all the events happening to a specified file, and print out the event details\n\n");
+	printf("  Trace all the events happening to a specified file, and print "
+		   "out the event details\n\n");
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -800,20 +1022,20 @@ static uuid_t dev_uuid;
 void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
-	char buf[PATH_MAX] = { 0 };
+	char buf[PATH_MAX] = {0};
 	memset(buf, 0, PATH_MAX);
 	optind = 1;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
 		case 'p':
 			if (use_inode)
 			{
-				printf("error: -p option cannot be used together with -i option\n");
+				printf("error: -p option cannot be used together with -i "
+					   "option\n");
 				Usage(argv[0]);
 				exit(-1);
 			}
@@ -821,7 +1043,9 @@ void parse_args(int argc, char **argv)
 			rule.path[PATH_MAX - 1] = 0;
 			// remove the tailing '/'
 			if (rule.path[strlen(rule.path) - 1] == '/')
+			{
 				rule.path[strlen(rule.path) - 1] = 0;
+			}
 			DEBUG(0, "path: %s\n", optarg);
 			break;
 		case 'u':
@@ -835,7 +1059,8 @@ void parse_args(int argc, char **argv)
 		case 'i':
 			if (rule.path[0])
 			{
-				printf("error: -i option cannot be used together with -p option\n");
+				printf("error: -i option cannot be used together with -p "
+					   "option\n");
 				Usage(argv[0]);
 				exit(-1);
 			}
@@ -856,7 +1081,8 @@ void parse_args(int argc, char **argv)
 	{ // the memory data of dev_uuid must not be all zero
 		if (0 == memcmp(dev_uuid, buf, sizeof(uuid_t)))
 		{
-			printf("error: -i option requires -u option to set uuid of filesystem\n");
+			printf("error: -i option requires -u option to set uuid of "
+				   "filesystem\n");
 			Usage(argv[0]);
 			exit(-1);
 		}
@@ -891,11 +1117,12 @@ static void ringbuf_worker(void)
 void register_signal()
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
+	sa.sa_handler = [](int)
+	{
 		exit_flag = true;
 		stop_trace();
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	};						  // Set exit flag on signal
+	sa.sa_flags = 0;		  // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -982,8 +1209,12 @@ int trace_file_deinit(void)
 }
 
 #ifdef BUILTIN
-int trace_file_init(int argc, char **argv,
-		    int (*cb)(void *, const void *, size_t), void *ctx)
+int trace_file_init(
+	int argc,
+	char **argv,
+	int (*cb)(void *, const void *, size_t),
+	void *ctx
+)
 #else
 int main(int argc, char **argv)
 #endif
@@ -998,10 +1229,14 @@ int main(int argc, char **argv)
 
 	obj = trace_file_bpf::open_and_load();
 	if (!obj)
+	{
 		return -1;
+	}
 	DEBUG(0, "bpf load ok!!!\n");
 	if (0 != trace_file_bpf::attach(obj))
+	{
 		goto err_out;
+	}
 	DEBUG(0, "bpf attach ok!!!\n");
 
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
@@ -1012,7 +1247,9 @@ int main(int argc, char **argv)
 	}
 
 	if (update_filter(filter_fd) != 0)
+	{
 		goto err_out;
+	}
 
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 #ifdef BUILTIN
@@ -1021,11 +1258,15 @@ int main(int argc, char **argv)
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 #endif
 	if (!rb)
+	{
 		goto err_out; // Handle error
+	}
 
 	rb_thread = new (std::nothrow) std::thread(ringbuf_worker);
 	if (!rb_thread)
+	{
 		goto err_out; // Handle error
+	}
 
 #ifdef BUILTIN
 	return 0;

@@ -12,40 +12,91 @@
 
 #ifdef ___bpf_nth
 #undef ___bpf_nth
-#define ___bpf_nth(_, _1, _2, _3, _4, _5, _6, _7, _8, _9, _a, _b, _c, _d, _e, \
-		   N, ...)                                                    \
+#define ___bpf_nth(                                                            \
+	_,                                                                         \
+	_1,                                                                        \
+	_2,                                                                        \
+	_3,                                                                        \
+	_4,                                                                        \
+	_5,                                                                        \
+	_6,                                                                        \
+	_7,                                                                        \
+	_8,                                                                        \
+	_9,                                                                        \
+	_a,                                                                        \
+	_b,                                                                        \
+	_c,                                                                        \
+	_d,                                                                        \
+	_e,                                                                        \
+	N,                                                                         \
+	...                                                                        \
+)                                                                              \
 	N
 #endif
 
 #ifdef ___bpf_pick_printk
 #undef ___bpf_pick_printk
 #define ___bpf_pick_printk(...)                                                \
-	___bpf_nth(_, ##__VA_ARGS__, __bpf_vprintk, __bpf_vprintk,             \
-		   __bpf_vprintk, __bpf_vprintk, __bpf_vprintk, __bpf_vprintk, \
-		   __bpf_vprintk, __bpf_vprintk, __bpf_vprintk, __bpf_vprintk, \
-		   __bpf_vprintk, __bpf_printk /*3*/, __bpf_printk /*2*/,      \
-		   __bpf_printk /*1*/, __bpf_printk /*0*/)
+	___bpf_nth(                                                                \
+		_,                                                                     \
+		##__VA_ARGS__,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_vprintk,                                                         \
+		__bpf_printk /*3*/,                                                    \
+		__bpf_printk /*2*/,                                                    \
+		__bpf_printk /*1*/,                                                    \
+		__bpf_printk /*0*/                                                     \
+	)
 #endif
 
 #ifdef ___bpf_narg
 #undef ___bpf_narg
-#define ___bpf_narg(...)                                                      \
-	___bpf_nth(_, ##__VA_ARGS__, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, \
-		   2, 1, 0)
+#define ___bpf_narg(...)                                                       \
+	___bpf_nth(                                                                \
+		_,                                                                     \
+		##__VA_ARGS__,                                                         \
+		14,                                                                    \
+		13,                                                                    \
+		12,                                                                    \
+		11,                                                                    \
+		10,                                                                    \
+		9,                                                                     \
+		8,                                                                     \
+		7,                                                                     \
+		6,                                                                     \
+		5,                                                                     \
+		4,                                                                     \
+		3,                                                                     \
+		2,                                                                     \
+		1,                                                                     \
+		0                                                                      \
+	)
 #endif
 
-#define ___bpf_fill13(arr, p, x, args...) \
-	arr[p] = x;                       \
+#define ___bpf_fill13(arr, p, x, args...)                                      \
+	arr[p] = x;                                                                \
 	___bpf_fill12(arr, p + 1, args)
-#define ___bpf_fill14(arr, p, x, args...) \
-	arr[p] = x;                       \
+#define ___bpf_fill14(arr, p, x, args...)                                      \
+	arr[p] = x;                                                                \
 	___bpf_fill13(arr, p + 1, args)
 
-#define SET_CSS_ID(arr, x)                                     \
-	do                                                     \
-	{                                                      \
-		legacy_strncpy(arr[x##_cgrp_id].name, #x,      \
-			       sizeof(arr[x##_cgrp_id].name)); \
+#define SET_CSS_ID(arr, x)                                                     \
+	do                                                                         \
+	{                                                                          \
+		legacy_strncpy(                                                        \
+			arr[x##_cgrp_id].name,                                             \
+			#x,                                                                \
+			sizeof(arr[x##_cgrp_id].name)                                      \
+		);                                                                     \
 	} while (0)
 
 struct Rule
@@ -143,7 +194,9 @@ static inline u64 cgroup_id_unsafe(struct cgroup *_Unsafe cgrp)
 	u64 id;
 	struct kernfs_node *kn;
 	if (!cgrp)
+	{
 		return 0;
+	}
 	bpf_read_kmem_ret(&kn, &cgrp->kn, return 0);
 	bpf_read_kmem_ret(&id, &kn->id, return 0);
 	return id;
@@ -160,7 +213,9 @@ static void get_css_ids(void)
 	struct CssId *pcss_ids;
 	u32 ckey = 0;
 	if (job_done)
+	{
 		return;
+	}
 
 	job_done = true;
 	pcss_ids = bpf_map_lookup_elem(&css_ids, &ckey);
@@ -200,7 +255,9 @@ static void get_ksyms(void)
 	struct Rule *rule;
 	u32 rkey = 0;
 	if (job_done)
+	{
 		return;
+	}
 
 	job_done = true;
 
@@ -212,17 +269,25 @@ static void get_ksyms(void)
 	}
 
 	cgrp_dfl_root = rule->pcgrp_dfl_root;
-	bpf_read_kmem_ret(&cgrp_dfl_implicit_ss_mask,
-			  rule->pcgrp_dfl_implicit_ss_mask, NOP);
-	bpf_read_kmem_ret(&cgrp_dfl_threaded_ss_mask,
-			  rule->pcgrp_dfl_threaded_ss_mask, NOP);
-	bpf_read_kmem_ret(&cgrp_dfl_inhibit_ss_mask,
-			  rule->pcgrp_dfl_inhibit_ss_mask, NOP);
+	bpf_read_kmem_ret(
+		&cgrp_dfl_implicit_ss_mask,
+		rule->pcgrp_dfl_implicit_ss_mask,
+		NOP
+	);
+	bpf_read_kmem_ret(
+		&cgrp_dfl_threaded_ss_mask,
+		rule->pcgrp_dfl_threaded_ss_mask,
+		NOP
+	);
+	bpf_read_kmem_ret(
+		&cgrp_dfl_inhibit_ss_mask,
+		rule->pcgrp_dfl_inhibit_ss_mask,
+		NOP
+	);
 	filter_id = rule->id;
 	filter_parent_id = rule->parent_id;
 	filter_level = rule->level;
-	bpf_read_kstr_ret(filter_name, PAGE_SIZE, rule->name,
-			  filter_name[0] = 0);
+	bpf_read_kstr_ret(filter_name, PAGE_SIZE, rule->name, filter_name[0] = 0);
 	DEBUG(0, "cgrp_dfl_root: 0x%lx", cgrp_dfl_root);
 	DEBUG(0, "cgrp_dfl_implicit_ss_mask: 0x%lx", cgrp_dfl_implicit_ss_mask);
 	DEBUG(0, "cgrp_dfl_threaded_ss_mask: 0x%lx", cgrp_dfl_threaded_ss_mask);
@@ -243,15 +308,18 @@ static int filter_check(const struct BpfData *log)
 
 	if (filter_parent_id && filter_parent_id != log->parent_id)
 	{
-		DEBUG(0, "filtered by parent id: %llu vs %llu",
-		      filter_parent_id, log->parent_id);
+		DEBUG(
+			0,
+			"filtered by parent id: %llu vs %llu",
+			filter_parent_id,
+			log->parent_id
+		);
 		return 0;
 	}
 
 	if (filter_level && filter_level != log->level)
 	{
-		DEBUG(0, "filtered by level: %d vs %d", filter_level,
-		      log->level);
+		DEBUG(0, "filtered by level: %d vs %d", filter_level, log->level);
 		return 0;
 	}
 
@@ -259,8 +327,7 @@ static int filter_check(const struct BpfData *log)
 	{
 		if (0 /* debug? */ && bpf_strncmp(log->name, 6, "debug") == 0)
 		{
-			DEBUG(1, "%0x vs %0x", *(long *)filter_name,
-			      *(long *)log->name);
+			DEBUG(1, "%0x vs %0x", *(long *)filter_name, *(long *)log->name);
 		}
 		DEBUG(0, "filtered by name: %s vs %s", filter_name, log->name);
 		return 0;
@@ -293,14 +360,15 @@ static u16 cgroup_control(struct cgroup *cgrp)
 
 		/* threaded cgroups can only have threaded controllers */
 		if (cgroup_threaded(cgrp))
+		{
 			ss_mask &= cgrp_dfl_threaded_ss_mask;
+		}
 		return ss_mask;
 	}
 
 	if (cgroup_on_dfl(cgrp))
 	{
-		root_ss_mask &=
-			~(cgrp_dfl_inhibit_ss_mask | cgrp_dfl_implicit_ss_mask);
+		root_ss_mask &= ~(cgrp_dfl_inhibit_ss_mask | cgrp_dfl_implicit_ss_mask);
 	}
 	return root_ss_mask;
 }
@@ -353,10 +421,12 @@ static long fill_log(struct cgroup *cgrp, struct BpfData *_Map log)
 	DEBUG(0, "nr_dying_descendants: %d", nr_dying_descendants);
 	DEBUG(0, "max_descendants: %d", max_descendants);
 	DEBUG(0, "nr_populated_csets: %d", nr_populated_csets);
-	DEBUG(0, "nr_populated_domain_children: %d",
-	      nr_populated_domain_children);
-	DEBUG(0, "nr_populated_threaded_children: %d",
-	      nr_populated_threaded_children);
+	DEBUG(0, "nr_populated_domain_children: %d", nr_populated_domain_children);
+	DEBUG(
+		0,
+		"nr_populated_threaded_children: %d",
+		nr_populated_threaded_children
+	);
 	DEBUG(0, "nr_threaded_children: %d", nr_threaded_children);
 	DEBUG(0, "subtree_control: %u", subtree_control);
 	DEBUG(0, "controller: %u", controller);
@@ -416,11 +486,15 @@ int cgroup_iter(struct bpf_iter__cgroup *ctx)
 
 	/* prologue */
 	if (ctx->meta->seq_num == 0)
+	{
 		BPF_SEQ_PRINTF(seq, "prologue\n");
+	}
 
 	ret = fill_log(cgrp, log);
 	if (!filter_check(log))
+	{
 		return 0;
+	}
 
 	ret = BPF_SEQ_PRINTF(seq, "%s: %8llu\n", log->name, log->id);
 
@@ -436,7 +510,9 @@ int cgroup_iter(struct bpf_iter__cgroup *ctx)
 
 	ret = fill_log(cgrp, log);
 	if (!filter_check(log))
+	{
 		return 0;
+	}
 	ret = bpf_seq_write(seq, log, ret);
 
 	if (0 != ret)

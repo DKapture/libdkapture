@@ -92,25 +92,28 @@ static std::atomic<bool> exit_flag(false);
 const char *argp_program_version = "ps 1.0";
 const char *argp_program_bug_address = NULL;
 
-static const char argp_program_doc[] =
-	"ps - Display process status information\n"
-	"\n"
-	"BPF version of standard ps command for displaying process information\n";
+static const char argp_program_doc[] = "ps - Display process status "
+									   "information\n"
+									   "\n"
+									   "BPF version of standard ps command for "
+									   "displaying process information\n";
 
 static const struct argp_option opts[] = {
-	{ "verbose", 'v', NULL, 0, "Display verbose output" },
-	{ "no-header", 'H', NULL, 0, "Don't display header" },
-	{ "wide", 'w', NULL, 0, "Don't truncate output" },
-	{ "threads", 'T', NULL, 0, "Display all threads" },
+	{"verbose", 'v', NULL, 0, "Display verbose output"},
+	{"no-header", 'H', NULL, 0, "Don't display header"},
+	{"wide", 'w', NULL, 0, "Don't truncate output"},
+	{"threads", 'T', NULL, 0, "Display all threads"},
 	{},
 };
 
 // libbpf print callback
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !env.verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -177,17 +180,29 @@ static std::string format_time(unsigned long long time)
 static char get_state_char(int state)
 {
 	if (state == 0)
+	{
 		return 'R'; // Running
+	}
 	if (state & 1)
+	{
 		return 'S'; // Interruptible sleep
+	}
 	if (state & 2)
+	{
 		return 'D'; // Uninterruptible sleep
+	}
 	if (state & 4)
+	{
 		return 'T'; // Stopped
+	}
 	if (state & 16)
+	{
 		return 'Z'; // Zombie
+	}
 	if (state & 32)
+	{
 		return 'X'; // Dead
+	}
 	return '?'; // Unknown
 }
 
@@ -203,39 +218,39 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	if (env.verbose)
 	{
 		std::cerr << "Received event #" << ++event_count
-			  << ", size: " << data_sz << " bytes" << std::endl;
+				  << ", size: " << data_sz << " bytes" << std::endl;
 	}
 
 	// Print table header if needed and not yet printed
 	if (env.show_header && !header_printed)
 	{
 		std::cout << std::setw(5) << "PID"
-			  << " " << std::setw(5) << "PPID"
-			  << " " << std::setw(5) << "PGID"
-			  << " ";
+				  << " " << std::setw(5) << "PPID"
+				  << " " << std::setw(5) << "PGID"
+				  << " ";
 
 		if (env.verbose)
 		{
 			std::cout << std::setw(5) << "TTY"
-				  << " " << std::setw(3) << "NI"
-				  << " " << std::setw(6) << "THCNT"
-				  << " " << std::setw(8) << "VSIZE"
-				  << " ";
+					  << " " << std::setw(3) << "NI"
+					  << " " << std::setw(6) << "THCNT"
+					  << " " << std::setw(8) << "VSIZE"
+					  << " ";
 		}
 
 		std::cout << std::setw(1) << "S"
-			  << " " << std::setw(8) << "%CPU"
-			  << " " << std::setw(8) << "TIME"
-			  << " "
-			  << "COMMAND" << std::endl;
+				  << " " << std::setw(8) << "%CPU"
+				  << " " << std::setw(8) << "TIME"
+				  << " "
+				  << "COMMAND" << std::endl;
 
 		header_printed = true;
 	}
 
 	// Calculate CPU usage (simple approximation)
 	unsigned long long total_time = task->utime + task->stime;
-	double cpu_usage =
-		0.0; // Would require two sample points for actual CPU usage
+	double cpu_usage = 0.0; // Would require two sample points for actual CPU
+							// usage
 
 	// Calculate memory usage (KB)
 	unsigned long memory = task->vsize / 1024;
@@ -244,21 +259,20 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	std::string cpu_time = format_time(total_time);
 
 	// Output process information
-	std::cout << std::setw(5) << task->pid << " " << std::setw(5)
-		  << task->ppid << " " << std::setw(5) << task->pgid << " ";
+	std::cout << std::setw(5) << task->pid << " " << std::setw(5) << task->ppid
+			  << " " << std::setw(5) << task->pgid << " ";
 
 	if (env.verbose)
 	{
 		std::cout << std::setw(5) << task->tty_nr << " " << std::setw(3)
-			  << task->nice << " " << std::setw(6)
-			  << task->num_threads << " " << std::setw(8) << memory
-			  << " ";
+				  << task->nice << " " << std::setw(6) << task->num_threads
+				  << " " << std::setw(8) << memory << " ";
 	}
 
 	std::cout << std::setw(1) << get_state_char(task->state) << " "
-		  << std::fixed << std::setprecision(1) << std::setw(8)
-		  << cpu_usage << " " << std::setw(8) << cpu_time << " "
-		  << task->comm << std::endl;
+			  << std::fixed << std::setprecision(1) << std::setw(8) << cpu_usage
+			  << " " << std::setw(8) << cpu_time << " " << task->comm
+			  << std::endl;
 
 	return 0;
 }
@@ -297,7 +311,9 @@ int main(int argc, char **argv)
 	// Parse command line arguments
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	register_signal();
 	libbpf_set_print(libbpf_print_fn);
@@ -309,7 +325,7 @@ int main(int argc, char **argv)
 	if (!obj)
 	{
 		std::cerr << "Failed to open BPF program: " << errno << " ("
-			  << strerror(errno) << ")" << std::endl;
+				  << strerror(errno) << ")" << std::endl;
 		return 1;
 	}
 
@@ -321,8 +337,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	std::cerr << "BPF program loaded successfully, attaching..."
-		  << std::endl;
+	std::cerr << "BPF program loaded successfully, attaching..." << std::endl;
 
 	// Attach BPF program
 	if (ps_bpf::attach(obj))
@@ -333,15 +348,19 @@ int main(int argc, char **argv)
 	}
 
 	std::cerr << "BPF program attached successfully, setting up ringbuf..."
-		  << std::endl;
+			  << std::endl;
 
 	// Set up ring buffer callback
-	rb = ring_buffer__new(bpf_map__fd(obj->maps.output), handle_event, NULL,
-			      NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(obj->maps.output),
+		handle_event,
+		NULL,
+		NULL
+	);
 	if (!rb)
 	{
 		std::cerr << "Failed to create ring buffer: " << errno << " ("
-			  << strerror(errno) << ")" << std::endl;
+				  << strerror(errno) << ")" << std::endl;
 		ps_bpf::detach(obj);
 		ps_bpf::destroy(obj);
 		return 1;
@@ -367,13 +386,16 @@ int main(int argc, char **argv)
 	}
 	read(iter_fd, buf, 4096);
 
-	std::thread t([&iter_fd, &buf]() {
-		while (read(iter_fd, buf, sizeof(buf)) > 0)
-			;
-		close(iter_fd);
-		iter_fd = -1;
-		exit_flag = true;
-	});
+	std::thread t(
+		[&iter_fd, &buf]()
+		{
+			while (read(iter_fd, buf, sizeof(buf)) > 0)
+				;
+			close(iter_fd);
+			iter_fd = -1;
+			exit_flag = true;
+		}
+	);
 
 	std::cerr << "Collecting process information..." << std::endl;
 
@@ -383,8 +405,7 @@ int main(int argc, char **argv)
 		err = ring_buffer__poll(rb, 100);
 		if (err < 0 && err != -EINTR)
 		{
-			std::cerr << "Error polling ring buffer: " << err
-				  << std::endl;
+			std::cerr << "Error polling ring buffer: " << err << std::endl;
 			break;
 		}
 		if (err == 0)

@@ -11,16 +11,16 @@
 /* Power Event Types - Based on available power tracepoints */
 enum power_event_type
 {
-	POWER_CPU_FREQ = 1, /* cpu_frequency */
-	POWER_CPU_IDLE = 2, /* cpu_idle */
+	POWER_CPU_FREQ = 1,		   /* cpu_frequency */
+	POWER_CPU_IDLE = 2,		   /* cpu_idle */
 	POWER_DEVICE_PM_START = 3, /* device_pm_callback_start */
-	POWER_DEVICE_PM_END = 4, /* device_pm_callback_end */
-	POWER_PM_QOS_ADD = 5, /* pm_qos_add_request */
-	POWER_PM_QOS_UPDATE = 6, /* pm_qos_update_request */
-	POWER_CLOCK_ENABLE = 7, /* clock_enable */
-	POWER_CLOCK_DISABLE = 8, /* clock_disable */
-	POWER_RPM_SUSPEND = 9, /* rpm_suspend */
-	POWER_RPM_RESUME = 10, /* rpm_resume */
+	POWER_DEVICE_PM_END = 4,   /* device_pm_callback_end */
+	POWER_PM_QOS_ADD = 5,	   /* pm_qos_add_request */
+	POWER_PM_QOS_UPDATE = 6,   /* pm_qos_update_request */
+	POWER_CLOCK_ENABLE = 7,	   /* clock_enable */
+	POWER_CLOCK_DISABLE = 8,   /* clock_disable */
+	POWER_RPM_SUSPEND = 9,	   /* rpm_suspend */
+	POWER_RPM_RESUME = 10,	   /* rpm_resume */
 };
 
 /* Common power event header */
@@ -104,21 +104,21 @@ struct power_event_t
 /* Filter configuration */
 struct power_filter
 {
-	__u32 target_pid; /* 0 means no filter */
-	__u32 target_cpu; /* -1 means no filter */
-	char target_comm[16]; /* Empty means no filter */
-	__u32 event_mask; /* Bitmask of events to trace */
-	__u32 min_freq; /* Minimum CPU frequency to trace */
-	__u32 max_freq; /* Maximum CPU frequency to trace */
+	__u32 target_pid;		 /* 0 means no filter */
+	__u32 target_cpu;		 /* -1 means no filter */
+	char target_comm[16];	 /* Empty means no filter */
+	__u32 event_mask;		 /* Bitmask of events to trace */
+	__u32 min_freq;			 /* Minimum CPU frequency to trace */
+	__u32 max_freq;			 /* Maximum CPU frequency to trace */
 	__u64 min_idle_duration; /* Minimum idle duration to trace */
 	__u64 max_idle_duration; /* Maximum idle duration to trace */
 };
 
 /* Map sizes */
 #define MAX_POWER_EVENTS 262144 /* Ring buffer size */
-#define MAX_FILTER_RULES 1 /* Filter rules map size */
-#define MAX_CPU_HISTORY 256 /* CPU frequency history */
-#define MAX_DEVICE_TRACK 1000 /* Device PM tracking */
+#define MAX_FILTER_RULES 1		/* Filter rules map size */
+#define MAX_CPU_HISTORY 256		/* CPU frequency history */
+#define MAX_DEVICE_TRACK 1000	/* Device PM tracking */
 
 /* Configuration from user space */
 const volatile bool targ_verbose = false;
@@ -142,7 +142,7 @@ struct
 struct
 {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
-	__type(key, __u32); /* cpu_id */
+	__type(key, __u32);	  /* cpu_id */
 	__type(value, __u32); /* last_freq */
 	__uint(max_entries, MAX_CPU_HISTORY);
 } cpu_freq_history SEC(".maps");
@@ -150,7 +150,7 @@ struct
 struct
 {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
-	__type(key, __u64); /* device_id hash */
+	__type(key, __u64);	  /* device_id hash */
 	__type(value, __u64); /* start_time */
 	__uint(max_entries, MAX_DEVICE_TRACK);
 } device_pm_tracking SEC(".maps");
@@ -163,7 +163,9 @@ static __always_inline bool should_trace_pid(__u32 pid)
 
 	filter = bpf_map_lookup_elem(&filter_map, &key);
 	if (!filter)
+	{
 		return true;
+	}
 
 	return filter->target_pid == 0 || filter->target_pid == pid;
 }
@@ -175,7 +177,9 @@ static __always_inline bool should_trace_cpu(__u32 cpu)
 
 	filter = bpf_map_lookup_elem(&filter_map, &key);
 	if (!filter)
+	{
 		return true;
+	}
 
 	return filter->target_cpu == (__u32)-1 || filter->target_cpu == cpu;
 }
@@ -187,7 +191,9 @@ static __always_inline bool should_trace_event(__u32 event_type)
 
 	filter = bpf_map_lookup_elem(&filter_map, &key);
 	if (!filter)
+	{
 		return true;
+	}
 
 	return filter->event_mask & (1 << event_type);
 }
@@ -199,12 +205,18 @@ static __always_inline bool should_trace_freq_range(__u32 freq)
 
 	filter = bpf_map_lookup_elem(&filter_map, &key);
 	if (!filter)
+	{
 		return true;
+	}
 
 	if (filter->min_freq > 0 && freq < filter->min_freq)
+	{
 		return false;
+	}
 	if (filter->max_freq > 0 && freq > filter->max_freq)
+	{
 		return false;
+	}
 
 	return true;
 }
@@ -241,16 +253,18 @@ int handle_cpu_frequency(void *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid) || !should_trace_cpu(cpu) ||
-	    !should_trace_event(POWER_CPU_FREQ))
+		!should_trace_event(POWER_CPU_FREQ))
+	{
 		return 0;
+	}
 
 	/* Fill common header */
 	fill_common_header(&event.header, POWER_CPU_FREQ);
 
 	/* Fill CPU frequency specific data - simplified for now */
 	event.data.cpu_freq.cpu_id = cpu;
-	event.data.cpu_freq.new_freq =
-		0; /* Will be filled by real tracepoint data */
+	event.data.cpu_freq.new_freq = 0; /* Will be filled by real tracepoint data
+									   */
 	event.data.cpu_freq.old_freq = 0;
 
 	/* Submit event */
@@ -269,16 +283,17 @@ int handle_cpu_idle(void *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid) || !should_trace_cpu(cpu) ||
-	    !should_trace_event(POWER_CPU_IDLE))
+		!should_trace_event(POWER_CPU_IDLE))
+	{
 		return 0;
+	}
 
 	/* Fill common header */
 	fill_common_header(&event.header, POWER_CPU_IDLE);
 
 	/* Fill CPU idle specific data - simplified */
 	event.data.cpu_idle.cpu_id = cpu;
-	event.data.cpu_idle.state =
-		0; /* Will be filled by real tracepoint data */
+	event.data.cpu_idle.state = 0; /* Will be filled by real tracepoint data */
 	event.data.cpu_idle.duration_ns = 0;
 	event.data.cpu_idle.exit_reason = 0;
 
@@ -298,8 +313,10 @@ int handle_device_pm_start(void *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid) || !should_trace_cpu(cpu) ||
-	    !should_trace_event(POWER_DEVICE_PM_START))
+		!should_trace_event(POWER_DEVICE_PM_START))
+	{
 		return 0;
+	}
 
 	/* Fill common header */
 	fill_common_header(&event.header, POWER_DEVICE_PM_START);
@@ -327,8 +344,10 @@ int handle_demo_power_event(void *ctx)
 
 	/* Apply filters */
 	if (!should_trace_pid(pid) || !should_trace_cpu(cpu) ||
-	    !should_trace_event(POWER_CPU_FREQ))
+		!should_trace_event(POWER_CPU_FREQ))
+	{
 		return 0;
+	}
 
 	/* Fill common header */
 	fill_common_header(&event.header, POWER_CPU_FREQ);
@@ -336,7 +355,7 @@ int handle_demo_power_event(void *ctx)
 	/* Fill demo data */
 	event.data.cpu_freq.cpu_id = cpu;
 	event.data.cpu_freq.new_freq = 1000000; /* Demo: 1GHz */
-	event.data.cpu_freq.old_freq = 800000; /* Demo: 800MHz */
+	event.data.cpu_freq.old_freq = 800000;	/* Demo: 800MHz */
 
 	/* Submit event */
 	submit_event(&event);

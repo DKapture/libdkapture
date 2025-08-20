@@ -45,10 +45,14 @@ static bool filter_path(const char *path, int n)
 	char *rule_path;
 	rule_path = bpf_map_lookup_elem(&filter, &key);
 	if (!rule_path || rule_path[0] == '\0')
+	{
 		return true;
+	}
 
 	if (!path)
+	{
 		return false;
+	}
 
 	return strncmp(path, rule_path, n) == 0;
 }
@@ -153,7 +157,9 @@ static void save_fsconfig_args(struct syscall_trace_enter *ctx)
 	{
 	case FSCONFIG_SET_BINARY:
 		if (aux > sizeof(args->value))
+		{
 			aux = sizeof(args->value);
+		}
 		bpf_probe_read_user(&args->value, aux, value);
 		break;
 	case FSCONFIG_SET_STRING:
@@ -303,8 +309,11 @@ static void save_mount_args(struct syscall_trace_enter *ctx)
 	}
 	bpf_read_ustr(args->source, sizeof(args->source), source);
 	bpf_read_ustr(args->target, sizeof(args->target), target);
-	bpf_read_ustr(args->filesystemtype, sizeof(args->filesystemtype),
-		      filesystemtype);
+	bpf_read_ustr(
+		args->filesystemtype,
+		sizeof(args->filesystemtype),
+		filesystemtype
+	);
 	args->flags = flags;
 	bpf_read_umem(&args->data, data);
 }
@@ -329,8 +338,10 @@ static void save_mount_ret(int ret)
 	args->mnt_ns = BPF_CORE_READ(task, nsproxy, mnt_ns, ns.inum);
 	bpf_get_current_comm(args->comm, sizeof(args->comm));
 	if (filter_path(args->source, sizeof(args->source)) ||
-	    filter_path(args->target, sizeof(args->target)))
+		filter_path(args->target, sizeof(args->target)))
+	{
 		bpf_ringbuf_output(&events, args, sizeof(*args), 0);
+	}
 	bpf_map_delete_elem(&mount_map, &pid);
 }
 
@@ -370,8 +381,7 @@ static void save_move_mount_args(struct syscall_trace_enter *ctx)
 	to_pathname = (const char *)ctx->args[3];
 	flags = (unsigned int)ctx->args[4];
 	pid_t pid = bpf_get_current_pid_tgid();
-	ret = bpf_map_update_elem(&move_mount_map, &pid, &zero_map_item,
-				  BPF_ANY);
+	ret = bpf_map_update_elem(&move_mount_map, &pid, &zero_map_item, BPF_ANY);
 	if (ret)
 	{
 		bpf_err("bpf_map_update_elem fail: %ld", ret);
@@ -388,10 +398,12 @@ static void save_move_mount_args(struct syscall_trace_enter *ctx)
 	args->flags = flags;
 	args->from_dfd = from_dfd;
 	args->to_dfd = to_dfd;
-	bpf_read_ustr(args->from_pathname, sizeof(args->from_pathname),
-		      from_pathname);
-	bpf_read_ustr(args->to_pathname, sizeof(args->to_pathname),
-		      to_pathname);
+	bpf_read_ustr(
+		args->from_pathname,
+		sizeof(args->from_pathname),
+		from_pathname
+	);
+	bpf_read_ustr(args->to_pathname, sizeof(args->to_pathname), to_pathname);
 }
 
 static void save_move_mount_ret(int ret)
@@ -530,8 +542,8 @@ static void save_mount_setattr_args(struct syscall_trace_enter *ctx)
 	usize = (size_t)ctx->args[4];
 
 	pid_t pid = bpf_get_current_pid_tgid();
-	ret = bpf_map_update_elem(&mount_setattr_map, &pid, &zero_map_item,
-				  BPF_ANY);
+	ret =
+		bpf_map_update_elem(&mount_setattr_map, &pid, &zero_map_item, BPF_ANY);
 	if (ret)
 	{
 		bpf_err("bpf_map_update_elem fail: %ld", ret);
@@ -609,8 +621,7 @@ static void save_open_tree_args(struct syscall_trace_enter *ctx)
 	flags = (unsigned int)ctx->args[2];
 
 	pid_t pid = bpf_get_current_pid_tgid();
-	ret = bpf_map_update_elem(&open_tree_map, &pid, &zero_map_item,
-				  BPF_ANY);
+	ret = bpf_map_update_elem(&open_tree_map, &pid, &zero_map_item, BPF_ANY);
 	if (ret)
 	{
 		bpf_err("bpf_map_update_elem fail: %ld", ret);
@@ -682,7 +693,9 @@ static void save_umount_args(struct syscall_trace_enter *ctx)
 
 	target = (const char *)ctx->args[0];
 	if (ctx->nr == 2)
+	{
 		flags = (unsigned int)ctx->args[1];
+	}
 
 	pid_t pid = bpf_get_current_pid_tgid();
 	ret = bpf_map_update_elem(&umount_map, &pid, &zero_map_item, BPF_ANY);
@@ -723,7 +736,9 @@ static void save_umount_ret(int ret)
 	args->mnt_ns = BPF_CORE_READ(task, nsproxy, mnt_ns, ns.inum);
 	bpf_get_current_comm(args->comm, sizeof(args->comm));
 	if (filter_path(args->target, sizeof(args->target)))
+	{
 		bpf_ringbuf_output(&events, args, sizeof(*args), 0);
+	}
 	bpf_map_delete_elem(&umount_map, &pid);
 }
 

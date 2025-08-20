@@ -72,11 +72,15 @@ int find_file_inode(struct bpf_iter__task_file *ctx)
 	file = ctx->file;
 
 	if (!task || !file)
+	{
 		return 0;
+	}
 
 	current = (typeof(current))bpf_get_current_task();
 	if (task != current)
+	{
 		return 0;
+	}
 
 	path = malloc_page(pkey);
 	if (!path)
@@ -102,25 +106,37 @@ int find_file_inode(struct bpf_iter__task_file *ctx)
 	if (rule->not_inode)
 	{
 		if (strncmp(path, rule->path, PAGE_SIZE))
+		{
 			goto exit;
+		}
 	}
 	else
 	{
-		if (memncmp(&rule->dev_uuid, &file->f_path.mnt->mnt_sb->s_uuid,
-			    sizeof(uuid_t)))
+		if (memncmp(
+				&rule->dev_uuid,
+				&file->f_path.mnt->mnt_sb->s_uuid,
+				sizeof(uuid_t)
+			))
+		{
 			goto exit;
+		}
 		if (rule->inode != file->f_inode->i_ino)
+		{
 			goto exit;
+		}
 	}
 
-	DEBUG(1, "find target: (%s), inode: [%d]", path[0] ? path : "null",
-	      file->f_inode->i_ino);
+	DEBUG(
+		1,
+		"find target: (%s), inode: [%d]",
+		path[0] ? path : "null",
+		file->f_inode->i_ino
+	);
 
 	if (0) // change to 1 when DEBUG uuid
 	{
 		char buf[36] = {};
-		hex_print(buf, &file->f_path.mnt->mnt_sb->s_uuid,
-			  sizeof(uuid_t));
+		hex_print(buf, &file->f_path.mnt->mnt_sb->s_uuid, sizeof(uuid_t));
 		bpf_info("uuid: %s", buf);
 	}
 
@@ -228,28 +244,44 @@ static void *lookup_log()
 	struct BpfData *log;
 	log = (typeof(log))lookup_page(lkey);
 	if (log)
+	{
 		return log->data;
+	}
 	return NULL;
 }
 
 SEC("fexit/do_dentry_open")
-int BPF_PROG(file_open, struct file *f, struct inode *inode,
-	     int (*open)(struct inode *, struct file *), long ret)
+int BPF_PROG(
+	file_open,
+	struct file *f,
+	struct inode *inode,
+	int (*open)(struct inode *, struct file *),
+	long ret
+)
 {
 	if (!g_inode || g_inode != inode)
+	{
 		return 0;
+	}
 
 	struct OpenLog *openlog;
 	openlog = send_log(LOG_NONE, NULL, sizeof(struct OpenLog));
 	if (!openlog)
+	{
 		return 0;
+	}
 
 	openlog->f_mode = f->f_mode;
 	openlog->i_ino = inode->i_ino;
 	openlog->ret = ret;
 
-	DEBUG(0, "ino: %lu, mode: %x, ret: %lu", openlog->i_ino,
-	      openlog->f_mode, openlog->ret);
+	DEBUG(
+		0,
+		"ino: %lu, mode: %x, ret: %lu",
+		openlog->i_ino,
+		openlog->f_mode,
+		openlog->ret
+	);
 
 	DEBUG(0, "sizeof OpenLog: %d", sizeof(struct OpenLog));
 	DEBUG(0, "sizeof Log: %d", sizeof(struct BpfData));
@@ -268,12 +300,16 @@ SEC("fentry/__fput")
 int BPF_PROG(fput, struct file *file)
 {
 	if (!g_inode || file->f_inode != g_inode)
+	{
 		return 0;
+	}
 
 	struct CloseLog *closelog;
 	closelog = send_log(LOG_NONE, NULL, sizeof(struct OpenLog));
 	if (!closelog)
+	{
 		return 0;
+	}
 
 	closelog->i_ino = file->f_inode->i_ino;
 
@@ -296,11 +332,20 @@ struct XattrLog
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_getxattr")
-int BPF_PROG(vfs_getxattr, struct mnt_idmap *idmap, struct dentry *dentry,
-	     const char *name, void *value, size_t size, long ret)
+int BPF_PROG(
+	vfs_getxattr,
+	struct mnt_idmap *idmap,
+	struct dentry *dentry,
+	const char *name,
+	void *value,
+	size_t size,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_getxattr value addr: %lx", value);
 
@@ -308,7 +353,9 @@ int BPF_PROG(vfs_getxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 	struct XattrLog *xattrlog;
 	xattrlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!xattrlog)
+	{
 		return 0;
+	}
 
 	long slen;
 	u32 name_off;
@@ -320,8 +367,12 @@ int BPF_PROG(vfs_getxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 	slen = legacy_strncpy(xattrlog->action, "getxattr", 16);
 
 	name_off = slen;
-	slen = bpf_read_kstr_ret(xattrlog->action + name_off, XATTR_NAME_MAX,
-				 name, NOP);
+	slen = bpf_read_kstr_ret(
+		xattrlog->action + name_off,
+		XATTR_NAME_MAX,
+		name,
+		NOP
+	);
 
 	DEBUG(0, "vfs_getxattr slen: %ld", slen);
 
@@ -329,18 +380,17 @@ int BPF_PROG(vfs_getxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 
 	if (value == NULL) // user space request value size
 	{
-		size = legacy_strncpy(xattrlog->action + value_off, "(null)",
-				      8);
-		DEBUG(0, "legacy_strncpy value: %s",
-		      xattrlog->action + value_off);
+		size = legacy_strncpy(xattrlog->action + value_off, "(null)", 8);
+		DEBUG(0, "legacy_strncpy value: %s", xattrlog->action + value_off);
 	}
 	else
 	{
 		if (size > XATTR_VALUE_MAX)
+		{
 			size = XATTR_VALUE_MAX;
+		}
 
-		slen = bpf_probe_read_kernel(xattrlog->action + value_off, size,
-					     value);
+		slen = bpf_probe_read_kernel(xattrlog->action + value_off, size, value);
 
 		DEBUG(0, "vfs_getxattr slen: %ld", slen);
 	}
@@ -359,13 +409,21 @@ int BPF_PROG(vfs_getxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 }
 
 SEC("fexit/vfs_setxattr")
-int BPF_PROG(vfs_setxattr, struct mnt_idmap *idmap, struct dentry *dentry,
-	     const char *name,
-	     const void *_value, // TODO
-	     size_t size, int flags, long ret)
+int BPF_PROG(
+	vfs_setxattr,
+	struct mnt_idmap *idmap,
+	struct dentry *dentry,
+	const char *name,
+	const void *_value, // TODO
+	size_t size,
+	int flags,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	const void *value = NULL; // TODO
 	DEBUG(0, "vfs_getxattr value addr: %lx", value);
@@ -374,7 +432,9 @@ int BPF_PROG(vfs_setxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 	struct XattrLog *xattrlog;
 	xattrlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!xattrlog)
+	{
 		return 0;
+	}
 
 	long slen;
 	u32 name_off;
@@ -386,8 +446,12 @@ int BPF_PROG(vfs_setxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 	slen = legacy_strncpy(xattrlog->action, "setxattr", 16);
 
 	name_off = slen;
-	slen = bpf_read_kstr_ret(xattrlog->action + name_off, XATTR_NAME_MAX,
-				 name, NOP);
+	slen = bpf_read_kstr_ret(
+		xattrlog->action + name_off,
+		XATTR_NAME_MAX,
+		name,
+		NOP
+	);
 
 	DEBUG(0, "vfs_getxattr slen: %ld", slen);
 
@@ -395,18 +459,17 @@ int BPF_PROG(vfs_setxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 
 	if (value == NULL) // user space request value size
 	{
-		size = legacy_strncpy(xattrlog->action + value_off, "(null)",
-				      8);
-		DEBUG(0, "legacy_strncpy value: %s",
-		      xattrlog->action + value_off);
+		size = legacy_strncpy(xattrlog->action + value_off, "(null)", 8);
+		DEBUG(0, "legacy_strncpy value: %s", xattrlog->action + value_off);
 	}
 	else
 	{
 		if (size > XATTR_VALUE_MAX)
+		{
 			size = XATTR_VALUE_MAX;
+		}
 
-		slen = bpf_probe_read_kernel(xattrlog->action + value_off, size,
-					     value);
+		slen = bpf_probe_read_kernel(xattrlog->action + value_off, size, value);
 
 		DEBUG(0, "vfs_getxattr slen: %ld", slen);
 	}
@@ -425,11 +488,18 @@ int BPF_PROG(vfs_setxattr, struct mnt_idmap *idmap, struct dentry *dentry,
 }
 
 SEC("fexit/vfs_listxattr")
-int BPF_PROG(vfs_listxattr, struct dentry *dentry, char *list, size_t size,
-	     long ret)
+int BPF_PROG(
+	vfs_listxattr,
+	struct dentry *dentry,
+	char *list,
+	size_t size,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_listxattr list addr: %lx", list);
 
@@ -437,7 +507,9 @@ int BPF_PROG(vfs_listxattr, struct dentry *dentry, char *list, size_t size,
 	struct XattrLog *xattrlog;
 	xattrlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!xattrlog)
+	{
 		return 0;
+	}
 
 	long slen;
 	u32 name_list_off;
@@ -449,19 +521,23 @@ int BPF_PROG(vfs_listxattr, struct dentry *dentry, char *list, size_t size,
 	name_list_off = slen;
 
 	if (size > XATTR_NAME_MAX + XATTR_VALUE_MAX)
+	{
 		size = XATTR_NAME_MAX + XATTR_VALUE_MAX;
+	}
 
 	if (!list)
 	{
-		size = legacy_strncpy(xattrlog->action + name_list_off,
-				      "(null)", 8);
-		DEBUG(0, "legacy_strncpy namelist: %s",
-		      xattrlog->action + name_list_off);
+		size = legacy_strncpy(xattrlog->action + name_list_off, "(null)", 8);
+		DEBUG(
+			0,
+			"legacy_strncpy namelist: %s",
+			xattrlog->action + name_list_off
+		);
 	}
 	else
 	{
-		slen = bpf_probe_read_kernel(xattrlog->action + name_list_off,
-					     size, list);
+		slen =
+			bpf_probe_read_kernel(xattrlog->action + name_list_off, size, list);
 
 		if (slen < 0)
 		{
@@ -478,11 +554,18 @@ int BPF_PROG(vfs_listxattr, struct dentry *dentry, char *list, size_t size,
 }
 
 SEC("fexit/vfs_removexattr")
-int BPF_PROG(vfs_removexattr, struct mnt_idmap *idmap, struct dentry *dentry,
-	     const char *name, long ret)
+int BPF_PROG(
+	vfs_removexattr,
+	struct mnt_idmap *idmap,
+	struct dentry *dentry,
+	const char *name,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_listxattr list addr: %lx", name);
 
@@ -490,7 +573,9 @@ int BPF_PROG(vfs_removexattr, struct mnt_idmap *idmap, struct dentry *dentry,
 	struct XattrLog *xattrlog;
 	xattrlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!xattrlog)
+	{
 		return 0;
+	}
 
 	long slen;
 	u32 name_off;
@@ -502,12 +587,18 @@ int BPF_PROG(vfs_removexattr, struct mnt_idmap *idmap, struct dentry *dentry,
 	slen = legacy_strncpy(xattrlog->action, "removexattr", 16);
 	name_off = slen;
 
-	slen = bpf_read_kstr_ret(xattrlog->action + name_off, XATTR_NAME_MAX,
-				 name, NOP);
+	slen = bpf_read_kstr_ret(
+		xattrlog->action + name_off,
+		XATTR_NAME_MAX,
+		name,
+		NOP
+	);
 
 	size = slen;
 	if (size > XATTR_NAME_MAX)
+	{
 		size = XATTR_NAME_MAX;
+	}
 
 	xattrlog->name = name_off;
 	xattrlog->value = 0;
@@ -531,7 +622,7 @@ struct AclEntry // posix acl entry
 struct AclLog
 {
 	unsigned long i_ino;
-	u32 name; // the name string offset to 'action' field
+	u32 name;	   // the name string offset to 'action' field
 	u32 acl_entry; // the acl entry's offset to 'action' field
 	size_t count;
 	long ret;
@@ -539,11 +630,18 @@ struct AclLog
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_get_acl")
-int BPF_PROG(vfs_get_acl, struct mnt_idmap *idmap, struct dentry *dentry,
-	     const char *acl_name, struct posix_acl *ret)
+int BPF_PROG(
+	vfs_get_acl,
+	struct mnt_idmap *idmap,
+	struct dentry *dentry,
+	const char *acl_name,
+	struct posix_acl *ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_get_acl acl_name: %s", acl_name);
 	DEBUG(0, "sizeof(AclEntry): %d", sizeof(struct AclEntry));
@@ -553,7 +651,9 @@ int BPF_PROG(vfs_get_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 	struct AclLog *acllog;
 	acllog = send_log(LOG_NONE, NULL, st_sz);
 	if (!acllog)
+	{
 		return 0;
+	}
 
 	acllog->i_ino = dentry->d_inode->i_ino;
 	if (ret)
@@ -575,15 +675,24 @@ int BPF_PROG(vfs_get_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 	slen = legacy_strncpy(acllog->action, "get_acl", 16);
 	name_off = slen;
 
-	slen = bpf_read_kstr_ret(acllog->action + name_off, XATTR_NAME_MAX,
-				 acl_name, NOP);
+	slen = bpf_read_kstr_ret(
+		acllog->action + name_off,
+		XATTR_NAME_MAX,
+		acl_name,
+		NOP
+	);
 
 	acl_entry_off = name_off + slen;
 	size = ret->a_count * sizeof(struct AclEntry);
 	if (size > XATTR_VALUE_MAX)
+	{
 		size = XATTR_VALUE_MAX;
-	slen = bpf_probe_read_kernel(acllog->action + acl_entry_off, size,
-				     ret->a_entries);
+	}
+	slen = bpf_probe_read_kernel(
+		acllog->action + acl_entry_off,
+		size,
+		ret->a_entries
+	);
 
 	if (slen < 0)
 	{
@@ -600,11 +709,19 @@ int BPF_PROG(vfs_get_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 }
 
 SEC("fexit/vfs_set_acl")
-int BPF_PROG(vfs_set_acl, struct mnt_idmap *idmap, struct dentry *dentry,
-	     const char *acl_name, struct posix_acl *kacl, long ret)
+int BPF_PROG(
+	vfs_set_acl,
+	struct mnt_idmap *idmap,
+	struct dentry *dentry,
+	const char *acl_name,
+	struct posix_acl *kacl,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_set_acl kacl: %lx", kacl);
 
@@ -612,7 +729,9 @@ int BPF_PROG(vfs_set_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 	struct AclLog *acllog;
 	acllog = send_log(LOG_NONE, NULL, st_sz);
 	if (!acllog)
+	{
 		return 0;
+	}
 
 	acllog->i_ino = dentry->d_inode->i_ino;
 	acllog->count = kacl->a_count;
@@ -626,15 +745,24 @@ int BPF_PROG(vfs_set_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 	slen = legacy_strncpy(acllog->action, "set_acl", 16);
 	name_off = slen;
 
-	slen = bpf_read_kstr_ret(acllog->action + name_off, XATTR_NAME_MAX,
-				 acl_name, NOP);
+	slen = bpf_read_kstr_ret(
+		acllog->action + name_off,
+		XATTR_NAME_MAX,
+		acl_name,
+		NOP
+	);
 
 	acl_entry_off = name_off + slen;
 	size = kacl->a_count * sizeof(struct AclEntry);
 	if (size > XATTR_VALUE_MAX)
+	{
 		size = XATTR_VALUE_MAX;
-	slen = bpf_probe_read_kernel(acllog->action + acl_entry_off, size,
-				     kacl->a_entries);
+	}
+	slen = bpf_probe_read_kernel(
+		acllog->action + acl_entry_off,
+		size,
+		kacl->a_entries
+	);
 
 	if (slen < 0)
 	{
@@ -651,11 +779,18 @@ int BPF_PROG(vfs_set_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 }
 
 SEC("fexit/vfs_remove_acl")
-int BPF_PROG(vfs_remove_acl, struct mnt_idmap *idmap, struct dentry *dentry,
-	     const char *acl_name, long ret)
+int BPF_PROG(
+	vfs_remove_acl,
+	struct mnt_idmap *idmap,
+	struct dentry *dentry,
+	const char *acl_name,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_remove_acl acl_name: %lx", acl_name);
 
@@ -663,7 +798,9 @@ int BPF_PROG(vfs_remove_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 	struct AclLog *acllog;
 	acllog = send_log(LOG_NONE, NULL, st_sz);
 	if (!acllog)
+	{
 		return 0;
+	}
 
 	acllog->i_ino = dentry->d_inode->i_ino;
 	acllog->count = 0;
@@ -676,8 +813,12 @@ int BPF_PROG(vfs_remove_acl, struct mnt_idmap *idmap, struct dentry *dentry,
 	slen = legacy_strncpy(acllog->action, "remove_acl", 16);
 	name_off = slen;
 
-	slen = bpf_read_kstr_ret(acllog->action + name_off, XATTR_NAME_MAX,
-				 acl_name, NOP);
+	slen = bpf_read_kstr_ret(
+		acllog->action + name_off,
+		XATTR_NAME_MAX,
+		acl_name,
+		NOP
+	);
 
 	acllog->name = name_off;
 	acllog->acl_entry = 0;
@@ -698,17 +839,26 @@ struct ChownLog
 
 // modify attributes of a filesytem object
 SEC("fexit/chown_common")
-int BPF_PROG(chown_common, const struct path *path, uid_t user, gid_t group,
-	     long ret)
+int BPF_PROG(
+	chown_common,
+	const struct path *path,
+	uid_t user,
+	gid_t group,
+	long ret
+)
 {
 	if (!g_inode || g_inode != path->dentry->d_inode)
+	{
 		return 0;
+	}
 
 	size_t st_sz = sizeof(struct ChownLog);
 	struct ChownLog *chownlog;
 	chownlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!chownlog)
+	{
 		return 0;
+	}
 
 	chownlog->i_ino = path->dentry->d_inode->i_ino;
 	chownlog->ret = ret;
@@ -735,13 +885,17 @@ SEC("fexit/chmod_common")
 int BPF_PROG(chmod_common, const struct path *path, umode_t mode, long ret)
 {
 	if (!g_inode || g_inode != path->dentry->d_inode)
+	{
 		return 0;
+	}
 
 	size_t st_sz = sizeof(struct ChmodLog);
 	struct ChmodLog *chmodlog;
 	chmodlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!chmodlog)
+	{
 		return 0;
+	}
 
 	chmodlog->i_ino = path->dentry->d_inode->i_ino;
 	chmodlog->ret = ret;
@@ -771,24 +925,36 @@ int BPF_PROG(inode_getattr, const struct path *path, long ret)
 	if (0 == bpf_get_current_comm(comm, 16))
 	{
 		if (bpf_strncmp(comm, 16, "QThread") == 0)
+		{
 			return -2; // -ENOENT
+		}
 	}
 	return 0;
 }
 
 SEC("fexit/vfs_getattr_nosec") // vfs_getattr is probably inlined in its caller
-int BPF_PROG(vfs_getattr, const struct path *path, struct kstat *stat,
-	     u32 request_mask, unsigned int query_flags, long ret)
+int BPF_PROG(
+	vfs_getattr,
+	const struct path *path,
+	struct kstat *stat,
+	u32 request_mask,
+	unsigned int query_flags,
+	long ret
+)
 {
 	if (!g_inode || g_inode != path->dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_getattr stat: %lx", stat);
 	size_t st_sz = sizeof(struct StatLog);
 	struct StatLog *statlog;
 	statlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!statlog)
+	{
 		return 0;
+	}
 
 	statlog->i_ino = path->dentry->d_inode->i_ino;
 	statlog->ret = ret;
@@ -815,19 +981,30 @@ struct MmapLog
 } __attribute__((__packed__));
 
 SEC("fexit/vm_mmap_pgoff")
-int BPF_PROG(vm_mmap_pgoff, struct file *file, unsigned long addr,
-	     unsigned long len, unsigned long prot, unsigned long flag,
-	     unsigned long pgoff, long ret)
+int BPF_PROG(
+	vm_mmap_pgoff,
+	struct file *file,
+	unsigned long addr,
+	unsigned long len,
+	unsigned long prot,
+	unsigned long flag,
+	unsigned long pgoff,
+	long ret
+)
 {
 	if (!g_inode || g_inode != file->f_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vm_mmap_pgoff prot: %lx", prot);
 	size_t st_sz = sizeof(struct MmapLog);
 	struct MmapLog *mmaplog;
 	mmaplog = send_log(LOG_NONE, NULL, st_sz);
 	if (!mmaplog)
+	{
 		return 0;
+	}
 
 	mmaplog->i_ino = file->f_inode->i_ino;
 	mmaplog->addr = addr;
@@ -859,7 +1036,9 @@ static void flock_capture(u64 i_ino, long arg, long ret)
 	struct FlckLog *flcklog;
 	flcklog = send_log(LOG_NONE, NULL, st_sz);
 	if (!flcklog)
+	{
 		return;
+	}
 
 	flcklog->i_ino = i_ino;
 	flcklog->arg = arg;
@@ -901,7 +1080,9 @@ SEC("tracepoint/syscalls/sys_enter_flock")
 int sys_enter_flock(struct TpFlockEnterCtx *ctx)
 {
 	if (!g_inode)
+	{
 		return 0;
+	}
 	long ret = 0;
 	struct FlockParam param;
 	pid_t pid = bpf_get_current_pid_tgid();
@@ -969,18 +1150,28 @@ struct FcntlLog
 } __attribute__((__packed__));
 
 SEC("fexit/do_fcntl")
-int BPF_PROG(do_fcntl, int fd, unsigned int cmd, unsigned long arg,
-	     struct file *filp, long ret)
+int BPF_PROG(
+	do_fcntl,
+	int fd,
+	unsigned int cmd,
+	unsigned long arg,
+	struct file *filp,
+	long ret
+)
 {
 	if (!g_inode || g_inode != filp->f_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "do_fcntl cmd: %u, arg: %lx", cmd, arg);
 	size_t st_sz = sizeof(struct FcntlLog);
 	struct FcntlLog *fcntlog;
 	fcntlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!fcntlog)
+	{
 		return 0;
+	}
 
 	fcntlog->i_ino = filp->f_inode->i_ino;
 	fcntlog->cmd = cmd;
@@ -1004,19 +1195,29 @@ struct LinkLog
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_link")
-int BPF_PROG(vfs_link, struct dentry *old_dentry, struct mnt_idmap *idmap,
-	     struct inode *dir, struct dentry *new_dentry,
-	     struct inode **delegated_inode, long ret)
+int BPF_PROG(
+	vfs_link,
+	struct dentry *old_dentry,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *new_dentry,
+	struct inode **delegated_inode,
+	long ret
+)
 {
 	if (!g_inode || (g_inode != old_dentry->d_inode && g_inode != dir))
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_link old: %lx, new: %lx", old_dentry, new_dentry);
 	size_t st_sz = sizeof(struct LinkLog);
 	struct LinkLog *linklog;
 	linklog = send_log(LOG_NONE, NULL, st_sz);
 	if (!linklog)
+	{
 		return 0;
+	}
 
 	linklog->i_ino = old_dentry->d_inode->i_ino;
 	linklog->i_ino_new = new_dentry->d_inode->i_ino;
@@ -1031,22 +1232,31 @@ int BPF_PROG(vfs_link, struct dentry *old_dentry, struct mnt_idmap *idmap,
 }
 
 SEC("fentry/vfs_unlink")
-int BPF_PROG(vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
-	     struct dentry *dentry, struct inode **delegated_inode)
+int BPF_PROG(
+	vfs_unlink,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *dentry,
+	struct inode **delegated_inode
+)
 {
 	/**
-    dentry->d_inode inode may be freed at the exit of vfs_unlink,
-    we need to capture the inode before it is freed,
-    so we use fentry plus fexit instead of only fexit
-    */
+	dentry->d_inode inode may be freed at the exit of vfs_unlink,
+	we need to capture the inode before it is freed,
+	so we use fentry plus fexit instead of only fexit
+	*/
 	if (!g_inode || (g_inode != dentry->d_inode && g_inode != dir))
+	{
 		return 0;
+	}
 
 	size_t st_sz = sizeof(struct LinkLog);
 	struct LinkLog *linklog;
 	linklog = send_log(LOG_NONE, NULL, st_sz);
 	if (!linklog)
+	{
 		return 0;
+	}
 
 	linklog->i_ino = dentry->d_inode->i_ino;
 	linklog->i_ino_new = 0;
@@ -1056,14 +1266,22 @@ int BPF_PROG(vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
 }
 
 SEC("fexit/vfs_unlink")
-int BPF_PROG(vfs_unlink_exit, struct mnt_idmap *idmap, struct inode *dir,
-	     struct dentry *dentry, struct inode **delegated_inode, long ret)
+int BPF_PROG(
+	vfs_unlink_exit,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *dentry,
+	struct inode **delegated_inode,
+	long ret
+)
 {
 	size_t st_sz = sizeof(struct LinkLog);
 	struct LinkLog *linklog;
 	linklog = lookup_log();
 	if (!linklog)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_unlink dentry: %lx", dentry);
 	linklog->ret = ret;
@@ -1082,19 +1300,29 @@ struct TruncateLog
 } __attribute__((__packed__));
 
 SEC("fexit/do_truncate")
-int BPF_PROG(do_truncate, struct mnt_idmap *idmap, struct dentry *dentry,
-	     loff_t length, unsigned int time_attrs, struct file *filp,
-	     long ret)
+int BPF_PROG(
+	do_truncate,
+	struct mnt_idmap *idmap,
+	struct dentry *dentry,
+	loff_t length,
+	unsigned int time_attrs,
+	struct file *filp,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dentry->d_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "do_truncate dentry: %lx", dentry);
 	size_t st_sz = sizeof(struct TruncateLog);
 	struct TruncateLog *truncatelog;
 	truncatelog = send_log(LOG_NONE, NULL, st_sz);
 	if (!truncatelog)
+	{
 		return 0;
+	}
 
 	truncatelog->i_ino = dentry->d_inode->i_ino;
 	truncatelog->length = length;
@@ -1120,12 +1348,16 @@ SEC("tracepoint/syscalls/sys_enter_ioctl")
 int ioctl_entry(struct TpExitCtx *ctx)
 {
 	if (!g_inode)
+	{
 		return 0;
+	}
 	size_t st_sz = sizeof(struct IoctlLog);
 	struct IoctlLog *ioctllog;
 	ioctllog = send_log(LOG_NONE, NULL, st_sz);
 	if (!ioctllog)
+	{
 		return 0;
+	}
 	return 0;
 }
 
@@ -1134,7 +1366,9 @@ static int ioctl_capture(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct IoctlLog *ioctllog;
 	ioctllog = lookup_log();
 	if (!ioctllog)
+	{
 		return 0;
+	}
 
 	if (!g_inode || g_inode != filp->f_inode)
 	{
@@ -1157,8 +1391,12 @@ int BPF_PROG(file_ioctl, struct file *filp, unsigned int cmd, unsigned long arg)
 }
 
 SEC("lsm/file_ioctl_compat")
-int BPF_PROG(file_ioctl_compat, struct file *filp, unsigned int cmd,
-	     unsigned long arg)
+int BPF_PROG(
+	file_ioctl_compat,
+	struct file *filp,
+	unsigned int cmd,
+	unsigned long arg
+)
 {
 	return ioctl_capture(filp, cmd, arg);
 }
@@ -1169,20 +1407,23 @@ int ioctl_exit(struct TpExitCtx *ctx)
 	struct IoctlLog *ioctllog;
 	ioctllog = lookup_log();
 	if (!ioctllog)
+	{
 		return 0;
+	}
 	/**
-     * SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
-     * {
-     *     struct fd f = fdget(fd);
-     *     int error;
-     *
-     *     if (!f.file)
-     *         return -EBADF;
-     * 
-     *     error = security_file_ioctl(f.file, cmd, arg);
-     *     ...
-     * }
-     */
+	 * SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned
+	 * long, arg)
+	 * {
+	 *     struct fd f = fdget(fd);
+	 *     int error;
+	 *
+	 *     if (!f.file)
+	 *         return -EBADF;
+	 *
+	 *     error = security_file_ioctl(f.file, cmd, arg);
+	 *     ...
+	 * }
+	 */
 	// in case ioctl return for EBADF
 	if (ioctllog->i_ino == 0)
 	{
@@ -1219,14 +1460,18 @@ int BPF_PROG(vfs_rename, struct renamedata *rd, long ret)
 	struct inode *source = old_dentry->d_inode;
 
 	if (!g_inode || g_inode != source)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "rename rd: %lx", rd);
 	size_t st_sz = sizeof(struct RenameLog);
 	struct RenameLog *renamelog;
 	renamelog = send_log(LOG_NONE, NULL, st_sz);
 	if (!renamelog)
+	{
 		return 0;
+	}
 
 	renamelog->i_ino = source->i_ino;
 	renamelog->ret = ret;
@@ -1237,13 +1482,21 @@ int BPF_PROG(vfs_rename, struct renamedata *rd, long ret)
 	size = legacy_strncpy(renamelog->action, "ioctl", 16);
 	old_name = size;
 
-	size = bpf_read_kstr_ret(renamelog->action + old_name, 32,
-				 old_dentry->d_iname, NOP);
+	size = bpf_read_kstr_ret(
+		renamelog->action + old_name,
+		32,
+		old_dentry->d_iname,
+		NOP
+	);
 
 	new_name = old_name + size;
 
-	size = bpf_read_kstr_ret(renamelog->action + new_name, 32,
-				 new_dentry->d_iname, NOP);
+	size = bpf_read_kstr_ret(
+		renamelog->action + new_name,
+		32,
+		new_dentry->d_iname,
+		NOP
+	);
 
 	renamelog->old_name = old_name;
 	renamelog->new_name = new_name;
@@ -1263,18 +1516,28 @@ struct FallocateLog
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_fallocate")
-int BPF_PROG(vfs_fallocate, struct file *file, int mode, loff_t offset,
-	     loff_t len, long ret)
+int BPF_PROG(
+	vfs_fallocate,
+	struct file *file,
+	int mode,
+	loff_t offset,
+	loff_t len,
+	long ret
+)
 {
 	if (!g_inode || g_inode != file->f_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "fallocate mode: %x", mode);
 	size_t st_sz = sizeof(struct FallocateLog);
 	struct FallocateLog *fallclog;
 	fallclog = send_log(LOG_NONE, NULL, st_sz);
 	if (!fallclog)
+	{
 		return 0;
+	}
 
 	fallclog->i_ino = file->f_inode->i_ino;
 	fallclog->mode = mode;
@@ -1298,15 +1561,22 @@ struct RwLog
 	char action[];
 } __attribute__((__packed__));
 
-static void rw_capture(unsigned long i_ino, size_t count, unsigned long pos,
-		       long ret, int write)
+static void rw_capture(
+	unsigned long i_ino,
+	size_t count,
+	unsigned long pos,
+	long ret,
+	int write
+)
 {
 	DEBUG(0, "rw_capture %s count: %lu", write ? "write" : "read", count);
 	size_t st_sz = sizeof(struct RwLog);
 	struct RwLog *rwlog;
 	rwlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!rwlog)
+	{
 		return;
+	}
 
 	rwlog->i_ino = i_ino;
 	rwlog->count = count;
@@ -1315,22 +1585,38 @@ static void rw_capture(unsigned long i_ino, size_t count, unsigned long pos,
 
 	size_t size;
 	if (write)
+	{
 		size = legacy_strncpy(rwlog->action, "write", 16);
+	}
 	else
+	{
 		size = legacy_strncpy(rwlog->action, "read", 16);
+	}
 
 	if (write)
+	{
 		send_log(LOG_WRITE, rwlog, st_sz + size);
+	}
 	else
+	{
 		send_log(LOG_READ, rwlog, st_sz + size);
+	}
 }
 
 SEC("fexit/vfs_read")
-int BPF_PROG(vfs_read, struct file *file, char *buf, size_t count, loff_t *pos,
-	     long ret)
+int BPF_PROG(
+	vfs_read,
+	struct file *file,
+	char *buf,
+	size_t count,
+	loff_t *pos,
+	long ret
+)
 {
 	if (!g_inode || g_inode != file->f_inode)
+	{
 		return 0;
+	}
 
 	loff_t off = 0;
 	if (pos)
@@ -1338,17 +1624,27 @@ int BPF_PROG(vfs_read, struct file *file, char *buf, size_t count, loff_t *pos,
 		bpf_read_kmem_ret(&off, pos, NOP);
 	}
 	else
+	{
 		off = (loff_t)-1;
+	}
 	rw_capture(file->f_inode->i_ino, count, off, ret, 0);
 	return 0;
 }
 
 SEC("fexit/vfs_write")
-int BPF_PROG(vfs_write, struct file *file, const char *buf, size_t count,
-	     loff_t *pos, long ret)
+int BPF_PROG(
+	vfs_write,
+	struct file *file,
+	const char *buf,
+	size_t count,
+	loff_t *pos,
+	long ret
+)
 {
 	if (!g_inode || g_inode != file->f_inode)
+	{
 		return 0;
+	}
 
 	loff_t off = 0;
 	if (pos)
@@ -1356,7 +1652,9 @@ int BPF_PROG(vfs_write, struct file *file, const char *buf, size_t count,
 		bpf_read_kmem_ret(&off, pos, NOP);
 	}
 	else
+	{
 		off = (loff_t)-1;
+	}
 	rw_capture(file->f_inode->i_ino, count, off, ret, 1);
 	return 0;
 }
@@ -1364,27 +1662,37 @@ int BPF_PROG(vfs_write, struct file *file, const char *buf, size_t count,
 struct RwvLog
 {
 	unsigned long i_ino;
-	unsigned int
-		sz_arr; // offset(againt 'action') of an array of reading size
-	unsigned int count; // count of 'size' in array
+	unsigned int sz_arr; // offset(againt 'action') of an array of reading size
+	unsigned int count;	 // count of 'size' in array
 	unsigned long pos;
 	long ret;
 	char action[];
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_readv")
-int BPF_PROG(vfs_readv, struct file *file, const struct iovec __user *vec,
-	     unsigned long vlen, loff_t *ppos, rwf_t flags, long ret)
+int BPF_PROG(
+	vfs_readv,
+	struct file *file,
+	const struct iovec __user *vec,
+	unsigned long vlen,
+	loff_t *ppos,
+	rwf_t flags,
+	long ret
+)
 {
 	if (!g_inode || g_inode != file->f_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_readv vlen: %lu", vlen);
 	size_t st_sz = sizeof(struct RwvLog);
 	struct RwvLog *rwvlog;
 	rwvlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!rwvlog)
+	{
 		return 0;
+	}
 
 	loff_t pos;
 	bpf_read_kmem_ret(&pos, ppos, NOP);
@@ -1403,7 +1711,9 @@ int BPF_PROG(vfs_readv, struct file *file, const struct iovec __user *vec,
 	psz = (size_t *)(rwvlog->action + sz_arr);
 	left = PAGE_SIZE - sizeof(struct BpfData) - sizeof(struct RwvLog) - 16;
 	if (vlen > left / sizeof(size_t))
+	{
 		vlen = left / sizeof(size_t);
+	}
 
 	size_t i = 0;
 	while (i < vlen)
@@ -1421,18 +1731,29 @@ int BPF_PROG(vfs_readv, struct file *file, const struct iovec __user *vec,
 }
 
 SEC("fexit/vfs_writev")
-int BPF_PROG(vfs_writev, struct file *file, const struct iovec __user *vec,
-	     unsigned long vlen, loff_t *ppos, rwf_t flags, long ret)
+int BPF_PROG(
+	vfs_writev,
+	struct file *file,
+	const struct iovec __user *vec,
+	unsigned long vlen,
+	loff_t *ppos,
+	rwf_t flags,
+	long ret
+)
 {
 	if (!g_inode || g_inode != file->f_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_writev vlen: %lu", vlen);
 	size_t st_sz = sizeof(struct RwvLog);
 	struct RwvLog *rwvlog;
 	rwvlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!rwvlog)
+	{
 		return 0;
+	}
 
 	loff_t pos;
 	bpf_read_kmem_ret(&pos, ppos, NOP);
@@ -1451,7 +1772,9 @@ int BPF_PROG(vfs_writev, struct file *file, const struct iovec __user *vec,
 	psz = (size_t *)(rwvlog->action + sz_arr);
 	left = PAGE_SIZE - sizeof(struct BpfData) - sizeof(struct RwvLog) - 16;
 	if (vlen > left / sizeof(size_t))
+	{
 		vlen = left / sizeof(size_t);
+	}
 
 	size_t i = 0;
 	while (i < vlen)
@@ -1480,20 +1803,31 @@ struct CopyLog
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_copy_file_range")
-int BPF_PROG(vfs_copy_file_range, struct file *file_in, loff_t pos_in,
-	     struct file *file_out, loff_t pos_out, size_t len,
-	     unsigned int flags, long ret)
+int BPF_PROG(
+	vfs_copy_file_range,
+	struct file *file_in,
+	loff_t pos_in,
+	struct file *file_out,
+	loff_t pos_out,
+	size_t len,
+	unsigned int flags,
+	long ret
+)
 {
 	if (!g_inode ||
-	    (g_inode != file_in->f_inode && g_inode != file_out->f_inode))
+		(g_inode != file_in->f_inode && g_inode != file_out->f_inode))
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_copy_file_range len: %lu", len);
 	size_t st_sz = sizeof(struct CopyLog);
 	struct CopyLog *copylog;
 	copylog = send_log(LOG_NONE, NULL, st_sz);
 	if (!copylog)
+	{
 		return 0;
+	}
 
 	copylog->from_ino = file_in->f_inode->i_ino;
 	copylog->to_ino = file_out->f_inode->i_ino;
@@ -1520,11 +1854,19 @@ struct
 // do_sendfile --> do_splice_direct
 //             `-> splice_file_to_pipe
 SEC("fentry/do_sendfile")
-int BPF_PROG(do_sendfile, int out_fd, int in_fd, loff_t *ppos, size_t count,
-	     loff_t max)
+int BPF_PROG(
+	do_sendfile,
+	int out_fd,
+	int in_fd,
+	loff_t *ppos,
+	size_t count,
+	loff_t max
+)
 {
 	if (!g_inode)
+	{
 		return 0;
+	}
 	long ret;
 	struct CopyLog log = {};
 	pid_t pid = bpf_get_current_pid_tgid();
@@ -1537,14 +1879,23 @@ int BPF_PROG(do_sendfile, int out_fd, int in_fd, loff_t *ppos, size_t count,
 }
 
 SEC("fentry/do_splice_direct")
-int BPF_PROG(do_splice_direct, struct file *in, loff_t *ppos, struct file *out,
-	     loff_t *opos, size_t len, unsigned int flags)
+int BPF_PROG(
+	do_splice_direct,
+	struct file *in,
+	loff_t *ppos,
+	struct file *out,
+	loff_t *opos,
+	size_t len,
+	unsigned int flags
+)
 {
 	struct CopyLog *log;
 	pid_t pid = bpf_get_current_pid_tgid();
 	log = bpf_map_lookup_elem(&sendfileparamMap, &pid);
 	if (!log)
+	{
 		return 0;
+	}
 
 	if (!g_inode || (g_inode != in->f_inode && g_inode != out->f_inode))
 	{
@@ -1567,15 +1918,22 @@ int BPF_PROG(do_splice_direct, struct file *in, loff_t *ppos, struct file *out,
 }
 
 SEC("fentry/splice_file_to_pipe")
-int BPF_PROG(splice_file_to_pipe, struct file *in,
-	     struct pipe_inode_info *opipe, loff_t *offset, size_t len,
-	     unsigned int flags)
+int BPF_PROG(
+	splice_file_to_pipe,
+	struct file *in,
+	struct pipe_inode_info *opipe,
+	loff_t *offset,
+	size_t len,
+	unsigned int flags
+)
 {
 	struct CopyLog *log;
 	pid_t pid = bpf_get_current_pid_tgid();
 	log = bpf_map_lookup_elem(&sendfileparamMap, &pid);
 	if (!log)
+	{
 		return 0;
+	}
 
 	if (!g_inode || g_inode != in->f_inode)
 	{
@@ -1603,13 +1961,17 @@ int BPF_KRETPROBE(do_sendfile_exit, long ret)
 	pid_t pid = bpf_get_current_pid_tgid();
 	sendfilelog = bpf_map_lookup_elem(&sendfileparamMap, &pid);
 	if (!sendfilelog)
+	{
 		return 0;
+	}
 
 	size_t st_sz = sizeof(struct CopyLog);
 	struct CopyLog *copylog;
 	copylog = send_log(LOG_NONE, NULL, st_sz);
 	if (!copylog)
+	{
 		goto del_exit;
+	}
 
 	*copylog = *sendfilelog;
 	copylog->ret = ret;
@@ -1625,18 +1987,30 @@ del_exit:
 
 // for syscall splice
 SEC("fexit/do_splice")
-int BPF_PROG(do_splice, struct file *in, loff_t *off_in, struct file *out,
-	     loff_t *off_out, size_t len, unsigned int flags, long ret)
+int BPF_PROG(
+	do_splice,
+	struct file *in,
+	loff_t *off_in,
+	struct file *out,
+	loff_t *off_out,
+	size_t len,
+	unsigned int flags,
+	long ret
+)
 {
 	if (!g_inode || (g_inode != in->f_inode && g_inode != out->f_inode))
+	{
 		return 0;
+	}
 
 	DEBUG(0, "do_splice len: %lu", len);
 	size_t st_sz = sizeof(struct CopyLog);
 	struct CopyLog *copylog;
 	copylog = send_log(LOG_NONE, NULL, st_sz);
 	if (!copylog)
+	{
 		return 0;
+	}
 
 	loff_t in_pos;
 	loff_t out_pos;
@@ -1667,18 +2041,29 @@ struct DirLog
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_mknod")
-int BPF_PROG(vfs_mknod, struct mnt_idmap *idmap, struct inode *dir,
-	     struct dentry *dentry, umode_t mode, dev_t dev, int ret)
+int BPF_PROG(
+	vfs_mknod,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *dentry,
+	umode_t mode,
+	dev_t dev,
+	int ret
+)
 {
 	if (!g_inode || g_inode != dir)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_mknod mode: %u, dir_ino: %lu", mode, dir->i_ino);
 	size_t st_sz = sizeof(struct DirLog);
 	struct DirLog *mknodlog;
 	mknodlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!mknodlog)
+	{
 		return 0;
+	}
 
 	mknodlog->dir_ino = dir->i_ino;
 	mknodlog->ino = dentry->d_inode->i_ino;
@@ -1695,18 +2080,28 @@ int BPF_PROG(vfs_mknod, struct mnt_idmap *idmap, struct inode *dir,
 }
 
 SEC("fexit/vfs_mkdir")
-int BPF_PROG(vfs_mkdir, struct mnt_idmap *idmap, struct inode *dir,
-	     struct dentry *dentry, umode_t mode, long ret)
+int BPF_PROG(
+	vfs_mkdir,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *dentry,
+	umode_t mode,
+	long ret
+)
 {
 	if (!g_inode || g_inode != dir)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_mkdir mode: %u", mode);
 	size_t st_sz = sizeof(struct DirLog);
 	struct DirLog *mkdirlog;
 	mkdirlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!mkdirlog)
+	{
 		return 0;
+	}
 
 	mkdirlog->dir_ino = dir->i_ino;
 	mkdirlog->ino = dentry->d_inode->i_ino;
@@ -1721,34 +2116,53 @@ int BPF_PROG(vfs_mkdir, struct mnt_idmap *idmap, struct inode *dir,
 }
 
 SEC("fentry/vfs_rmdir")
-int BPF_PROG(vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
-	     struct dentry *dentry)
+int BPF_PROG(
+	vfs_rmdir,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *dentry
+)
 {
 	if (!g_inode || (g_inode != dir && g_inode != dentry->d_inode))
+	{
 		return 0;
+	}
 
 	size_t st_sz = sizeof(struct DirLog);
 	struct DirLog *rmdirlog;
 	rmdirlog = send_log(LOG_NONE, NULL, st_sz);
 	if (!rmdirlog)
+	{
 		return 0;
+	}
 
 	rmdirlog->dir_ino = dir->i_ino;
 	rmdirlog->ino = dentry->d_inode->i_ino;
-	DEBUG(0, "vfs_rmdir dir_ino: %lu parent_ino: %lu", dir->i_ino,
-	      rmdirlog->ino);
+	DEBUG(
+		0,
+		"vfs_rmdir dir_ino: %lu parent_ino: %lu",
+		dir->i_ino,
+		rmdirlog->ino
+	);
 
 	return 0;
 }
 
 SEC("fexit/vfs_rmdir")
-int BPF_PROG(vfs_rmdir_exit, struct mnt_idmap *idmap, struct inode *dir,
-	     struct dentry *dentry, long ret)
+int BPF_PROG(
+	vfs_rmdir_exit,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *dentry,
+	long ret
+)
 {
 	struct DirLog *rmdirlog;
 	rmdirlog = lookup_log();
 	if (!rmdirlog)
+	{
 		return 0;
+	}
 
 	rmdirlog->ret = ret;
 	size_t st_sz = sizeof(struct DirLog);
@@ -1768,18 +2182,28 @@ struct SymLinkLog
 } __attribute__((__packed__));
 
 SEC("fexit/vfs_symlink")
-int BPF_PROG(vfs_symlink, struct mnt_idmap *idmap, struct inode *dir,
-	     struct dentry *dentry, const char *oldname, long ret)
+int BPF_PROG(
+	vfs_symlink,
+	struct mnt_idmap *idmap,
+	struct inode *dir,
+	struct dentry *dentry,
+	const char *oldname,
+	long ret
+)
 {
 	if (!g_inode || (g_inode != dir && g_inode != dentry->d_inode))
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_symlink oldname: %s", oldname);
 	size_t st_sz = sizeof(struct SymLinkLog);
 	struct SymLinkLog *symlinklog;
 	symlinklog = send_log(LOG_NONE, NULL, st_sz);
 	if (!symlinklog)
+	{
 		return 0;
+	}
 
 	symlinklog->dir_ino = dir->i_ino;
 	symlinklog->ino = dentry->d_inode->i_ino;
@@ -1790,10 +2214,12 @@ int BPF_PROG(vfs_symlink, struct mnt_idmap *idmap, struct inode *dir,
 	size = legacy_strncpy(symlinklog->action, "symlink", 16);
 	oldname_off = size;
 
-	size = bpf_read_kstr_ret(symlinklog->action + oldname_off,
-				 PAGE_SIZE - sizeof(struct BpfData) -
-					 sizeof(*symlinklog) - 16,
-				 oldname, NOP);
+	size = bpf_read_kstr_ret(
+		symlinklog->action + oldname_off,
+		PAGE_SIZE - sizeof(struct BpfData) - sizeof(*symlinklog) - 16,
+		oldname,
+		NOP
+	);
 
 	symlinklog->oldname = oldname_off;
 
@@ -1814,14 +2240,18 @@ SEC("fexit/vfs_llseek")
 int BPF_PROG(vfs_llseek, struct file *file, loff_t offset, int whence, long ret)
 {
 	if (!g_inode || file->f_inode != g_inode)
+	{
 		return 0;
+	}
 
 	DEBUG(0, "vfs_llseek offset: %s", offset);
 	size_t st_sz = sizeof(struct SeekLog);
 	struct SeekLog *seeklog;
 	seeklog = send_log(LOG_NONE, NULL, st_sz);
 	if (!seeklog)
+	{
 		return 0;
+	}
 
 	seeklog->i_ino = file->f_inode->i_ino;
 	seeklog->offset = offset;

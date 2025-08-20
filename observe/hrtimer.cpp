@@ -29,31 +29,40 @@ struct env
 } env = {};
 
 const char *argp_program_version = "hrtimer 0.1";
-const char *argp_program_bug_address =
-	"https://github.com/iovisor/bcc/tree/master/libbpf-tools";
+const char *argp_program_bug_address = "https://github.com/iovisor/bcc/tree/"
+									   "master/libbpf-tools";
 const char argp_program_doc[] =
 	"modify hrtimer_nanosleep args.\n"
 	"\n"
-	"USAGE: hrtimer [--help] [-T] [-m] [--pidnss] [-L] [-P] [-p PID] [interval] [count] [-c CG]\n"
+	"USAGE: hrtimer [--help] [-T] [-m] [--pidnss] [-L] [-P] [-p PID] "
+	"[interval] [count] [-c CG]\n"
 	"\n"
 	"EXAMPLES:\n"
-	"    hrtimer 1        # modify all process hrtimer_nanosleep arg timespec to 1 second\n"
-	"    hrtimer -m 1     # modify all process hrtimer_nanosleep arg timespec to 1 millisecond\n"
-	"    hrtimer -rm 10   # modify all process hrtimer_nanosleep args timespec add 10 milliseconds\n"
-	"    hrtimer -p 185 1 # modify PID 185 hrtimer_nanosleep arg timespec to 1 second only\n"
-	"    hrtimer -p 185 -rm 123 # modify PID 185 hrtimer_nanosleep arg timespec add 123 milliseconds only\n"
-	"    hrtimer -c CG  1  # modify process under cgroupsPath CG hrtimer_nanosleep args timespec to 1 second only\n";
+	"    hrtimer 1        # modify all process hrtimer_nanosleep arg timespec "
+	"to 1 second\n"
+	"    hrtimer -m 1     # modify all process hrtimer_nanosleep arg timespec "
+	"to 1 millisecond\n"
+	"    hrtimer -rm 10   # modify all process hrtimer_nanosleep args timespec "
+	"add 10 milliseconds\n"
+	"    hrtimer -p 185 1 # modify PID 185 hrtimer_nanosleep arg timespec to 1 "
+	"second only\n"
+	"    hrtimer -p 185 -rm 123 # modify PID 185 hrtimer_nanosleep arg "
+	"timespec add 123 milliseconds only\n"
+	"    hrtimer -c CG  1  # modify process under cgroupsPath CG "
+	"hrtimer_nanosleep args timespec to 1 second only\n";
 
 #define OPT_PIDNSS 1 /* --pidnss */
 
 static const struct argp_option opts[] = {
-	{ "relative", 'r', NULL, 0, "modify timespec time relatively", 0 },
-	{ "milliseconds", 'm', NULL, 0, "unit is millisecond ", 0 },
-	{ "pid", 'p', "PID", 0, "modify this PID only", 0 },
-	{ "verbose", 'v', NULL, 0, "Verbose debug output", 0 },
-	{ "cgroup", 'c', "/sys/fs/cgroup/unified", 0,
-	  "modify process in cgroup path", 0 },
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0 },
+	{"relative", 'r', NULL, 0, "modify timespec time relatively", 0},
+	{"milliseconds", 'm', NULL, 0, "unit is millisecond ", 0},
+	{"pid", 'p', "PID", 0, "modify this PID only", 0},
+	{"verbose", 'v', NULL, 0, "Verbose debug output", 0},
+	{"cgroup",
+	 'c', "/sys/fs/cgroup/unified",
+	 0, "modify process in cgroup path",
+	 0},
+	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0},
 	{},
 };
 
@@ -103,8 +112,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
 }
@@ -146,7 +155,9 @@ int main(int argc, char **argv)
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
@@ -186,8 +197,7 @@ int main(int argc, char **argv)
 		cgfd = open(env.cgroupspath, O_RDONLY);
 		if (cgfd < 0)
 		{
-			fprintf(stderr, "Failed opening Cgroup path: %s",
-				env.cgroupspath);
+			fprintf(stderr, "Failed opening Cgroup path: %s", env.cgroupspath);
 			goto cleanup;
 		}
 		if (bpf_map_update_elem(cg_map_fd, &idx, &cgfd, BPF_ANY))
@@ -208,17 +218,16 @@ int main(int argc, char **argv)
 	/* Control-C 停止信号 */
 	if (signal(SIGINT, sig_int) == SIG_ERR)
 	{
-		fprintf(stderr, "can't set signal handler: %s\n",
-			strerror(errno));
+		fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
 		goto cleanup;
 	}
 
-	printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` "
-	       "to see output of the BPF programs.\n");
+	printf("Successfully started! Please run `sudo cat "
+		   "/sys/kernel/debug/tracing/trace_pipe` "
+		   "to see output of the BPF programs.\n");
 
 	/* 设置环形缓冲区轮询 */
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL,
-			      NULL);
+	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
 	if (!rb)
 	{
 		err = -1;
@@ -245,7 +254,9 @@ int main(int argc, char **argv)
 
 cleanup:
 	if (rb)
+	{
 		ring_buffer__free(rb);
+	}
 	/* 销毁挂载的ebpf程序 */
 	hrtimer_bpf__destroy(skel);
 	return -err;

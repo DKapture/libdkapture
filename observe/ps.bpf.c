@@ -29,8 +29,11 @@ struct
 #define SIG_DFL 0
 #define TASK_RUNNING 0x00000000
 
-static void collect_sigign_sigcatch(struct task_struct *p, sigset_t *sigign,
-				    sigset_t *sigcatch)
+static void collect_sigign_sigcatch(
+	struct task_struct *p,
+	sigset_t *sigign,
+	sigset_t *sigcatch
+)
 {
 	struct k_sigaction *k;
 	int i;
@@ -39,9 +42,13 @@ static void collect_sigign_sigcatch(struct task_struct *p, sigset_t *sigign,
 	for (i = 1; i <= _NSIG; ++i, ++k)
 	{
 		if (k->sa.sa_handler == SIG_IGN)
+		{
 			sigign->sig[0] |= 1UL << (i - 1);
+		}
 		else if (k->sa.sa_handler != SIG_DFL)
+		{
 			sigign->sig[0] |= 1UL << (i - 1);
+		}
 	}
 }
 
@@ -51,13 +58,17 @@ int dump_task(struct bpf_iter__task *ctx)
 	// fill output buffer with struct dcapture_task which is defined in ps.h
 	struct task_struct *task = ctx->task;
 	if (!task)
+	{
 		return 0;
+	}
 
 	// Create a new dcapture_task with reserve_with_flags
 	struct dcapture_task *dtask;
 	dtask = bpf_ringbuf_reserve(&output, sizeof(struct dcapture_task), 0);
 	if (!dtask)
+	{
 		return 0;
+	}
 
 	// Fill in all available fields from task_struct
 	dtask->pid = task->pid;
@@ -71,8 +82,7 @@ int dump_task(struct bpf_iter__task *ctx)
 	// Process group and session info
 	dtask->pgid = BPF_CORE_READ(task, group_leader, pid);
 
-	dtask->sid =
-		BPF_CORE_READ(task, signal, pids[PIDTYPE_SID], numbers[0].nr);
+	dtask->sid = BPF_CORE_READ(task, signal, pids[PIDTYPE_SID], numbers[0].nr);
 
 	// TTY information
 	struct tty_struct *tty = BPF_CORE_READ(task, signal, tty);
@@ -84,7 +94,9 @@ int dump_task(struct bpf_iter__task *ctx)
 		struct pid *pgrp = BPF_CORE_READ(tty, ctrl.pgrp);
 		dtask->tty_pgrp = 0;
 		if (pgrp)
+		{
 			dtask->tty_pgrp = BPF_CORE_READ(pgrp, numbers[0].nr);
+		}
 	}
 
 	// Process flags
@@ -122,15 +134,12 @@ int dump_task(struct bpf_iter__task *ctx)
 	dtask->rss = 0;
 	if (mm)
 	{
-		dtask->rss +=
-			BPF_CORE_READ(task, mm, rss_stat[MM_FILEPAGES].count) *
-			(PAGE_SIZE >> 10);
-		dtask->rss +=
-			BPF_CORE_READ(task, mm, rss_stat[MM_ANONPAGES].count) *
-			(PAGE_SIZE >> 10);
-		dtask->rss +=
-			BPF_CORE_READ(task, mm, rss_stat[MM_SHMEMPAGES].count) *
-			(PAGE_SIZE >> 10);
+		dtask->rss += BPF_CORE_READ(task, mm, rss_stat[MM_FILEPAGES].count) *
+					  (PAGE_SIZE >> 10);
+		dtask->rss += BPF_CORE_READ(task, mm, rss_stat[MM_ANONPAGES].count) *
+					  (PAGE_SIZE >> 10);
+		dtask->rss += BPF_CORE_READ(task, mm, rss_stat[MM_SHMEMPAGES].count) *
+					  (PAGE_SIZE >> 10);
 	}
 
 	dtask->rsslim =
@@ -154,8 +163,8 @@ int dump_task(struct bpf_iter__task *ctx)
 	dtask->signal = sigset.sig[0];
 	sigset = BPF_CORE_READ(task, blocked);
 	dtask->blocked = sigset.sig[0];
-	sigset_t ignored = { 0 };
-	sigset_t caught = { 0 };
+	sigset_t ignored = {0};
+	sigset_t caught = {0};
 	collect_sigign_sigcatch(task, &ignored, &caught);
 	dtask->sigignore = ignored.sig[0];
 	dtask->sigcatch = caught.sig[0];
@@ -187,18 +196,18 @@ int dump_task(struct bpf_iter__task *ctx)
 
 	dtask->size = BPF_CORE_READ(task, mm, total_vm);
 
-	dtask->resident = dtask->shared +
-			  BPF_CORE_READ(task, mm, rss_stat)[MM_ANONPAGES].count;
+	dtask->resident =
+		dtask->shared + BPF_CORE_READ(task, mm, rss_stat)[MM_ANONPAGES].count;
 
 	dtask->shared = BPF_CORE_READ(task, mm, rss_stat)[MM_FILEPAGES].count +
-			BPF_CORE_READ(task, mm, rss_stat)[MM_SHMEMPAGES].count;
+					BPF_CORE_READ(task, mm, rss_stat)[MM_SHMEMPAGES].count;
 
 	dtask->text = (PAGE_ALIGN(BPF_CORE_READ(task, mm, end_data)) -
-		       (BPF_CORE_READ(task, mm, start_data) & PAGE_MASK)) >>
-		      PAGE_SHIFT;
+				   (BPF_CORE_READ(task, mm, start_data) & PAGE_MASK)) >>
+				  PAGE_SHIFT;
 
-	dtask->data = BPF_CORE_READ(task, mm, data_vm) +
-		      BPF_CORE_READ(task, mm, stack_vm);
+	dtask->data =
+		BPF_CORE_READ(task, mm, data_vm) + BPF_CORE_READ(task, mm, stack_vm);
 
 	bpf_ringbuf_submit(dtask, 0);
 	return 0;

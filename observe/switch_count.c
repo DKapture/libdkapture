@@ -1,6 +1,6 @@
 /**
  * ebpf 用户空间程序(loader、read ringbuffer)
-*/
+ */
 #include <argp.h>
 #include <signal.h>
 #include <stdio.h>
@@ -17,12 +17,12 @@
 #include "switch_count.h"
 #include "switch_count.skel.h"
 
-#define min(x, y)                              \
-	({                                     \
-		typeof(x) _min1 = (x);         \
-		typeof(y) _min2 = (y);         \
-		(void)(&_min1 == &_min2);      \
-		_min1 < _min2 ? _min1 : _min2; \
+#define min(x, y)                                                              \
+	({                                                                         \
+		typeof(x) _min1 = (x);                                                 \
+		typeof(y) _min2 = (y);                                                 \
+		(void)(&_min1 == &_min2);                                              \
+		_min1 < _min2 ? _min1 : _min2;                                         \
 	})
 
 struct env
@@ -48,11 +48,13 @@ const char argp_program_doc[] =
 	"    switch_count -c CG   # Trace process under cgroupsPath CG\n";
 
 static const struct argp_option opts[] = {
-	{ "pid", 'p', "PID", 0, "Trace this PID only", 0 },
-	{ "verbose", 'v', NULL, 0, "Verbose debug output", 0 },
-	{ "cgroup", 'c', "/sys/fs/cgroup/unified", 0,
-	  "Trace process in cgroup path", 0 },
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0 },
+	{"pid", 'p', "PID", 0, "Trace this PID only", 0},
+	{"verbose", 'v', NULL, 0, "Verbose debug output", 0},
+	{"cgroup",
+	 'c', "/sys/fs/cgroup/unified",
+	 0, "Trace process in cgroup path",
+	 0},
+	{NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help", 0},
 	{},
 };
 
@@ -85,8 +87,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
 }
@@ -107,11 +109,17 @@ static void print_stars(unsigned int val, unsigned int val_max, int width)
 	need_plus = val > val_max;
 
 	for (i = 0; i < num_stars; i++)
+	{
 		printf("*");
+	}
 	for (i = 0; i < num_spaces; i++)
+	{
 		printf(" ");
+	}
 	if (need_plus)
+	{
 		printf("+");
+	}
 }
 
 static int print_log2_hists(struct bpf_map *hists)
@@ -152,8 +160,7 @@ static int print_log2_hists(struct bpf_map *hists)
 			return -1;
 		}
 
-		printf("%-8d  %-15s  %-10llu |", next_key.pid, hist.comm,
-		       hist.count);
+		printf("%-8d  %-15s  %-10llu |", next_key.pid, hist.comm, hist.count);
 		/*print stars*/
 		print_stars(hist.count, max_count, stars_max);
 		printf("|\n");
@@ -189,7 +196,9 @@ int main(int argc, char **argv)
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
@@ -221,8 +230,7 @@ int main(int argc, char **argv)
 		cgfd = open(env.cgroupspath, O_RDONLY);
 		if (cgfd < 0)
 		{
-			fprintf(stderr, "Failed opening Cgroup path: %s",
-				env.cgroupspath);
+			fprintf(stderr, "Failed opening Cgroup path: %s", env.cgroupspath);
 			goto cleanup;
 		}
 		if (bpf_map_update_elem(cg_map_fd, &idx, &cgfd, BPF_ANY))
@@ -243,13 +251,13 @@ int main(int argc, char **argv)
 	/* Control-C 停止信号 */
 	if (signal(SIGINT, sig_int) == SIG_ERR)
 	{
-		fprintf(stderr, "can't set signal handler: %s\n",
-			strerror(errno));
+		fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
 		goto cleanup;
 	}
 
-	printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` "
-	       "to see output of the BPF programs.\n");
+	printf("Successfully started! Please run `sudo cat "
+		   "/sys/kernel/debug/tracing/trace_pipe` "
+		   "to see output of the BPF programs.\n");
 	printf("Tracing wakeup count... Hit Ctrl-C to end.\n");
 
 	/* 处理收到的内核数据 */

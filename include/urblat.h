@@ -1,12 +1,12 @@
 #ifndef __URBLAT_H__
 #define __URBLAT_H__
 
-#define min(x, y)                              \
-	({                                     \
-		typeof(x) _min1 = (x);         \
-		typeof(y) _min2 = (y);         \
-		(void)(&_min1 == &_min2);      \
-		_min1 < _min2 ? _min1 : _min2; \
+#define min(x, y)                                                              \
+	({                                                                         \
+		typeof(x) _min1 = (x);                                                 \
+		typeof(y) _min2 = (y);                                                 \
+		(void)(&_min1 == &_min2);                                              \
+		_min1 < _min2 ? _min1 : _min2;                                         \
 	})
 
 #define DISK_NAME_LEN 32
@@ -59,9 +59,13 @@ static __always_inline __u64 log2l(__u64 v)
 	__u32 hi = v >> 32;
 
 	if (hi)
+	{
 		return log2(hi) + 32;
+	}
 	else
+	{
 		return log2(v);
+	}
 }
 #pragma GCC diagnostic pop
 

@@ -8,11 +8,11 @@
 /* 图形事件类型枚举 */
 enum graphics_event_type
 {
-	GRAPHICS_VBLANK_EVENT = 1, /* DRM垂直同步事件 */
-	GRAPHICS_VBLANK_QUEUED = 2, /* DRM垂直同步队列事件 */
-	GRAPHICS_FENCE_INIT = 3, /* DMA围栏初始化 */
-	GRAPHICS_FENCE_DESTROY = 4, /* DMA围栏销毁 */
-	GRAPHICS_FENCE_ENABLE = 5, /* DMA围栏信号启用 */
+	GRAPHICS_VBLANK_EVENT = 1,	 /* DRM垂直同步事件 */
+	GRAPHICS_VBLANK_QUEUED = 2,	 /* DRM垂直同步队列事件 */
+	GRAPHICS_FENCE_INIT = 3,	 /* DMA围栏初始化 */
+	GRAPHICS_FENCE_DESTROY = 4,	 /* DMA围栏销毁 */
+	GRAPHICS_FENCE_ENABLE = 5,	 /* DMA围栏信号启用 */
 	GRAPHICS_FENCE_SIGNALED = 6, /* DMA围栏信号完成 */
 };
 
@@ -30,8 +30,8 @@ struct graphics_event_header
 /* DRM垂直同步事件数据 */
 struct drm_vblank_data
 {
-	__u32 crtc_id; /* CRTC ID */
-	__u32 sequence; /* 序列号 */
+	__u32 crtc_id;		/* CRTC ID */
+	__u32 sequence;		/* 序列号 */
 	__u64 timestamp_ns; /* 硬件时间戳 */
 	char device_name[DRM_DEVICE_NAME_LEN];
 };
@@ -40,9 +40,9 @@ struct drm_vblank_data
 struct dma_fence_data
 {
 	__u64 fence_ptr; /* 围栏对象指针 */
-	__u64 context; /* 围栏上下文 */
-	__u32 seqno; /* 序列号 */
-	__s32 error; /* 错误代码 */
+	__u64 context;	 /* 围栏上下文 */
+	__u32 seqno;	 /* 序列号 */
+	__s32 error;	 /* 错误代码 */
 	char driver_name[DRM_DEVICE_NAME_LEN];
 	char timeline_name[FENCE_CONTEXT_NAME_LEN];
 };
@@ -61,13 +61,13 @@ struct graphics_event
 /* 过滤规则结构体（参考irqsnoop设计） */
 struct graphics_filter
 {
-	__u32 target_pid; /* 0表示无过滤 */
-	__u32 target_cpu; /* -1表示无过滤 */
+	__u32 target_pid;				 /* 0表示无过滤 */
+	__u32 target_cpu;				 /* -1表示无过滤 */
 	char target_comm[TASK_COMM_LEN]; /* 空表示无过滤 */
-	__u32 event_mask; /* 事件类型位掩码 */
-	__u32 crtc_filter; /* CRTC过滤 */
-	__u64 fence_context_filter; /* 围栏上下文过滤 */
-	bool filter_errors_only; /* 仅显示错误事件 */
+	__u32 event_mask;				 /* 事件类型位掩码 */
+	__u32 crtc_filter;				 /* CRTC过滤 */
+	__u64 fence_context_filter;		 /* 围栏上下文过滤 */
+	bool filter_errors_only;		 /* 仅显示错误事件 */
 };
 
 /* 统计信息结构体（参考bio-stat设计） */

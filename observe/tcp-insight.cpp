@@ -52,27 +52,25 @@ static struct env
 
 /* Command line options */
 static const struct argp_option opts[] = {
-	{ "pid", 'p', "PID", 0, "Process ID to trace", 0 },
-	{ "comm", 'c', "COMM", 0, "Process name to trace", 0 },
-	{ "saddr", 's', "ADDR", 0, "Source address to filter", 0 },
-	{ "daddr", 'd', "ADDR", 0, "Destination address to filter", 0 },
-	{ "sport", ARG_SPORT, "PORT", 0, "Source port to filter", 0 },
-	{ "dport", ARG_DPORT, "PORT", 0, "Destination port to filter", 0 },
-	{ "events", 'e', "MASK", 0, "Event types to trace (bitmask)", 0 },
-	{ "min-duration", ARG_MIN_DURATION, "MS", 0,
-	  "Minimum connection duration", 0 },
-	{ "max-duration", ARG_MAX_DURATION, "MS", 0,
-	  "Maximum connection duration", 0 },
-	{ "min-bytes", ARG_MIN_BYTES, "BYTES", 0, "Minimum bytes transferred",
-	  0 },
-	{ "max-bytes", ARG_MAX_BYTES, "BYTES", 0, "Maximum bytes transferred",
-	  0 },
-	{ "min-rtt", ARG_MIN_RTT, "US", 0, "Minimum RTT in microseconds", 0 },
-	{ "max-rtt", ARG_MAX_RTT, "US", 0, "Maximum RTT in microseconds", 0 },
-	{ "state", 'S', "STATE", 0, "Filter by TCP state (1-12)", 0 },
-	{ "verbose", 'v', NULL, 0, "Verbose output", 0 },
-	{ "timestamp", 't', NULL, 0, "Show timestamps", 0 },
-	{ "stats", 'T', NULL, 0, "Show connection statistics", 0 },
+	{"pid", 'p', "PID", 0, "Process ID to trace", 0},
+	{"comm", 'c', "COMM", 0, "Process name to trace", 0},
+	{"saddr", 's', "ADDR", 0, "Source address to filter", 0},
+	{"daddr", 'd', "ADDR", 0, "Destination address to filter", 0},
+	{"sport", ARG_SPORT, "PORT", 0, "Source port to filter", 0},
+	{"dport", ARG_DPORT, "PORT", 0, "Destination port to filter", 0},
+	{"events", 'e', "MASK", 0, "Event types to trace (bitmask)", 0},
+	{"min-duration", ARG_MIN_DURATION, "MS", 0, "Minimum connection duration", 0
+	},
+	{"max-duration", ARG_MAX_DURATION, "MS", 0, "Maximum connection duration", 0
+	},
+	{"min-bytes", ARG_MIN_BYTES, "BYTES", 0, "Minimum bytes transferred", 0},
+	{"max-bytes", ARG_MAX_BYTES, "BYTES", 0, "Maximum bytes transferred", 0},
+	{"min-rtt", ARG_MIN_RTT, "US", 0, "Minimum RTT in microseconds", 0},
+	{"max-rtt", ARG_MAX_RTT, "US", 0, "Maximum RTT in microseconds", 0},
+	{"state", 'S', "STATE", 0, "Filter by TCP state (1-12)", 0},
+	{"verbose", 'v', NULL, 0, "Verbose output", 0},
+	{"timestamp", 't', NULL, 0, "Show timestamps", 0},
+	{"stats", 'T', NULL, 0, "Show connection statistics", 0},
 	{},
 };
 
@@ -121,8 +119,11 @@ static struct
 /* Function prototypes */
 static error_t parse_arg(int key, char *arg, struct argp_state *state);
 static void sig_handler(int sig);
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args);
+static int libbpf_print_fn(
+	enum libbpf_print_level level,
+	const char *format,
+	va_list args
+);
 static int handle_event(void *ctx, void *data, size_t data_sz);
 static void print_header();
 static const char *tcp_event_type_str(int type);
@@ -149,11 +150,13 @@ static void sig_handler(int sig)
 }
 
 /* libbpf print function */
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-			   va_list args)
+static int
+libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	if (level == LIBBPF_DEBUG && !verbose)
+	{
 		return 0;
+	}
 	return vfprintf(stderr, format, args);
 }
 
@@ -230,7 +233,7 @@ static const char *tcp_state_str(int state)
 /* Format IP address and port */
 static void format_address(char *buf, size_t len, __u32 addr, __u16 port)
 {
-	struct in_addr in_addr = { .s_addr = addr };
+	struct in_addr in_addr = {.s_addr = addr};
 	snprintf(buf, len, "%s:%d", inet_ntoa(in_addr), port);
 }
 
@@ -270,9 +273,20 @@ static void print_header()
 	{
 		printf("%-12s ", "TIME");
 	}
-	printf("%-16s %-6s %-6s %-15s %-22s %-22s %-12s %-6s %-6s %-8s %s\n",
-	       "COMM", "PID", "TID", "EVENT", "SADDR:SPORT", "DADDR:DPORT",
-	       "STATE", "CWND", "RTT", "BYTES", "DETAILS");
+	printf(
+		"%-16s %-6s %-6s %-15s %-22s %-22s %-12s %-6s %-6s %-8s %s\n",
+		"COMM",
+		"PID",
+		"TID",
+		"EVENT",
+		"SADDR:SPORT",
+		"DADDR:DPORT",
+		"STATE",
+		"CWND",
+		"RTT",
+		"BYTES",
+		"DETAILS"
+	);
 }
 
 /* Command line argument parser */
@@ -376,9 +390,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		env.state_filter = strtol(arg, NULL, 10);
 		if (env.state_filter < 1 || env.state_filter >= TCP_MAX_STATES)
 		{
-			fprintf(stderr,
+			fprintf(
+				stderr,
 				"Invalid TCP state: %s (valid range: 1-%d)\n",
-				arg, TCP_MAX_STATES - 1);
+				arg,
+				TCP_MAX_STATES - 1
+			);
 			argp_usage(state);
 		}
 		break;
@@ -499,34 +516,61 @@ static int setup_filters()
 	{
 		printf("Filter rules configured:\n");
 		if (env.pid > 0)
+		{
 			printf("  PID: %d\n", env.pid);
+		}
 		if (strlen(env.comm) > 0)
+		{
 			printf("  Command: %s\n", env.comm);
+		}
 		if (strlen(env.saddr) > 0)
+		{
 			printf("  Source address: %s\n", env.saddr);
+		}
 		if (strlen(env.daddr) > 0)
+		{
 			printf("  Destination address: %s\n", env.daddr);
+		}
 		if (env.sport > 0)
+		{
 			printf("  Source port: %d\n", env.sport);
+		}
 		if (env.dport > 0)
+		{
 			printf("  Destination port: %d\n", env.dport);
+		}
 		if (env.event_mask > 0)
+		{
 			printf("  Event mask: 0x%x\n", env.event_mask);
+		}
 		if (env.min_duration > 0)
+		{
 			printf("  Min duration: %d ms\n", env.min_duration);
+		}
 		if (env.max_duration > 0)
+		{
 			printf("  Max duration: %d ms\n", env.max_duration);
+		}
 		if (env.min_bytes > 0)
+		{
 			printf("  Min bytes: %ld\n", env.min_bytes);
+		}
 		if (env.max_bytes > 0)
+		{
 			printf("  Max bytes: %ld\n", env.max_bytes);
+		}
 		if (env.min_rtt > 0)
+		{
 			printf("  Min RTT: %d us\n", env.min_rtt);
+		}
 		if (env.max_rtt > 0)
+		{
 			printf("  Max RTT: %d us\n", env.max_rtt);
+		}
 		if (env.state_filter > 0)
-			printf("  TCP state: %s\n",
-			       tcp_state_str(env.state_filter));
+		{
+			printf("  TCP state: %s\n", tcp_state_str(env.state_filter));
+		}
 		printf("\n");
 	}
 
@@ -578,18 +622,23 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	}
 
 	// Format addresses
-	format_address(saddr_buf, sizeof(saddr_buf),
-		       ((e->family == AF_INET) ? e->addr.ipv4.saddr : 0),
-		       e->sport);
-	format_address(daddr_buf, sizeof(daddr_buf),
-		       ((e->family == AF_INET) ? e->addr.ipv4.daddr : 0),
-		       e->dport);
+	format_address(
+		saddr_buf,
+		sizeof(saddr_buf),
+		((e->family == AF_INET) ? e->addr.ipv4.saddr : 0),
+		e->sport
+	);
+	format_address(
+		daddr_buf,
+		sizeof(daddr_buf),
+		((e->family == AF_INET) ? e->addr.ipv4.daddr : 0),
+		e->dport
+	);
 
 	// Format timestamp if requested
 	if (show_timestamp)
 	{
-		format_timestamp(timestamp_buf, sizeof(timestamp_buf),
-				 e->timestamp);
+		format_timestamp(timestamp_buf, sizeof(timestamp_buf), e->timestamp);
 		printf("%-12s ", timestamp_buf);
 	}
 
@@ -603,81 +652,149 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	switch (e->type)
 	{
 	case TCP_EVENT_STATE_CHANGE:
-		snprintf(state_buf, sizeof(state_buf), "%s->%s",
-			 tcp_state_str(e->data.state_change.oldstate),
-			 tcp_state_str(e->data.state_change.newstate));
-		snprintf(details_buf, sizeof(details_buf), "skaddr=0x%p",
-			 e->data.state_change.skaddr);
+		snprintf(
+			state_buf,
+			sizeof(state_buf),
+			"%s->%s",
+			tcp_state_str(e->data.state_change.oldstate),
+			tcp_state_str(e->data.state_change.newstate)
+		);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"skaddr=0x%p",
+			e->data.state_change.skaddr
+		);
 		break;
 
 	case TCP_EVENT_PERF_SAMPLE:
-		snprintf(cwnd_buf, sizeof(cwnd_buf), "%u",
-			 e->data.perf_sample.snd_cwnd);
-		snprintf(rtt_buf, sizeof(rtt_buf), "%u",
-			 e->data.perf_sample.srtt);
-		snprintf(bytes_buf, sizeof(bytes_buf), "%u",
-			 e->data.perf_sample.data_len);
-		snprintf(details_buf, sizeof(details_buf),
-			 "ssthresh=%u rcv_wnd=%u", e->data.perf_sample.ssthresh,
-			 e->data.perf_sample.rcv_wnd);
+		snprintf(
+			cwnd_buf,
+			sizeof(cwnd_buf),
+			"%u",
+			e->data.perf_sample.snd_cwnd
+		);
+		snprintf(rtt_buf, sizeof(rtt_buf), "%u", e->data.perf_sample.srtt);
+		snprintf(
+			bytes_buf,
+			sizeof(bytes_buf),
+			"%u",
+			e->data.perf_sample.data_len
+		);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"ssthresh=%u rcv_wnd=%u",
+			e->data.perf_sample.ssthresh,
+			e->data.perf_sample.rcv_wnd
+		);
 		break;
 
 	case TCP_EVENT_RETRANSMIT:
-		snprintf(state_buf, sizeof(state_buf), "%s",
-			 tcp_state_str(e->data.retransmit.state));
-		snprintf(details_buf, sizeof(details_buf), "skb=0x%p sk=0x%p",
-			 e->data.retransmit.skbaddr, e->data.retransmit.skaddr);
+		snprintf(
+			state_buf,
+			sizeof(state_buf),
+			"%s",
+			tcp_state_str(e->data.retransmit.state)
+		);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"skb=0x%p sk=0x%p",
+			e->data.retransmit.skbaddr,
+			e->data.retransmit.skaddr
+		);
 		break;
 
 	case TCP_EVENT_SEND_DATA:
 	case TCP_EVENT_RECV_DATA:
-		snprintf(bytes_buf, sizeof(bytes_buf), "%d",
-			 e->data.data_transfer.ret);
-		snprintf(details_buf, sizeof(details_buf), "flags=0x%x sk=0x%p",
-			 e->data.data_transfer.flags, e->data.data_transfer.sk);
+		snprintf(bytes_buf, sizeof(bytes_buf), "%d", e->data.data_transfer.ret);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"flags=0x%x sk=0x%p",
+			e->data.data_transfer.flags,
+			e->data.data_transfer.sk
+		);
 		break;
 
 	case TCP_EVENT_SEND_RESET:
 	case TCP_EVENT_RECV_RESET:
-		snprintf(state_buf, sizeof(state_buf), "%s",
-			 tcp_state_str(e->data.reset.state));
-		snprintf(details_buf, sizeof(details_buf),
-			 "skb=0x%p sk=0x%p cookie=%llu", e->data.reset.skbaddr,
-			 e->data.reset.skaddr, e->data.reset.sock_cookie);
+		snprintf(
+			state_buf,
+			sizeof(state_buf),
+			"%s",
+			tcp_state_str(e->data.reset.state)
+		);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"skb=0x%p sk=0x%p cookie=%llu",
+			e->data.reset.skbaddr,
+			e->data.reset.skaddr,
+			e->data.reset.sock_cookie
+		);
 		break;
 
 	case TCP_EVENT_CONG_STATE:
-		snprintf(details_buf, sizeof(details_buf),
-			 "cong_state=%u sk=0x%p", e->data.cong_state.cong_state,
-			 e->data.cong_state.skaddr);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"cong_state=%u sk=0x%p",
+			e->data.cong_state.cong_state,
+			e->data.cong_state.skaddr
+		);
 		break;
 
 	case TCP_EVENT_WIN_ADJUST:
-		snprintf(details_buf, sizeof(details_buf),
-			 "sk=0x%p cookie=%llu", e->data.win_adjust.skaddr,
-			 e->data.win_adjust.sock_cookie);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"sk=0x%p cookie=%llu",
+			e->data.win_adjust.skaddr,
+			e->data.win_adjust.sock_cookie
+		);
 		break;
 
 	case TCP_EVENT_SOCK_DESTROY:
-		snprintf(details_buf, sizeof(details_buf),
-			 "sk=0x%p cookie=%llu", e->data.destroy.skaddr,
-			 e->data.destroy.sock_cookie);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"sk=0x%p cookie=%llu",
+			e->data.destroy.skaddr,
+			e->data.destroy.sock_cookie
+		);
 		break;
 
 	case TCP_EVENT_KPROBE_SEND:
 	case TCP_EVENT_KPROBE_RECV:
 	case TCP_EVENT_KPROBE_RETRANS:
-		snprintf(bytes_buf, sizeof(bytes_buf), "%zu",
-			 e->data.kprobe.size);
-		snprintf(details_buf, sizeof(details_buf), "flags=0x%x sk=0x%p",
-			 e->data.kprobe.flags, e->data.kprobe.sk);
+		snprintf(bytes_buf, sizeof(bytes_buf), "%zu", e->data.kprobe.size);
+		snprintf(
+			details_buf,
+			sizeof(details_buf),
+			"flags=0x%x sk=0x%p",
+			e->data.kprobe.flags,
+			e->data.kprobe.sk
+		);
 		break;
 	}
 
 	// Print the event with extracted data
-	printf("%-16s %-6d %-6d %-15s %-22s %-22s %-12s %-6s %-6s %-8s %s\n",
-	       e->comm, e->pid, e->tid, tcp_event_type_str(e->type), saddr_buf,
-	       daddr_buf, state_buf, cwnd_buf, rtt_buf, bytes_buf, details_buf);
+	printf(
+		"%-16s %-6d %-6d %-15s %-22s %-22s %-12s %-6s %-6s %-8s %s\n",
+		e->comm,
+		e->pid,
+		e->tid,
+		tcp_event_type_str(e->type),
+		saddr_buf,
+		daddr_buf,
+		state_buf,
+		cwnd_buf,
+		rtt_buf,
+		bytes_buf,
+		details_buf
+	);
 
 	return 0;
 }
@@ -702,16 +819,11 @@ static void print_connection_stats()
 		if (bpf_map_lookup_elem(stats_fd, &key, &bpf_stats) == 0)
 		{
 			printf("\n=== eBPF Global Statistics ===\n");
-			printf("Total eBPF events: %llu\n",
-			       bpf_stats.total_events);
-			printf("Total connections: %llu\n",
-			       bpf_stats.connections_opened);
-			printf("Total bytes sent: %llu\n",
-			       bpf_stats.bytes_sent);
-			printf("Total bytes received: %llu\n",
-			       bpf_stats.bytes_received);
-			printf("Total retransmits: %llu\n",
-			       bpf_stats.retransmits);
+			printf("Total eBPF events: %llu\n", bpf_stats.total_events);
+			printf("Total connections: %llu\n", bpf_stats.connections_opened);
+			printf("Total bytes sent: %llu\n", bpf_stats.bytes_sent);
+			printf("Total bytes received: %llu\n", bpf_stats.bytes_received);
+			printf("Total retransmits: %llu\n", bpf_stats.retransmits);
 			printf("Average RTT: %u us\n", 0);
 			printf("Average CWND: %u\n", 0);
 			printf("Active connections: %u\n", 0);
@@ -739,7 +851,9 @@ int main(int argc, char **argv)
 	/* Parse command line arguments */
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
+	{
 		return err;
+	}
 
 	/* Set up libbpf logging */
 	libbpf_set_print(libbpf_print_fn);
@@ -793,8 +907,12 @@ int main(int argc, char **argv)
 	}
 
 	/* Set up ring buffer polling */
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event,
-			      NULL, NULL);
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.events),
+		handle_event,
+		NULL,
+		NULL
+	);
 	if (!rb)
 	{
 		err = -1;

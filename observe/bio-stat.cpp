@@ -75,14 +75,16 @@ static bool top_mode = false;
 static std::unordered_map<u32, std::string> disklookup;
 static std::atomic<bool> exit_flag(false);
 
-static struct option lopts[] = { { "pid", required_argument, 0, 'p' },
-				 { "comm", required_argument, 0, 'c' },
-				 { "dev", required_argument, 0, 'd' },
-				 { "duration", required_argument, 0, 'D' },
-				 { "interval", required_argument, 0, 'i' },
-				 { "top", no_argument, 0, 't' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"pid",		required_argument, 0, 'p'},
+	{"comm",	 required_argument, 0, 'c'},
+	{"dev",		required_argument, 0, 'd'},
+	{"duration", required_argument, 0, 'D'},
+	{"interval", required_argument, 0, 'i'},
+	{"top",		no_argument,		 0, 't'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		  0,				 0, 0  }
+};
 
 struct HelpMsg
 {
@@ -91,14 +93,14 @@ struct HelpMsg
 };
 
 static HelpMsg help_msg[] = {
-	{ "[pid]", "filter output by the pid\n" },
-	{ "[comm]", "filter output by the process comm.\n" },
-	{ "[dev]",
-	  "filter output by device number, format val=(major << 8 | minor)\n" },
-	{ "[duration]", "set the duration time when to exit\n" },
-	{ "[interval]", "statistic interval\n" },
-	{ "[top]", "output infomation in a top way\n" },
-	{ "", "print this help message\n" },
+	{"[pid]",	  "filter output by the pid\n"						  },
+	{"[comm]",	   "filter output by the process comm.\n"				 },
+	{"[dev]",
+	 "filter output by device number, format val=(major << 8 | minor)\n"},
+	{"[duration]", "set the duration time when to exit\n"				 },
+	{"[interval]", "statistic interval\n"								 },
+	{"[top]",	  "output infomation in a top way\n"					},
+	{"",		   "print this help message\n"							},
 };
 
 void Usage(const char *arg0)
@@ -108,8 +110,13 @@ void Usage(const char *arg0)
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -142,8 +149,7 @@ void parse_args(int argc, char **argv)
 	int opt, opt_idx;
 	optind = 1;
 	std::string sopts = long_opt2short_opt(lopts);
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -217,8 +223,12 @@ static const char *top_mode_bpf_progs[] = {
 };
 
 static const char *tailing_mode_bpf_progs[] = {
-	"block_rq_complete",	    "block_rq_issue", "block_rq_insert",
-	"blk_account_io_merge_bio", "block_io_start", NULL,
+	"block_rq_complete",
+	"block_rq_issue",
+	"block_rq_insert",
+	"blk_account_io_merge_bio",
+	"block_io_start",
+	NULL,
 };
 
 static void enable_bpf_autoload(bio_stat_bpf *obj, const char *progs[])
@@ -233,7 +243,9 @@ static void enable_bpf_autoload(bio_stat_bpf *obj, const char *progs[])
 			bpf_prog_skeleton &prog = s->progs[i];
 			std::string name = prog.name;
 			if (name == tprog)
+			{
 				bpf_program__set_autoload(*prog.prog, true);
+			}
 		}
 	}
 }
@@ -286,7 +298,9 @@ static void blk_fill_rwbs(char *rwbs, unsigned int op)
 	int i = 0;
 
 	if (op & REQ_PREFLUSH)
+	{
 		rwbs[i++] = 'F';
+	}
 
 	switch (op & REQ_OP_MASK)
 	{
@@ -312,13 +326,21 @@ static void blk_fill_rwbs(char *rwbs, unsigned int op)
 	}
 
 	if (op & REQ_FUA)
+	{
 		rwbs[i++] = 'F';
+	}
 	if (op & REQ_RAHEAD)
+	{
 		rwbs[i++] = 'A';
+	}
 	if (op & REQ_SYNC)
+	{
 		rwbs[i++] = 'S';
+	}
 	if (op & REQ_META)
+	{
 		rwbs[i++] = 'M';
+	}
 
 	rwbs[i] = '\0';
 }
@@ -349,11 +371,22 @@ void handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 	dev_t dev = e.dev;
 	std::string diskname;
 	if (disklookup.find(dev) != disklookup.end())
+	{
 		diskname = disklookup[dev];
+	}
 	else
+	{
 		diskname = "?";
-	printf("%-14.14s %-7d %-7s %-4s %-10lld %-7d ", e.comm, e.pid,
-	       diskname.c_str(), rwbs, e.sector, e.len);
+	}
+	printf(
+		"%-14.14s %-7d %-7s %-4s %-10lld %-7d ",
+		e.comm,
+		e.pid,
+		diskname.c_str(),
+		rwbs,
+		e.sector,
+		e.len
+	);
 
 	printf("%7.3f ", e.qdelta != (__u64)-1 ? e.qdelta / 1000000.0 : -1);
 	printf("%7.3f\n", e.delta / 1000000.0);
@@ -371,31 +404,53 @@ static void snoop(void)
 	time_t time_end;
 
 	if (rule.duration)
+	{
 		time_end = time(NULL) + rule.duration;
+	}
 
-	pb = perf_buffer__new(bpf_map__fd(obj->maps.events), PERF_BUFFER_PAGES,
-			      handle_event, handle_lost_events, NULL, NULL);
+	pb = perf_buffer__new(
+		bpf_map__fd(obj->maps.events),
+		PERF_BUFFER_PAGES,
+		handle_event,
+		handle_lost_events,
+		NULL,
+		NULL
+	);
 	if (!pb)
 	{
 		fprintf(stderr, "failed to open perf buffer: %d\n", errno);
 		return;
 	}
-	printf("%-12s %-14s %-7s %-7s %-4s %-10s %-7s %7s %7s\n", "TIMESTAMP",
-	       "COMM", "PID", "DISK", "T", "SECTOR", "BYTES", "QUE(ms)",
-	       "LAT(ms)");
+	printf(
+		"%-12s %-14s %-7s %-7s %-4s %-10s %-7s %7s %7s\n",
+		"TIMESTAMP",
+		"COMM",
+		"PID",
+		"DISK",
+		"T",
+		"SECTOR",
+		"BYTES",
+		"QUE(ms)",
+		"LAT(ms)"
+	);
 
 	while (!exit_flag)
 	{
 		err = perf_buffer__poll(pb, PERF_POLL_TIMEOUT_MS);
 		if (err < 0 && err != -EINTR)
 		{
-			fprintf(stderr, "pr_error polling perf buffer: %s\n",
-				strerror(-err));
+			fprintf(
+				stderr,
+				"pr_error polling perf buffer: %s\n",
+				strerror(-err)
+			);
 			break;
 		}
 
 		if (rule.duration && time(NULL) > time_end)
+		{
 			break;
+		}
 	}
 	perf_buffer__free(pb);
 }
@@ -409,7 +464,9 @@ static void top(void)
 	time_t time_end;
 
 	if (rule.duration)
+	{
 		time_end = time(NULL) + rule.duration;
+	}
 
 	keys = new info_t[MAP_MAX_ENTRY];
 	vals = new val_t[MAP_MAX_ENTRY];
@@ -417,18 +474,39 @@ static void top(void)
 	{
 		// clear the terminal screen
 		printf("\33[H\33[2J\33[3J");
-		printf("Tracing... Output every %d secs. Hit Ctrl-C to end\n\n",
-		       interval);
-		printf("%-7s %-16s %1s %7s %-8s %5s %7s %6s\n", "PID", "COMM",
-		       "D", "DEV  ", "DISK", "I/O", "Kbytes", "AVGms");
+		printf(
+			"Tracing... Output every %d secs. Hit Ctrl-C to end\n\n",
+			interval
+		);
+		printf(
+			"%-7s %-16s %1s %7s %-8s %5s %7s %6s\n",
+			"PID",
+			"COMM",
+			"D",
+			"DEV  ",
+			"DISK",
+			"I/O",
+			"Kbytes",
+			"AVGms"
+		);
 		u32 batch;
 		count = lookup_keys(keys);
 		ret = bpf_map_lookup_and_delete_batch(
-			counts_map_fd, NULL, &batch, keys, vals, &count, NULL);
+			counts_map_fd,
+			NULL,
+			&batch,
+			keys,
+			vals,
+			&count,
+			NULL
+		);
 		if (ret == -EFAULT)
 		{
-			pr_error("lookup_and_delete_batch: %ld: %s\n", ret,
-				 strerror(errno));
+			pr_error(
+				"lookup_and_delete_batch: %ld: %s\n",
+				ret,
+				strerror(errno)
+			);
 			sleep(interval);
 			continue;
 		}
@@ -440,20 +518,34 @@ static void top(void)
 			dev_t dev = MKDEV(k.major, k.minor);
 			std::string diskname;
 			if (disklookup.find(dev) != disklookup.end())
+			{
 				diskname = disklookup[dev];
+			}
 			else
+			{
 				diskname = "?";
+			}
 
 			float avg_ms = (float(v.us) / 1000) / v.io;
-			printf("%-7d %-16s %1s %3d:%-3d %-8s %5u %7llu %6.2f\n",
-			       k.pid, k.name, k.rwflag ? "W" : "R", k.major,
-			       k.minor, diskname.c_str(), v.io, v.bytes / 1024,
-			       avg_ms);
+			printf(
+				"%-7d %-16s %1s %3d:%-3d %-8s %5u %7llu %6.2f\n",
+				k.pid,
+				k.name,
+				k.rwflag ? "W" : "R",
+				k.major,
+				k.minor,
+				diskname.c_str(),
+				v.io,
+				v.bytes / 1024,
+				avg_ms
+			);
 		}
 		sleep(interval);
 
 		if (rule.duration && time(NULL) > time_end)
+		{
 			break;
+		}
 	}
 	delete[] keys;
 	delete[] vals;
@@ -470,13 +562,19 @@ int main(int argc, char *args[])
 	int key = 0;
 	obj = bio_stat_bpf::open();
 	if (!obj)
+	{
 		exit(-1);
+	}
 
 	disable_bpf_autoload(obj);
 	if (top_mode)
+	{
 		enable_bpf_autoload(obj, top_mode_bpf_progs);
+	}
 	else
+	{
 		enable_bpf_autoload(obj, tailing_mode_bpf_progs);
+	}
 
 	if (bio_stat_bpf::load(obj))
 	{
@@ -501,21 +599,28 @@ int main(int argc, char *args[])
 	counts_map_fd = bpf_get_map_fd(obj->obj, "counts", goto err_out);
 
 	ret = pthread_create(
-		&t1, NULL,
-		[](void *) -> void * {
+		&t1,
+		NULL,
+		[](void *) -> void *
+		{
 			follow_trace_pipe();
 			return NULL;
 		},
-		NULL);
+		NULL
+	);
 	if (ret)
 	{
 		pr_error("cannot create thread: %s\n", strerror(errno));
 		goto err_out;
 	}
 	if (!top_mode)
+	{
 		snoop();
+	}
 	else
+	{
 		top();
+	}
 
 	printf("main routine done!\n");
 	stop_trace();
@@ -524,7 +629,9 @@ int main(int argc, char *args[])
 
 err_out:
 	if (rb)
+	{
 		ring_buffer__free(rb);
+	}
 	bio_stat_bpf::detach(obj);
 	bio_stat_bpf::destroy(obj);
 	return 0;

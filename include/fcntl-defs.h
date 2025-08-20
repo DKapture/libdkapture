@@ -143,19 +143,19 @@
 /* operations for bsd flock(), also used by the kernel implementation */
 #define LOCK_SH 1 /* shared lock */
 #define LOCK_EX 2 /* exclusive lock */
-#define LOCK_NB \
-	4 /* or'd with one of the above to prevent
-				   blocking */
+#define LOCK_NB                                                                \
+	4			  /* or'd with one of the above to prevent                     \
+							   blocking */
 #define LOCK_UN 8 /* remove lock */
 
 /*
  * LOCK_MAND support has been removed from the kernel. We leave the symbols
  * here to not break legacy builds, but these should not be used in new code.
  */
-#define LOCK_MAND 32 /* This is a mandatory flock ... */
-#define LOCK_READ 64 /* which allows concurrent read operations */
+#define LOCK_MAND 32   /* This is a mandatory flock ... */
+#define LOCK_READ 64   /* which allows concurrent read operations */
 #define LOCK_WRITE 128 /* which allows concurrent write operations */
-#define LOCK_RW 192 /* which allows concurrent read & write ops */
+#define LOCK_RW 192	   /* which allows concurrent read & write ops */
 
 #define F_LINUX_SPECIFIC_BASE 1024
 

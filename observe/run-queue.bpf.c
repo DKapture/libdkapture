@@ -97,9 +97,13 @@ static int rule_filter(struct task_struct *task)
 	if (rule->comm[0])
 	{
 		if (strncmp(rule->comm, task->comm, 16))
+		{
 			return 0;
+		}
 		else
+		{
 			debug = 1;
+		}
 	}
 
 	if (task->pid < rule->pid.min || task->pid > rule->pid.max)
@@ -127,7 +131,7 @@ static int rule_filter(struct task_struct *task)
 	}
 
 	if (task->start_time < rule->start_time.min ||
-	    task->start_time > rule->start_time.max)
+		task->start_time > rule->start_time.max)
 	{
 		DEBUG(0, "filtered by start_time: %lu", task->start_time);
 		return 0;
@@ -182,9 +186,19 @@ static void send_log(struct BpfData *log)
 
 static void print_log(struct seq_file *seq, const struct BpfData *log)
 {
-	BPF_SEQ_PRINTF(seq, "%d %d %d %d %lu %lu %lu %u %d\n", log->on_cpu,
-		       log->on_rq, log->pid, log->tgid, log->start_time,
-		       log->stime, log->utime, log->cpu, log->priority);
+	BPF_SEQ_PRINTF(
+		seq,
+		"%d %d %d %d %lu %lu %lu %u %d\n",
+		log->on_cpu,
+		log->on_rq,
+		log->pid,
+		log->tgid,
+		log->start_time,
+		log->stime,
+		log->utime,
+		log->cpu,
+		log->priority
+	);
 }
 
 SEC("iter/task")
@@ -195,10 +209,14 @@ int dump_task(struct bpf_iter__task *ctx)
 	struct task_struct *task = ctx->task;
 
 	if (!task)
+	{
 		return 0;
+	}
 
 	if (!rule_filter(task))
+	{
 		return 0;
+	}
 
 	struct BpfData log;
 	parse_log(task, &log);

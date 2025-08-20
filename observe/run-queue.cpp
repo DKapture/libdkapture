@@ -82,47 +82,51 @@ static int filter_fd;
 static pthread_t t1;
 static bool exit_flag = false;
 static int iter_fd;
-static struct Rule rule = { .pid = { 0, INT_MAX },
-			    .tgid = { 0, INT_MAX },
-			    .on_rq = 1,
-			    .on_cpu = 1,
-			    .utime = { 0, UINT64_MAX },
-			    .stime = { 0, UINT64_MAX },
-			    .start_time = { 0, UINT64_MAX },
-			    .priority = { 0, INT_MAX },
-			    .comm = { 0 } };
+static struct Rule rule = {
+	.pid = {0, INT_MAX},
+	.tgid = {0, INT_MAX},
+	.on_rq = 1,
+	.on_cpu = 1,
+	.utime = {0, UINT64_MAX},
+	.stime = {0, UINT64_MAX},
+	.start_time = {0, UINT64_MAX},
+	.priority = {0, INT_MAX},
+	.comm = {0}
+};
 
-static struct option lopts[] = { { "tgid", required_argument, 0, 'P' },
-				 { "tid", required_argument, 0, 'p' },
-				 { "on-rq", no_argument, 0, 'r' },
-				 { "on-cpu", no_argument, 0, 'c' },
-				 { "utime", required_argument, 0, 'u' },
-				 { "stime", required_argument, 0, 's' },
-				 { "start_time", required_argument, 0, 'S' },
-				 { "priority", required_argument, 0, 'd' },
-				 { "comm", required_argument, 0, 'C' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"tgid",		 required_argument, 0, 'P'},
+	{"tid",		required_argument, 0, 'p'},
+	{"on-rq",	  no_argument,	   0, 'r'},
+	{"on-cpu",	   no_argument,		0, 'c'},
+	{"utime",	  required_argument, 0, 'u'},
+	{"stime",	  required_argument, 0, 's'},
+	{"start_time", required_argument, 0, 'S'},
+	{"priority",	 required_argument, 0, 'd'},
+	{"comm",		 required_argument, 0, 'C'},
+	{"help",		 no_argument,		  0, 'h'},
+	{0,			0,				 0, 0  }
+};
 
 // Structure for help messages
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{ "<tgid>", "process pid to filter\n" },
-	{ "<tid>", "process tid to filter\n" },
-	{ "", "whether process is on run queue currently\n" },
-	{ "", "whether process is running on cpu currently\n" },
-	{ "<utime>", "process user time to filter\n" },
-	{ "<stime>", "process system time to filter\n" },
-	{ "<start_time>", "process start time to filter\n" },
-	{ "<priority>", "process priority to filter\n" },
-	{ "<comm>", "process command line to filter\n" },
-	{ "", "print this help message\n" },
+	{"<tgid>",	   "process pid to filter\n"						},
+	{"<tid>",		  "process tid to filter\n"					   },
+	{"",			 "whether process is on run queue currently\n"  },
+	{"",			 "whether process is running on cpu currently\n"},
+	{"<utime>",		"process user time to filter\n"				   },
+	{"<stime>",		"process system time to filter\n"				 },
+	{"<start_time>", "process start time to filter\n"				 },
+	{"<priority>",   "process priority to filter\n"				 },
+	{"<comm>",	   "process command line to filter\n"			 },
+	{"",			 "print this help message\n"					},
 };
 
 // Function to print usage information
@@ -133,8 +137,13 @@ void Usage(const char *arg0)
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -175,13 +184,11 @@ void parse_range(const std::string &range_str, u64 &min_val, u64 &max_val)
 		}
 		catch (const std::invalid_argument &e)
 		{
-			throw std::invalid_argument("Invalid number format: " +
-						    range_str);
+			throw std::invalid_argument("Invalid number format: " + range_str);
 		}
 		catch (const std::out_of_range &e)
 		{
-			throw std::out_of_range("Number out of range: " +
-						range_str);
+			throw std::out_of_range("Number out of range: " + range_str);
 		}
 	}
 	else
@@ -194,13 +201,13 @@ void parse_range(const std::string &range_str, u64 &min_val, u64 &max_val)
 		}
 		catch (const std::invalid_argument &e)
 		{
-			throw std::invalid_argument("Invalid range format: " +
-						    range_str);
+			throw std::invalid_argument("Invalid range format: " + range_str);
 		}
 		catch (const std::out_of_range &e)
 		{
 			throw std::out_of_range(
-				"Number out of range in range: " + range_str);
+				"Number out of range in range: " + range_str
+			);
 		}
 	}
 }
@@ -218,20 +225,17 @@ void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	optind = 1;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
 		case 'P':
-			parse_range(optarg, *(u32 *)&rule.pid.min,
-				    *(u32 *)&rule.pid.max);
+			parse_range(optarg, *(u32 *)&rule.pid.min, *(u32 *)&rule.pid.max);
 			break;
 		case 'p':
-			parse_range(optarg, *(u32 *)&rule.tgid.min,
-				    *(u32 *)&rule.tgid.max);
+			parse_range(optarg, *(u32 *)&rule.tgid.min, *(u32 *)&rule.tgid.max);
 			rule.tgid.max = atoi(optarg);
 			break;
 		case 'r':
@@ -247,12 +251,14 @@ void parse_args(int argc, char **argv)
 			parse_range(optarg, rule.stime.min, rule.stime.max);
 			break;
 		case 'S':
-			parse_range(optarg, rule.start_time.min,
-				    rule.start_time.max);
+			parse_range(optarg, rule.start_time.min, rule.start_time.max);
 			break;
 		case 'd':
-			parse_range(optarg, *(u32 *)&rule.priority.min,
-				    *(u32 *)&rule.priority.max);
+			parse_range(
+				optarg,
+				*(u32 *)&rule.priority.min,
+				*(u32 *)&rule.priority.max
+			);
 			break;
 		case 'C':
 			strncpy(rule.comm, optarg, 16);
@@ -270,15 +276,18 @@ void parse_args(int argc, char **argv)
 	}
 }
 
-std::map<u32, std::vector<struct BpfData> > runqueques;
+std::map<u32, std::vector<struct BpfData>> runqueques;
 // Handle events from the ring buffer
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-	const struct BpfData *log =
-		(const struct BpfData *)data; // Cast data to BpfData structure
+	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
+															  // BpfData
+															  // structure
 	auto it = runqueques.find(log->cpu);
 	if (it == runqueques.end())
+	{
 		runqueques[log->cpu] = std::vector<struct BpfData>();
+	}
 
 	runqueques[log->cpu].push_back(*log);
 
@@ -311,11 +320,12 @@ void *ringbuf_worker(void *)
 void register_signal(void)
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
+	sa.sa_handler = [](int)
+	{
 		exit_flag = true;
 		stop_trace();
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	};						  // Set exit flag on signal
+	sa.sa_flags = 0;		  // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -333,10 +343,19 @@ static void summary_print(void)
 		printf("\non run queue of cpu%d:\n", it.first);
 		for (auto &log : logs)
 		{
-			printf("\t%s %d %d %d %d %llu %llu %llu %u %d\n",
-			       log.comm, log.pid, log.tgid, log.on_cpu,
-			       log.on_rq, log.start_time, log.stime, log.utime,
-			       log.cpu, log.priority);
+			printf(
+				"\t%s %d %d %d %d %llu %llu %llu %u %d\n",
+				log.comm,
+				log.pid,
+				log.tgid,
+				log.on_cpu,
+				log.on_rq,
+				log.start_time,
+				log.stime,
+				log.utime,
+				log.cpu,
+				log.priority
+			);
 		}
 	}
 	printf("\n");
@@ -354,15 +373,19 @@ int main(int argc, char *args[])
 	ssize_t rd_sz = 0;
 
 	parse_args(argc, args); // Parse command line arguments
-	register_signal(); // Register signal handler
+	register_signal();		// Register signal handler
 
-	int key = 0; // Key for BPF map
+	int key = 0;						  // Key for BPF map
 	obj = run_queue_bpf::open_and_load(); // Load BPF program
 	if (!obj)
+	{
 		goto cleanup; // Exit if loading failed
+	}
 
 	if (0 != run_queue_bpf::attach(obj))
+	{
 		goto cleanup; // Attach BPF program
+	}
 
 	// Get file descriptor for filter map and update it with the rule
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto cleanup);
@@ -375,7 +398,9 @@ int main(int argc, char *args[])
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto cleanup);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
+	{
 		goto cleanup; // Handle error
+	}
 
 	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.dump_task));
 	if (iter_fd < 0)
@@ -393,15 +418,17 @@ int main(int argc, char *args[])
 
 	// Create a thread for processing the ring buffer
 	pthread_create(&t1, NULL, ringbuf_worker, NULL);
-	read_trace(); // Read trace
+	read_trace();			// Read trace
 	pthread_join(t1, NULL); // Wait for the worker thread to finish
 	summary_print();
 
 cleanup:
 	if (rb)
+	{
 		ring_buffer__free(rb); // Free ring buffer if allocated
-	run_queue_bpf::detach(obj); // Detach BPF program
+	}
+	run_queue_bpf::detach(obj);	 // Detach BPF program
 	run_queue_bpf::destroy(obj); // Clean up BPF program
-	free(buf); // Free allocated buffer
+	free(buf);					 // Free allocated buffer
 	return 0;
 }

@@ -14,12 +14,14 @@ typedef u32 pHash;
 
 #define __NR_syscalls 453
 
-extern int bpf_get_fsverity_digest(struct file *file,
-				   struct bpf_dynptr *digest_p) __ksym;
+extern int
+bpf_get_fsverity_digest(struct file *file, struct bpf_dynptr *digest_p) __ksym;
 
-extern int bpf_verify_pkcs7_signature(struct bpf_dynptr *data_p,
-				      struct bpf_dynptr *sig_p,
-				      struct bpf_key *trusted_keyring) __ksym;
+extern int bpf_verify_pkcs7_signature(
+	struct bpf_dynptr *data_p,
+	struct bpf_dynptr *sig_p,
+	struct bpf_key *trusted_keyring
+) __ksym;
 
 char _license[] SEC("license") = "GPL";
 
@@ -100,7 +102,9 @@ int BPF_PROG(enter_sys_call, const struct pt_regs *regs, unsigned int nr)
 
 	rule = get_rule();
 	if (!rule)
+	{
 		return 0;
+	}
 
 	pid = bpf_get_current_pid_tgid();
 	if (rule->pid > 0 && rule->pid != pid)
@@ -170,13 +174,20 @@ int BPF_PROG(exit_sys_call, const struct pt_regs *regs, long ret)
 	__sync_fetch_and_add(&snr->time, d_time);
 	__sync_fetch_and_add(&snr->cnt, 1);
 	if (ret < 0)
+	{
 		__sync_fetch_and_add(&snr->ret, 1);
+	}
 	return 0;
 }
 
 SEC("fexit/bprm_execve")
-int BPF_PROG(bprm_execve, struct linux_binprm *bprm, int fd,
-	     struct filename *filename, int flags)
+int BPF_PROG(
+	bprm_execve,
+	struct linux_binprm *bprm,
+	int fd,
+	struct filename *filename,
+	int flags
+)
 { // used for creating map from pid to pathhash
 	long ret = 0;
 	pid_t pid;
@@ -219,8 +230,13 @@ int BPF_PROG(bprm_execve, struct linux_binprm *bprm, int fd,
 	pHash pathhash = jhash(path, 4096, 0);
 	if (pathhash != rule->pathhash)
 	{
-		DEBUG(0, "%d filter by pathhash: %d vs %d", pid, pathhash,
-		      rule->pathhash);
+		DEBUG(
+			0,
+			"%d filter by pathhash: %d vs %d",
+			pid,
+			pathhash,
+			rule->pathhash
+		);
 		goto exit;
 	}
 
@@ -288,8 +304,13 @@ int BPF_PROG(exit_thread, struct task_struct *tsk)
 
 	if (*pathhash != rule->pathhash)
 	{
-		DEBUG(0, "%d filter by pathhash: %d vs %d", pid, pathhash,
-		      rule->pathhash);
+		DEBUG(
+			0,
+			"%d filter by pathhash: %d vs %d",
+			pid,
+			pathhash,
+			rule->pathhash
+		);
 		return 0;
 	}
 

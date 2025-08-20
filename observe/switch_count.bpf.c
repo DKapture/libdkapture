@@ -1,6 +1,7 @@
 /**
- * 通过使用 trace point 在sched_switch函数的入口处放置钩子，实现对该系统调用的跟踪
-*/
+ * 通过使用 trace point
+ * 在sched_switch函数的入口处放置钩子，实现对该系统调用的跟踪
+ */
 #include "vmlinux.h"
 #include "switch_count.h"
 
@@ -69,24 +70,30 @@ bpf_map_lookup_or_try_init(void *map, const void *key, const void *init)
 
 	val = bpf_map_lookup_elem(map, key);
 	if (val)
+	{
 		return val;
+	}
 
 	err = bpf_map_update_elem(map, key, init, BPF_NOEXIST);
 	if (err && err != -EEXIST)
+	{
 		return 0;
+	}
 
 	return bpf_map_lookup_elem(map, key);
 }
 
-static int handle_switch(bool preempt, struct task_struct *prev,
-			 struct task_struct *next)
+static int
+handle_switch(bool preempt, struct task_struct *prev, struct task_struct *next)
 {
 	struct hist *histp;
 	struct hkey hkey;
 	u32 pid, tgid;
 
 	if (filter_cg && !bpf_current_task_under_cgroup(&cgroup_map, 0))
+	{
 		return 0;
+	}
 
 	pid = BPF_CORE_READ(next, pid);
 	tgid = BPF_CORE_READ(next, tgid);
@@ -94,15 +101,27 @@ static int handle_switch(bool preempt, struct task_struct *prev,
 	hkey.pid = pid;
 	histp = bpf_map_lookup_or_try_init(&hists, &hkey, &zero);
 	if (!histp)
+	{
 		goto cleanup;
+	}
 	if (!histp->comm[0])
-		bpf_probe_read_kernel_str(&histp->comm, sizeof(histp->comm),
-					  next->comm);
+	{
+		bpf_probe_read_kernel_str(
+			&histp->comm,
+			sizeof(histp->comm),
+			next->comm
+		);
+	}
 
 	__sync_fetch_and_add(&histp->count, 1);
 
-	bpf_printk("handle_switch tgid=%u pid=%u comm=%s count=%llu \n", tgid,
-		   pid, histp->comm, histp->count);
+	bpf_printk(
+		"handle_switch tgid=%u pid=%u comm=%s count=%llu \n",
+		tgid,
+		pid,
+		histp->comm,
+		histp->count
+	);
 
 cleanup:
 	bpf_map_delete_elem(&start, &pid);
@@ -110,8 +129,12 @@ cleanup:
 }
 
 SEC("tp_btf/sched_switch")
-int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev,
-	     struct task_struct *next)
+int BPF_PROG(
+	sched_switch,
+	bool preempt,
+	struct task_struct *prev,
+	struct task_struct *next
+)
 {
 	return handle_switch(preempt, prev, next);
 }

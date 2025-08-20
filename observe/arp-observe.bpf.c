@@ -43,37 +43,47 @@ int capture_arp(struct xdp_md *ctx)
 
 	// Validate ethernet header bounds
 	if (data + sizeof(struct ethhdr) > data_end)
+	{
 		return XDP_PASS;
+	}
 
 	struct ethhdr *eth = data;
 
 	// Only process ARP packets
 	if (eth->h_proto != bpf_htons(ETH_P_ARP))
+	{
 		return XDP_PASS;
+	}
 
 	// Validate ARP header bounds
 	if (data + sizeof(struct ethhdr) + sizeof(struct arphdr) > data_end)
+	{
 		return XDP_PASS;
+	}
 
 	struct arphdr *arp = data + sizeof(struct ethhdr);
 
 	// Only process IPv4 ARP (Ethernet hardware, IPv4 protocol)
 	if (arp->ar_hrd != bpf_htons(ARPHRD_ETHER) ||
-	    arp->ar_pro != bpf_htons(ETH_P_IP))
+		arp->ar_pro != bpf_htons(ETH_P_IP))
+	{
 		return XDP_PASS;
+	}
 
 	// Validate complete ARP packet bounds
-	if (data + sizeof(struct ethhdr) + sizeof(struct arphdr) +
-		    2 * ETH_ALEN + 2 * sizeof(__be32) >
-	    data_end)
+	if (data + sizeof(struct ethhdr) + sizeof(struct arphdr) + 2 * ETH_ALEN +
+			2 * sizeof(__be32) >
+		data_end)
+	{
 		return XDP_PASS;
+	}
 
 	struct arp_event event = {};
 	unsigned char *arp_data = (unsigned char *)(arp + 1);
 
 	// Additional bounds check for ARP data access
 	if ((unsigned char *)arp_data + 2 * ETH_ALEN + 2 * sizeof(__be32) >
-	    (unsigned char *)data_end)
+		(unsigned char *)data_end)
 	{
 		return XDP_PASS;
 	}
@@ -81,10 +91,13 @@ int capture_arp(struct xdp_md *ctx)
 	// Extract MAC and IP addresses from ARP payload
 	__builtin_memcpy(event.src_mac, arp_data, ETH_ALEN);
 	event.src_ip = bpf_ntohl(*(__be32 *)(arp_data + ETH_ALEN));
-	__builtin_memcpy(event.dst_mac, arp_data + ETH_ALEN + sizeof(__be32),
-			 ETH_ALEN);
-	event.dst_ip = bpf_ntohl(
-		*(__be32 *)(arp_data + ETH_ALEN + sizeof(__be32) + ETH_ALEN));
+	__builtin_memcpy(
+		event.dst_mac,
+		arp_data + ETH_ALEN + sizeof(__be32),
+		ETH_ALEN
+	);
+	event.dst_ip =
+		bpf_ntohl(*(__be32 *)(arp_data + ETH_ALEN + sizeof(__be32) + ETH_ALEN));
 
 	event.opcode = bpf_ntohs(arp->ar_op);
 	event.timestamp = now_ns();

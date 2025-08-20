@@ -83,16 +83,23 @@ struct
 // Helper function removed - using direct field access
 
 // Helper function to check if event should be filtered
-static __always_inline bool should_filter_event(struct filter_config *cfg,
-						u32 pid, u32 cpu,
-						char *workqueue_name,
-						u64 function_ptr)
+static __always_inline bool should_filter_event(
+	struct filter_config *cfg,
+	u32 pid,
+	u32 cpu,
+	char *workqueue_name,
+	u64 function_ptr
+)
 {
 	if (cfg->filter_pid && cfg->target_pid != pid)
+	{
 		return true;
+	}
 
 	if (cfg->filter_cpu && cfg->target_cpu != cpu)
+	{
 		return true;
+	}
 
 	if (cfg->filter_workqueue && workqueue_name)
 	{
@@ -100,7 +107,9 @@ static __always_inline bool should_filter_event(struct filter_config *cfg,
 		for (int i = 0; i < WORKQUEUE_NAME_LEN - 1; i++)
 		{
 			if (cfg->target_workqueue[i] == 0)
+			{
 				break;
+			}
 			if (workqueue_name[i] != cfg->target_workqueue[i])
 			{
 				return true;
@@ -112,34 +121,46 @@ static __always_inline bool should_filter_event(struct filter_config *cfg,
 			}
 		}
 		if (!match)
+		{
 			return true;
+		}
 	}
 
 	return false;
 }
 
 // Helper function to send event to userspace
-static __always_inline void send_event(u8 event_type, u64 work_ptr,
-				       u64 function_ptr, char *workqueue_name,
-				       s32 req_cpu, u64 delay_ns)
+static __always_inline void send_event(
+	u8 event_type,
+	u64 work_ptr,
+	u64 function_ptr,
+	char *workqueue_name,
+	s32 req_cpu,
+	u64 delay_ns
+)
 {
 	u32 key = 0;
-	struct filter_config *cfg =
-		bpf_map_lookup_elem(&filter_config_map, &key);
+	struct filter_config *cfg = bpf_map_lookup_elem(&filter_config_map, &key);
 	if (!cfg)
+	{
 		return;
+	}
 
 	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u32 pid = pid_tgid >> 32;
 	u32 cpu = bpf_get_smp_processor_id();
 
 	if (should_filter_event(cfg, pid, cpu, workqueue_name, function_ptr))
+	{
 		return;
+	}
 
 	struct workqueue_event *event =
 		bpf_ringbuf_reserve(&events, sizeof(*event), 0);
 	if (!event)
+	{
 		return;
+	}
 
 	event->timestamp = bpf_ktime_get_ns();
 	event->pid = pid;
@@ -154,9 +175,11 @@ static __always_inline void send_event(u8 event_type, u64 work_ptr,
 
 	if (workqueue_name)
 	{
-		bpf_probe_read_str(event->workqueue_name,
-				   sizeof(event->workqueue_name),
-				   workqueue_name);
+		bpf_probe_read_str(
+			event->workqueue_name,
+			sizeof(event->workqueue_name),
+			workqueue_name
+		);
 	}
 	else
 	{
@@ -172,33 +195,41 @@ int tp_workqueue_queue_work(struct trace_event_raw_workqueue_queue_work *ctx)
 	u64 work_ptr = (u64)ctx->work;
 	u64 function_ptr = (u64)ctx->function;
 	// Get workqueue name from __data_loc field
-	char *workqueue_name =
-		(char *)ctx + (ctx->__data_loc_workqueue & 0xFFFF);
+	char *workqueue_name = (char *)ctx + (ctx->__data_loc_workqueue & 0xFFFF);
 	s32 req_cpu = ctx->req_cpu;
 
 	// Store timing info for delay calculation
-	struct work_timing timing = { 0 };
+	struct work_timing timing = {0};
 	timing.queue_time = bpf_ktime_get_ns();
 	timing.start_time = 0;
 	timing.pid = bpf_get_current_pid_tgid() >> 32;
 	bpf_get_current_comm(timing.comm, sizeof(timing.comm));
 	if (workqueue_name)
 	{
-		bpf_probe_read_str(timing.workqueue_name,
-				   sizeof(timing.workqueue_name),
-				   workqueue_name);
+		bpf_probe_read_str(
+			timing.workqueue_name,
+			sizeof(timing.workqueue_name),
+			workqueue_name
+		);
 	}
 
 	bpf_map_update_elem(&work_timings, &work_ptr, &timing, BPF_ANY);
 
-	send_event(WQ_EVENT_QUEUE, work_ptr, function_ptr, workqueue_name,
-		   req_cpu, 0);
+	send_event(
+		WQ_EVENT_QUEUE,
+		work_ptr,
+		function_ptr,
+		workqueue_name,
+		req_cpu,
+		0
+	);
 	return 0;
 }
 
 SEC("tp/workqueue/workqueue_activate_work")
 int tp_workqueue_activate_work(
-	struct trace_event_raw_workqueue_activate_work *ctx)
+	struct trace_event_raw_workqueue_activate_work *ctx
+)
 {
 	u64 work_ptr = (u64)ctx->work;
 
@@ -208,7 +239,8 @@ int tp_workqueue_activate_work(
 
 SEC("tp/workqueue/workqueue_execute_start")
 int tp_workqueue_execute_start(
-	struct trace_event_raw_workqueue_execute_start *ctx)
+	struct trace_event_raw_workqueue_execute_start *ctx
+)
 {
 	u64 work_ptr = (u64)ctx->work;
 	u64 function_ptr = (u64)ctx->function;
@@ -216,14 +248,12 @@ int tp_workqueue_execute_start(
 	u64 delay_ns = 0;
 
 	// Calculate queue delay
-	struct work_timing *timing =
-		bpf_map_lookup_elem(&work_timings, &work_ptr);
+	struct work_timing *timing = bpf_map_lookup_elem(&work_timings, &work_ptr);
 	if (timing && timing->queue_time > 0)
 	{
 		delay_ns = now - timing->queue_time;
 		timing->start_time = now;
-		bpf_map_update_elem(&work_timings, &work_ptr, timing,
-				    BPF_EXIST);
+		bpf_map_update_elem(&work_timings, &work_ptr, timing, BPF_EXIST);
 	}
 
 	send_event(WQ_EVENT_START, work_ptr, function_ptr, NULL, -1, delay_ns);
@@ -239,8 +269,7 @@ int tp_workqueue_execute_end(struct trace_event_raw_workqueue_execute_end *ctx)
 	u64 exec_time = 0;
 
 	// Calculate execution time
-	struct work_timing *timing =
-		bpf_map_lookup_elem(&work_timings, &work_ptr);
+	struct work_timing *timing = bpf_map_lookup_elem(&work_timings, &work_ptr);
 	if (timing && timing->start_time > 0)
 	{
 		exec_time = now - timing->start_time;

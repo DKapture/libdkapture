@@ -104,19 +104,19 @@ struct net_event
 	u32 flags;
 
 	// 新增L3层信息
-	u8 ip_version; // 4 or 6
-	u32 src_ip; // IPv4源地址
-	u32 dst_ip; // IPv4目标地址
+	u8 ip_version;	// 4 or 6
+	u32 src_ip;		// IPv4源地址
+	u32 dst_ip;		// IPv4目标地址
 	u8 ip_protocol; // TCP/UDP/ICMP等
-	u8 tos; // Type of Service
-	u8 ttl; // Time to Live
+	u8 tos;			// Type of Service
+	u8 ttl;			// Time to Live
 
 	// 新增L4层信息
-	u16 src_port; // 源端口
-	u16 dst_port; // 目标端口
-	u16 tcp_flags; // TCP标志位
-	u32 seq_num; // TCP序列号
-	u32 ack_num; // TCP确认号
+	u16 src_port;	 // 源端口
+	u16 dst_port;	 // 目标端口
+	u16 tcp_flags;	 // TCP标志位
+	u32 seq_num;	 // TCP序列号
+	u32 ack_num;	 // TCP确认号
 	u16 window_size; // TCP窗口大小
 };
 
@@ -139,7 +139,7 @@ struct
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 10240);
 	__type(key, void *); // skb_addr作为key
-	__type(value, u64); // 时间戳
+	__type(value, u64);	 // 时间戳
 } start_times SEC(".maps");
 
 struct
@@ -162,30 +162,42 @@ static bool strings_equal(const char *s1, const char *s2, int max_len)
 	for (int i = 0; i < max_len; i++)
 	{
 		if (s1[i] != s2[i])
+		{
 			return false;
+		}
 		if (s1[i] == '\0')
+		{
 			break;
+		}
 	}
 	return true;
 }
 
 // 辅助函数：应用过滤规则
-static bool should_trace(struct net_rule *rule, u32 pid, u32 len,
-			 const char *dev_name)
+static bool
+should_trace(struct net_rule *rule, u32 pid, u32 len, const char *dev_name)
 {
 	if (rule->target_pid && rule->target_pid != pid)
+	{
 		return false;
+	}
 
 	if (rule->min_len && len < rule->min_len)
+	{
 		return false;
+	}
 
 	if (rule->max_len && len > rule->max_len)
+	{
 		return false;
+	}
 
 	if (rule->target_dev[0] != '\0')
 	{
 		if (!strings_equal(dev_name, rule->target_dev, 16))
+		{
 			return false;
+		}
 	}
 
 	return true;
@@ -204,23 +216,33 @@ static void parse_ip_header(struct sk_buff *skb, struct net_event *event)
 
 	// 检查是否为IP包
 	if (event->protocol != 0x0800) // ETH_P_IP
+	{
 		return;
+	}
 
 	// 获取网络头部偏移
 	u32 network_offset = BPF_CORE_READ(skb, network_header);
 	if (network_offset == 0)
+	{
 		return;
+	}
 
 	// 读取IP头部
 	struct iphdr ip_hdr;
-	if (bpf_probe_read(&ip_hdr, sizeof(ip_hdr),
-			   (void *)(long)BPF_CORE_READ(skb, head) +
-				   network_offset) != 0)
+	if (bpf_probe_read(
+			&ip_hdr,
+			sizeof(ip_hdr),
+			(void *)(long)BPF_CORE_READ(skb, head) + network_offset
+		) != 0)
+	{
 		return;
+	}
 
 	// 检查IP版本
 	if ((ip_hdr.version & 0xF0) != 0x40) // IPv4
+	{
 		return;
+	}
 
 	// 填充IP信息
 	event->ip_version = 4;
@@ -244,19 +266,27 @@ static void parse_tcp_header(struct sk_buff *skb, struct net_event *event)
 
 	// 检查是否为TCP协议
 	if (event->ip_protocol != IPPROTO_TCP)
+	{
 		return;
+	}
 
 	// 获取传输层头部偏移
 	u32 transport_offset = BPF_CORE_READ(skb, transport_header);
 	if (transport_offset == 0)
+	{
 		return;
+	}
 
 	// 读取TCP头部
 	struct tcphdr tcp_hdr;
-	if (bpf_probe_read(&tcp_hdr, sizeof(tcp_hdr),
-			   (void *)(long)BPF_CORE_READ(skb, head) +
-				   transport_offset) != 0)
+	if (bpf_probe_read(
+			&tcp_hdr,
+			sizeof(tcp_hdr),
+			(void *)(long)BPF_CORE_READ(skb, head) + transport_offset
+		) != 0)
+	{
 		return;
+	}
 
 	// 填充TCP信息
 	event->src_port = __builtin_bswap16(tcp_hdr.source);
@@ -268,13 +298,21 @@ static void parse_tcp_header(struct sk_buff *skb, struct net_event *event)
 	// 解析TCP标志位
 	event->tcp_flags = 0;
 	if (tcp_hdr.syn)
+	{
 		event->tcp_flags |= TCP_FLAG_SYN;
+	}
 	if (tcp_hdr.ack)
+	{
 		event->tcp_flags |= TCP_FLAG_ACK;
+	}
 	if (tcp_hdr.fin)
+	{
 		event->tcp_flags |= TCP_FLAG_FIN;
+	}
 	if (tcp_hdr.rst)
+	{
 		event->tcp_flags |= TCP_FLAG_RST;
+	}
 }
 
 // 辅助函数：解析UDP头部信息
@@ -286,19 +324,27 @@ static void parse_udp_header(struct sk_buff *skb, struct net_event *event)
 
 	// 检查是否为UDP协议
 	if (event->ip_protocol != IPPROTO_UDP)
+	{
 		return;
+	}
 
 	// 获取传输层头部偏移
 	u32 transport_offset = BPF_CORE_READ(skb, transport_header);
 	if (transport_offset == 0)
+	{
 		return;
+	}
 
 	// 读取UDP头部
 	struct udphdr udp_hdr;
-	if (bpf_probe_read(&udp_hdr, sizeof(udp_hdr),
-			   (void *)(long)BPF_CORE_READ(skb, head) +
-				   transport_offset) != 0)
+	if (bpf_probe_read(
+			&udp_hdr,
+			sizeof(udp_hdr),
+			(void *)(long)BPF_CORE_READ(skb, head) + transport_offset
+		) != 0)
+	{
 		return;
+	}
 
 	// 填充UDP信息
 	event->src_port = __builtin_bswap16(udp_hdr.source);
@@ -345,15 +391,23 @@ int trace_netif_receive_skb(struct tp_netif_receive_skb *ctx)
 	u32 key = 0;
 	struct net_rule *rule = bpf_map_lookup_elem(&rules_map, &key);
 	if (!rule || !(rule->event_mask & (1 << 3)))
+	{
 		return 0;
+	}
 
-	char dev_name[16] = { 0 };
+	char dev_name[16] = {0};
 	char *name_ptr = (char *)ctx + (ctx->name_loc & 0xFFFF);
 	bpf_probe_read_str(dev_name, sizeof(dev_name), name_ptr);
 
-	if (!should_trace(rule, bpf_get_current_pid_tgid() >> 32, ctx->len,
-			  dev_name))
+	if (!should_trace(
+			rule,
+			bpf_get_current_pid_tgid() >> 32,
+			ctx->len,
+			dev_name
+		))
+	{
 		return 0;
+	}
 
 	struct net_event event = {};
 	fill_common_event_fields(&event);
@@ -381,15 +435,23 @@ int trace_net_dev_queue(struct tp_net_dev_queue *ctx)
 	u32 key = 0;
 	struct net_rule *rule = bpf_map_lookup_elem(&rules_map, &key);
 	if (!rule || !(rule->event_mask & (1 << 0)))
+	{
 		return 0;
+	}
 
-	char dev_name[16] = { 0 };
+	char dev_name[16] = {0};
 	char *name_ptr = (char *)ctx + (ctx->name_loc & 0xFFFF);
 	bpf_probe_read_str(dev_name, sizeof(dev_name), name_ptr);
 
-	if (!should_trace(rule, bpf_get_current_pid_tgid() >> 32, ctx->len,
-			  dev_name))
+	if (!should_trace(
+			rule,
+			bpf_get_current_pid_tgid() >> 32,
+			ctx->len,
+			dev_name
+		))
+	{
 		return 0;
+	}
 
 	// 记录开始时间
 	u64 ts = bpf_ktime_get_ns();
@@ -422,15 +484,23 @@ int trace_net_dev_xmit(struct tp_net_dev_xmit *ctx)
 	u32 key = 0;
 	struct net_rule *rule = bpf_map_lookup_elem(&rules_map, &key);
 	if (!rule || !(rule->event_mask & (1 << 2)))
+	{
 		return 0;
+	}
 
-	char dev_name[16] = { 0 };
+	char dev_name[16] = {0};
 	char *name_ptr = (char *)ctx + (ctx->name_loc & 0xFFFF);
 	bpf_probe_read_str(dev_name, sizeof(dev_name), name_ptr);
 
-	if (!should_trace(rule, bpf_get_current_pid_tgid() >> 32, ctx->len,
-			  dev_name))
+	if (!should_trace(
+			rule,
+			bpf_get_current_pid_tgid() >> 32,
+			ctx->len,
+			dev_name
+		))
+	{
 		return 0;
+	}
 
 	struct net_event event = {};
 	fill_common_event_fields(&event);
@@ -453,8 +523,7 @@ int trace_net_dev_xmit(struct tp_net_dev_xmit *ctx)
 	u64 *start_ts = bpf_map_lookup_elem(&start_times, &skb_key);
 	if (start_ts)
 	{
-		event.flags =
-			(u32)((event.ts - *start_ts) / 1000); // 转换为微秒
+		event.flags = (u32)((event.ts - *start_ts) / 1000); // 转换为微秒
 		bpf_map_delete_elem(&start_times, &skb_key);
 	}
 
@@ -469,15 +538,23 @@ int trace_net_dev_start_xmit(struct tp_net_dev_start_xmit *ctx)
 	u32 key = 0;
 	struct net_rule *rule = bpf_map_lookup_elem(&rules_map, &key);
 	if (!rule || !(rule->event_mask & (1 << 1)))
+	{
 		return 0;
+	}
 
-	char dev_name[16] = { 0 };
+	char dev_name[16] = {0};
 	char *name_ptr = (char *)ctx + (ctx->name_loc & 0xFFFF);
 	bpf_probe_read_str(dev_name, sizeof(dev_name), name_ptr);
 
-	if (!should_trace(rule, bpf_get_current_pid_tgid() >> 32, ctx->len,
-			  dev_name))
+	if (!should_trace(
+			rule,
+			bpf_get_current_pid_tgid() >> 32,
+			ctx->len,
+			dev_name
+		))
+	{
 		return 0;
+	}
 
 	struct net_event event = {};
 	fill_common_event_fields(&event);

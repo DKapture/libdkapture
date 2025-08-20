@@ -45,31 +45,33 @@ static pthread_t t1;
 static bool exit_flag = false;
 struct Rule rule = {};
 
-static struct option lopts[] = { { "sender-pid", required_argument, 0, 'P' },
-				 { "recv-pid", required_argument, 0, 'p' },
-				 { "sender-prog", required_argument, 0, 's' },
-				 { "recv-prog", required_argument, 0, 'r' },
-				 { "sig", required_argument, 0, 'S' },
-				 { "res", required_argument, 0, 'R' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"sender-pid",  required_argument, 0, 'P'},
+	{"recv-pid",	 required_argument, 0, 'p'},
+	{"sender-prog", required_argument, 0, 's'},
+	{"recv-prog",	  required_argument, 0, 'r'},
+	{"sig",			required_argument, 0, 'S'},
+	{"res",			required_argument, 0, 'R'},
+	{"help",		 no_argument,		  0, 'h'},
+	{0,			 0,				 0, 0  }
+};
 
 // Structure for help messages
 struct HelpMsg
 {
 	const char *argparam; // Argument parameter
-	const char *msg; // Help message
+	const char *msg;	  // Help message
 };
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{ "<sender-pid>", "Sender process ID to filter\n" },
-	{ "<recv-pid>", "Receiver process ID to filter\n" },
-	{ "<sender-prog>", "Filter by sender program\n" },
-	{ "<recv-prog>", "Filter by receiver program\n" },
-	{ "<sig>", "Signal number to filter\n" },
-	{ "<res>", "Signal number to filter\n" },
-	{ "", "print this help message\n" },
+	{"<sender-pid>",	 "Sender process ID to filter\n"	},
+	{"<recv-pid>",	   "Receiver process ID to filter\n"},
+	{"<sender-prog>", "Filter by sender program\n"	  },
+	{"<recv-prog>",	"Filter by receiver program\n"	  },
+	{"<sig>",		  "Signal number to filter\n"		 },
+	{"<res>",		  "Signal number to filter\n"		 },
+	{"",			  "print this help message\n"		},
 };
 
 // Function to print usage information
@@ -80,8 +82,13 @@ void Usage(const char *arg0)
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -122,10 +129,9 @@ void parse_args(int argc, char **argv)
 	}
 
 	optind = 1;
-	std::string sopts = long_opt2short_opt(
-		lopts); // Convert long options to short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -166,14 +172,20 @@ void parse_args(int argc, char **argv)
 		}
 	}
 	printf("\n=============== filter =================\n\n");
-	printf("\tsender_pid = %u\n"
-	       "\tsender_phash = %u\n"
-	       "\trecv_pid = %u\n"
-	       "\trecv_phash = %u\n"
-	       "\tsignal = %u\n"
-	       "\treturn = %u\n",
-	       rule.sender_pid, rule.sender_phash, rule.recv_pid,
-	       rule.recv_phash, rule.sig, rule.res);
+	printf(
+		"\tsender_pid = %u\n"
+		"\tsender_phash = %u\n"
+		"\trecv_pid = %u\n"
+		"\trecv_phash = %u\n"
+		"\tsignal = %u\n"
+		"\treturn = %u\n",
+		rule.sender_pid,
+		rule.sender_phash,
+		rule.recv_pid,
+		rule.recv_phash,
+		rule.sig,
+		rule.res
+	);
 	printf("\n========================================\n\n");
 
 	free(buf);
@@ -182,11 +194,18 @@ void parse_args(int argc, char **argv)
 // Handle events from the ring buffer
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-	const struct BpfData *log =
-		(const struct BpfData *)data; // Cast data to BpfData structure
-	printf("%10d %15s %10d %15s %12s %8d\n", log->sender_pid,
-	       log->sender_comm, log->recv_pid, log->recv_comm,
-	       log->sig ? strsignal(log->sig) : "0", log->res);
+	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
+															  // BpfData
+															  // structure
+	printf(
+		"%10d %15s %10d %15s %12s %8d\n",
+		log->sender_pid,
+		log->sender_comm,
+		log->recv_pid,
+		log->recv_comm,
+		log->sig ? strsignal(log->sig) : "0",
+		log->res
+	);
 	return 0;
 }
 
@@ -210,10 +229,8 @@ void *ringbuf_worker(void *)
 void register_signal(void)
 {
 	struct sigaction sa;
-	sa.sa_handler = [](int) {
-		exit_flag = true;
-	}; // Set exit flag on signal
-	sa.sa_flags = 0; // No special flags
+	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
+	sa.sa_flags = 0;							   // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
 	// Register the signal handler for SIGINT
 	if (sigaction(SIGINT, &sa, NULL) == -1)
@@ -236,15 +253,19 @@ int main(int argc, char *args[])
 	}
 
 	parse_args(argc, args); // Parse command line arguments
-	register_signal(); // Register signal handler
+	register_signal();		// Register signal handler
 
-	int key = 0; // Key for BPF map
+	int key = 0;							 // Key for BPF map
 	obj = trace_signal_bpf::open_and_load(); // Load BPF program
 	if (!obj)
+	{
 		goto cleanup; // Exit if loading failed
+	}
 
 	if (0 != trace_signal_bpf::attach(obj))
+	{
 		goto cleanup; // Attach BPF program
+	}
 
 	// Get file descriptor for filter map and update it with the rule
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto cleanup);
@@ -258,7 +279,9 @@ int main(int argc, char *args[])
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto cleanup);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
+	{
 		goto cleanup; // Handle error
+	}
 
 	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.dump_task));
 	if (iter_fd < 0)
@@ -273,19 +296,28 @@ int main(int argc, char *args[])
 
 	close(iter_fd);
 
-	printf("%10s %15s %10s %15s %12s %8s\n", "SENDER", "S-COMM", "RCVER",
-	       "R-COMM", "SIGNAL", "RESULT");
+	printf(
+		"%10s %15s %10s %15s %12s %8s\n",
+		"SENDER",
+		"S-COMM",
+		"RCVER",
+		"R-COMM",
+		"SIGNAL",
+		"RESULT"
+	);
 
 	// Create a thread for processing the ring buffer
 	pthread_create(&t1, NULL, ringbuf_worker, NULL);
-	follow_trace_pipe(); // Read trace pipe
+	follow_trace_pipe();	// Read trace pipe
 	pthread_join(t1, NULL); // Wait for the worker thread to finish
 
 cleanup:
 	if (rb)
+	{
 		ring_buffer__free(rb); // Free ring buffer if allocated
-	trace_signal_bpf::detach(obj); // Detach BPF program
+	}
+	trace_signal_bpf::detach(obj);	// Detach BPF program
 	trace_signal_bpf::destroy(obj); // Clean up BPF program
-	free(buf); // Free allocated buffer
-	return 0; // Exit successfully
+	free(buf);						// Free allocated buffer
+	return 0;						// Exit successfully
 }

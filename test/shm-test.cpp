@@ -18,289 +18,355 @@
 // 测试用的共享内存键值
 static const key_t TEST_SHM_KEY = 0x87654321;
 
-class SharedMemoryTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        cleanup_test_shm();
-    }
+class SharedMemoryTest : public ::testing::Test
+{
+  protected:
+	void SetUp() override
+	{
+		cleanup_test_shm();
+	}
 
-    void TearDown() override {
-        cleanup_test_shm();
-    }
+	void TearDown() override
+	{
+		cleanup_test_shm();
+	}
 
-    void cleanup_test_shm() {
-        int shmid = shmget(TEST_SHM_KEY, 0, 0);
-        if (shmid >= 0) {
-            shmctl(shmid, IPC_RMID, nullptr);
-        }
-    }
+	void cleanup_test_shm()
+	{
+		int shmid = shmget(TEST_SHM_KEY, 0, 0);
+		if (shmid >= 0)
+		{
+			shmctl(shmid, IPC_RMID, nullptr);
+		}
+	}
 
-    bool shm_exists(key_t key) {
-        int shmid = shmget(key, 0, 0);
-        return shmid >= 0;
-    }
+	bool shm_exists(key_t key)
+	{
+		int shmid = shmget(key, 0, 0);
+		return shmid >= 0;
+	}
 
-    bool get_shm_info(key_t key, struct shmid_ds& info) {
-        int shmid = shmget(key, 0, 0);
-        if (shmid < 0) return false;
-        return shmctl(shmid, IPC_STAT, &info) >= 0;
-    }
+	bool get_shm_info(key_t key, struct shmid_ds &info)
+	{
+		int shmid = shmget(key, 0, 0);
+		if (shmid < 0)
+		{
+			return false;
+		}
+		return shmctl(shmid, IPC_STAT, &info) >= 0;
+	}
 };
 
 // 基本创建和删除测试
-TEST_F(SharedMemoryTest, BasicCreationAndDeletion) {
-    EXPECT_FALSE(shm_exists(TEST_SHM_KEY));
+TEST_F(SharedMemoryTest, BasicCreationAndDeletion)
+{
+	EXPECT_FALSE(shm_exists(TEST_SHM_KEY));
 
-    int shmid = shmget(TEST_SHM_KEY, 1024 * 1024, IPC_CREAT | IPC_EXCL | 0600);
-    EXPECT_GE(shmid, 0);
+	int shmid = shmget(TEST_SHM_KEY, 1024 * 1024, IPC_CREAT | IPC_EXCL | 0600);
+	EXPECT_GE(shmid, 0);
 
-    EXPECT_TRUE(shm_exists(TEST_SHM_KEY));
+	EXPECT_TRUE(shm_exists(TEST_SHM_KEY));
 
-    EXPECT_EQ(shmctl(shmid, IPC_RMID, nullptr), 0);
-    EXPECT_FALSE(shm_exists(TEST_SHM_KEY));
+	EXPECT_EQ(shmctl(shmid, IPC_RMID, nullptr), 0);
+	EXPECT_FALSE(shm_exists(TEST_SHM_KEY));
 }
 
 // SharedMemory类测试
-TEST_F(SharedMemoryTest, SharedMemoryClass) {
-    EXPECT_FALSE(shm_exists(0x12345678));
+TEST_F(SharedMemoryTest, SharedMemoryClass)
+{
+	EXPECT_FALSE(shm_exists(0x12345678));
 
-    try {
-        SharedMemory* shm = new SharedMemory();
-        EXPECT_NE(shm, nullptr);
-        EXPECT_TRUE(shm_exists(0x12345678));
+	try
+	{
+		SharedMemory *shm = new SharedMemory();
+		EXPECT_NE(shm, nullptr);
+		EXPECT_TRUE(shm_exists(0x12345678));
 
-        delete shm;
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		delete shm;
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 多个对象引用计数测试
-TEST_F(SharedMemoryTest, MultipleObjects) {
-    try {
-        SharedMemory* shm1 = new SharedMemory();
-        EXPECT_NE(shm1, nullptr);
+TEST_F(SharedMemoryTest, MultipleObjects)
+{
+	try
+	{
+		SharedMemory *shm1 = new SharedMemory();
+		EXPECT_NE(shm1, nullptr);
 
-        SharedMemory* shm2 = new SharedMemory();
-        EXPECT_NE(shm2, nullptr);
+		SharedMemory *shm2 = new SharedMemory();
+		EXPECT_NE(shm2, nullptr);
 
-        EXPECT_TRUE(shm_exists(0x12345678));
+		EXPECT_TRUE(shm_exists(0x12345678));
 
-        delete shm1;
-        delete shm2;
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		delete shm1;
+		delete shm2;
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 并发访问测试
-TEST_F(SharedMemoryTest, ConcurrentAccess) {
-    try {
-        const int num_threads = 4;
-        std::vector<std::thread> threads;
-        std::atomic<int> success_count{0};
+TEST_F(SharedMemoryTest, ConcurrentAccess)
+{
+	try
+	{
+		const int num_threads = 4;
+		std::vector<std::thread> threads;
+		std::atomic<int> success_count{0};
 
-        for (int i = 0; i < num_threads; ++i) {
-            threads.emplace_back([&]() {
-                try {
-                    SharedMemory* shm = new SharedMemory();
-                    EXPECT_NE(shm, nullptr);
-                    delete shm;
-                    success_count++;
-                } catch (const std::exception& e) {
-                    pr_error("Thread failed: %s", e.what());
-                    FAIL();
-                }
-            });
-        }
+		for (int i = 0; i < num_threads; ++i)
+		{
+			threads.emplace_back(
+				[&]()
+				{
+					try
+					{
+						SharedMemory *shm = new SharedMemory();
+						EXPECT_NE(shm, nullptr);
+						delete shm;
+						success_count++;
+					}
+					catch (const std::exception &e)
+					{
+						pr_error("Thread failed: %s", e.what());
+						FAIL();
+					}
+				}
+			);
+		}
 
-        for (auto& thread : threads) {
-            thread.join();
-        }
+		for (auto &thread : threads)
+		{
+			thread.join();
+		}
 
-        EXPECT_EQ(success_count.load(), num_threads);
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		EXPECT_EQ(success_count.load(), num_threads);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 测试版本字段（通过共享内存存在性验证）
-TEST_F(SharedMemoryTest, VersionField) {
-    try {
-        SharedMemory* shm = new SharedMemory();
-        EXPECT_NE(shm, nullptr);
-        EXPECT_TRUE(shm_exists(0x12345678));
+TEST_F(SharedMemoryTest, VersionField)
+{
+	try
+	{
+		SharedMemory *shm = new SharedMemory();
+		EXPECT_NE(shm, nullptr);
+		EXPECT_TRUE(shm_exists(0x12345678));
 
-        // 验证共享内存段被正确创建
-        // 注意：version字段是私有的，我们通过共享内存的存在性来验证
+		// 验证共享内存段被正确创建
+		// 注意：version字段是私有的，我们通过共享内存的存在性来验证
 
-        delete shm;
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		delete shm;
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 测试锁字段初始化
-TEST_F(SharedMemoryTest, LockFieldsInitialization) {
-    try {
-        SharedMemory* shm = new SharedMemory();
-        EXPECT_NE(shm, nullptr);
+TEST_F(SharedMemoryTest, LockFieldsInitialization)
+{
+	try
+	{
+		SharedMemory *shm = new SharedMemory();
+		EXPECT_NE(shm, nullptr);
 
-        // 验证锁字段被正确初始化（应该为0）
-        EXPECT_EQ(shm->bpf_lock, 0);
-        EXPECT_EQ(shm->bpf_ref_cnt, 0);
-        EXPECT_EQ(shm->ring_buffer_lock, 0);
-        EXPECT_EQ(shm->ring_buffer_ref_cnt, 0);
-        EXPECT_EQ(shm->data_map_lock, 0);
-        EXPECT_EQ(shm->data_map_idx, 0);
-        EXPECT_EQ(shm->data_map_ref_cnt, 0);
+		// 验证锁字段被正确初始化（应该为0）
+		EXPECT_EQ(shm->bpf_lock, 0);
+		EXPECT_EQ(shm->bpf_ref_cnt, 0);
+		EXPECT_EQ(shm->ring_buffer_lock, 0);
+		EXPECT_EQ(shm->ring_buffer_ref_cnt, 0);
+		EXPECT_EQ(shm->data_map_lock, 0);
+		EXPECT_EQ(shm->data_map_idx, 0);
+		EXPECT_EQ(shm->data_map_ref_cnt, 0);
 
-        delete shm;
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		delete shm;
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 测试权限设置
-TEST_F(SharedMemoryTest, PermissionSettings) {
-    try {
-        SharedMemory* shm = new SharedMemory();
-        EXPECT_NE(shm, nullptr);
+TEST_F(SharedMemoryTest, PermissionSettings)
+{
+	try
+	{
+		SharedMemory *shm = new SharedMemory();
+		EXPECT_NE(shm, nullptr);
 
-        // 验证共享内存段的权限设置
-        struct shmid_ds shm_info;
-        EXPECT_TRUE(get_shm_info(0x12345678, shm_info));
-        EXPECT_EQ(shm_info.shm_perm.mode & 0777, 0600); // 只有所有者可读写
+		// 验证共享内存段的权限设置
+		struct shmid_ds shm_info;
+		EXPECT_TRUE(get_shm_info(0x12345678, shm_info));
+		EXPECT_EQ(shm_info.shm_perm.mode & 0777, 0600); // 只有所有者可读写
 
-        delete shm;
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		delete shm;
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 测试大小设置
-TEST_F(SharedMemoryTest, SizeSettings) {
-    try {
-        SharedMemory* shm = new SharedMemory();
-        EXPECT_NE(shm, nullptr);
+TEST_F(SharedMemoryTest, SizeSettings)
+{
+	try
+	{
+		SharedMemory *shm = new SharedMemory();
+		EXPECT_NE(shm, nullptr);
 
-        // 验证共享内存段的大小
-        struct shmid_ds shm_info;
-        EXPECT_TRUE(get_shm_info(0x12345678, shm_info));
-        EXPECT_EQ(shm_info.shm_segsz, 1024 * 1024); // 1MB
+		// 验证共享内存段的大小
+		struct shmid_ds shm_info;
+		EXPECT_TRUE(get_shm_info(0x12345678, shm_info));
+		EXPECT_EQ(shm_info.shm_segsz, 1024 * 1024); // 1MB
 
-        delete shm;
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		delete shm;
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 测试异常情况处理
-TEST_F(SharedMemoryTest, ExceptionHandling) {
-    // 测试当共享内存段已存在但大小不匹配时的情况
-    // 首先创建一个不同大小的共享内存段
-    int shmid = shmget(0x12345678, 512 * 1024, IPC_CREAT | IPC_EXCL | 0600);
-    if (shmid >= 0) {
-        // 设置所有者权限
-        struct shmid_ds shm_info;
-        shmctl(shmid, IPC_STAT, &shm_info);
-        shm_info.shm_perm.uid = 0;
-        shmctl(shmid, IPC_SET, &shm_info);
+TEST_F(SharedMemoryTest, ExceptionHandling)
+{
+	// 测试当共享内存段已存在但大小不匹配时的情况
+	// 首先创建一个不同大小的共享内存段
+	int shmid = shmget(0x12345678, 512 * 1024, IPC_CREAT | IPC_EXCL | 0600);
+	if (shmid >= 0)
+	{
+		// 设置所有者权限
+		struct shmid_ds shm_info;
+		shmctl(shmid, IPC_STAT, &shm_info);
+		shm_info.shm_perm.uid = 0;
+		shmctl(shmid, IPC_SET, &shm_info);
 
-        // 尝试创建SharedMemory对象，应该抛出异常
-        EXPECT_THROW({
-            SharedMemory* shm = new SharedMemory();
-            delete shm;
-        }, std::system_error);
+		// 尝试创建SharedMemory对象，应该抛出异常
+		EXPECT_THROW(
+			{
+				SharedMemory *shm = new SharedMemory();
+				delete shm;
+			},
+			std::system_error
+		);
 
-        // 清理
-        shmctl(shmid, IPC_RMID, nullptr);
-    }
+		// 清理
+		shmctl(shmid, IPC_RMID, nullptr);
+	}
 }
 
 // 测试清理机制
-TEST_F(SharedMemoryTest, CleanupMechanism) {
-    try {
-        // 创建SharedMemory对象
-        SharedMemory* shm = new SharedMemory();
-        EXPECT_NE(shm, nullptr);
-        EXPECT_TRUE(shm_exists(0x12345678));
+TEST_F(SharedMemoryTest, CleanupMechanism)
+{
+	try
+	{
+		// 创建SharedMemory对象
+		SharedMemory *shm = new SharedMemory();
+		EXPECT_NE(shm, nullptr);
+		EXPECT_TRUE(shm_exists(0x12345678));
 
-        // 获取共享内存段ID
-        int shmid = shmget(0x12345678, 0, 0);
-        EXPECT_GE(shmid, 0);
+		// 获取共享内存段ID
+		int shmid = shmget(0x12345678, 0, 0);
+		EXPECT_GE(shmid, 0);
 
-        // 检查附加进程数
-        struct shmid_ds shm_info;
-        EXPECT_TRUE(get_shm_info(0x12345678, shm_info));
-        int initial_attachments = shm_info.shm_nattch;
+		// 检查附加进程数
+		struct shmid_ds shm_info;
+		EXPECT_TRUE(get_shm_info(0x12345678, shm_info));
+		int initial_attachments = shm_info.shm_nattch;
 
-        // 删除SharedMemory对象
-        delete shm;
+		// 删除SharedMemory对象
+		delete shm;
 
-        // 验证共享内存段的状态
-        if (get_shm_info(0x12345678, shm_info)) {
-            // 如果共享内存段仍然存在，检查附加进程数是否减少
-            EXPECT_LE(shm_info.shm_nattch, initial_attachments);
-        }
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		// 验证共享内存段的状态
+		if (get_shm_info(0x12345678, shm_info))
+		{
+			// 如果共享内存段仍然存在，检查附加进程数是否减少
+			EXPECT_LE(shm_info.shm_nattch, initial_attachments);
+		}
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 测试重复创建
-TEST_F(SharedMemoryTest, RepeatedCreation) {
-    try {
-        // 第一次创建
-        SharedMemory* shm1 = new SharedMemory();
-        EXPECT_NE(shm1, nullptr);
-        EXPECT_TRUE(shm_exists(0x12345678));
+TEST_F(SharedMemoryTest, RepeatedCreation)
+{
+	try
+	{
+		// 第一次创建
+		SharedMemory *shm1 = new SharedMemory();
+		EXPECT_NE(shm1, nullptr);
+		EXPECT_TRUE(shm_exists(0x12345678));
 
-        // 第二次创建（应该复用同一个共享内存段）
-        SharedMemory* shm2 = new SharedMemory();
-        EXPECT_NE(shm2, nullptr);
-        EXPECT_TRUE(shm_exists(0x12345678));
+		// 第二次创建（应该复用同一个共享内存段）
+		SharedMemory *shm2 = new SharedMemory();
+		EXPECT_NE(shm2, nullptr);
+		EXPECT_TRUE(shm_exists(0x12345678));
 
-        // 验证两个对象指向同一个共享内存
-        // 通过共享内存段的存在性来验证，而不是直接访问私有字段
+		// 验证两个对象指向同一个共享内存
+		// 通过共享内存段的存在性来验证，而不是直接访问私有字段
 
-        // 清理
-        delete shm1;
-        delete shm2;
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		// 清理
+		delete shm1;
+		delete shm2;
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
 
 // 测试性能
-TEST_F(SharedMemoryTest, PerformanceTest) {
-    try {
-        const int iterations = 1000;
-        auto start = std::chrono::high_resolution_clock::now();
+TEST_F(SharedMemoryTest, PerformanceTest)
+{
+	try
+	{
+		const int iterations = 1000;
+		auto start = std::chrono::high_resolution_clock::now();
 
-        for (int i = 0; i < iterations; ++i) {
-            SharedMemory* shm = new SharedMemory();
-            EXPECT_NE(shm, nullptr);
-            delete shm;
-        }
+		for (int i = 0; i < iterations; ++i)
+		{
+			SharedMemory *shm = new SharedMemory();
+			EXPECT_NE(shm, nullptr);
+			delete shm;
+		}
 
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		auto end = std::chrono::high_resolution_clock::now();
+		auto duration =
+			std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-        // 验证性能在合理范围内（每次操作不超过1ms）
-        EXPECT_LT(duration.count() / iterations, 1000);
-    } catch (const std::exception& e) {
-        pr_error("Exception: %s", e.what());
-        FAIL();
-    }
+		// 验证性能在合理范围内（每次操作不超过1ms）
+		EXPECT_LT(duration.count() / iterations, 1000);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
 }
-

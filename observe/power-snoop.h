@@ -14,16 +14,16 @@
 /* Power Event Types - Based on available power tracepoints */
 enum power_event_type
 {
-	POWER_CPU_FREQ = 1, /* cpu_frequency */
-	POWER_CPU_IDLE = 2, /* cpu_idle */
+	POWER_CPU_FREQ = 1,		   /* cpu_frequency */
+	POWER_CPU_IDLE = 2,		   /* cpu_idle */
 	POWER_DEVICE_PM_START = 3, /* device_pm_callback_start */
-	POWER_DEVICE_PM_END = 4, /* device_pm_callback_end */
-	POWER_PM_QOS_ADD = 5, /* pm_qos_add_request */
-	POWER_PM_QOS_UPDATE = 6, /* pm_qos_update_request */
-	POWER_CLOCK_ENABLE = 7, /* clock_enable */
-	POWER_CLOCK_DISABLE = 8, /* clock_disable */
-	POWER_RPM_SUSPEND = 9, /* rpm_suspend */
-	POWER_RPM_RESUME = 10, /* rpm_resume */
+	POWER_DEVICE_PM_END = 4,   /* device_pm_callback_end */
+	POWER_PM_QOS_ADD = 5,	   /* pm_qos_add_request */
+	POWER_PM_QOS_UPDATE = 6,   /* pm_qos_update_request */
+	POWER_CLOCK_ENABLE = 7,	   /* clock_enable */
+	POWER_CLOCK_DISABLE = 8,   /* clock_disable */
+	POWER_RPM_SUSPEND = 9,	   /* rpm_suspend */
+	POWER_RPM_RESUME = 10,	   /* rpm_resume */
 };
 
 /* Power management states */
@@ -116,12 +116,12 @@ struct power_event
 /* Filter configuration */
 struct power_filter
 {
-	__u32 target_pid; /* 0 means no filter */
-	__u32 target_cpu; /* -1 means no filter */
-	char target_comm[16]; /* Empty means no filter */
-	__u32 event_mask; /* Bitmask of events to trace */
-	__u32 min_freq; /* Minimum CPU frequency to trace */
-	__u32 max_freq; /* Maximum CPU frequency to trace */
+	__u32 target_pid;		 /* 0 means no filter */
+	__u32 target_cpu;		 /* -1 means no filter */
+	char target_comm[16];	 /* Empty means no filter */
+	__u32 event_mask;		 /* Bitmask of events to trace */
+	__u32 min_freq;			 /* Minimum CPU frequency to trace */
+	__u32 max_freq;			 /* Maximum CPU frequency to trace */
 	__u64 min_idle_duration; /* Minimum idle duration to trace */
 	__u64 max_idle_duration; /* Maximum idle duration to trace */
 };
@@ -163,19 +163,19 @@ struct power_stats
 #define POWER_EVENT_MASK_ALL 0xFFFF
 #define POWER_EVENT_MASK_CPU_FREQ (1 << POWER_CPU_FREQ)
 #define POWER_EVENT_MASK_CPU_IDLE (1 << POWER_CPU_IDLE)
-#define POWER_EVENT_MASK_DEVICE_PM \
+#define POWER_EVENT_MASK_DEVICE_PM                                             \
 	((1 << POWER_DEVICE_PM_START) | (1 << POWER_DEVICE_PM_END))
-#define POWER_EVENT_MASK_PM_QOS \
+#define POWER_EVENT_MASK_PM_QOS                                                \
 	((1 << POWER_PM_QOS_ADD) | (1 << POWER_PM_QOS_UPDATE))
-#define POWER_EVENT_MASK_CLOCK \
+#define POWER_EVENT_MASK_CLOCK                                                 \
 	((1 << POWER_CLOCK_ENABLE) | (1 << POWER_CLOCK_DISABLE))
-#define POWER_EVENT_MASK_RPM \
+#define POWER_EVENT_MASK_RPM                                                   \
 	((1 << POWER_RPM_SUSPEND) | (1 << POWER_RPM_RESUME))
 
 /* Map sizes */
 #define MAX_POWER_EVENTS 262144 /* Ring buffer size */
-#define MAX_FILTER_RULES 1 /* Filter rules map size */
-#define MAX_CPU_HISTORY 256 /* CPU frequency history */
-#define MAX_DEVICE_TRACK 1000 /* Device PM tracking */
+#define MAX_FILTER_RULES 1		/* Filter rules map size */
+#define MAX_CPU_HISTORY 256		/* CPU frequency history */
+#define MAX_DEVICE_TRACK 1000	/* Device PM tracking */
 
 #endif /* __POWER_SNOOP_H */

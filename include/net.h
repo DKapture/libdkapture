@@ -3,28 +3,28 @@
 
 #define IP(a, b, c, d) ((a << 24) | (b << 16) | (c << 8) | d)
 
-#define IPv6(a, b, c, d, e, f, g, h)           \
-	({                                     \
-		struct                         \
-		{                              \
-			unsigned short d[8];   \
-		} ipv6;                        \
-		ipv6.d[7] = (unsigned short)a; \
-		ipv6.d[6] = (unsigned short)b; \
-		ipv6.d[5] = (unsigned short)c; \
-		ipv6.d[4] = (unsigned short)d; \
-		ipv6.d[3] = (unsigned short)e; \
-		ipv6.d[2] = (unsigned short)f; \
-		ipv6.d[1] = (unsigned short)g; \
-		ipv6.d[0] = (unsigned short)h; \
-		ipv6;                          \
+#define IPv6(a, b, c, d, e, f, g, h)                                           \
+	({                                                                         \
+		struct                                                                 \
+		{                                                                      \
+			unsigned short d[8];                                               \
+		} ipv6;                                                                \
+		ipv6.d[7] = (unsigned short)a;                                         \
+		ipv6.d[6] = (unsigned short)b;                                         \
+		ipv6.d[5] = (unsigned short)c;                                         \
+		ipv6.d[4] = (unsigned short)d;                                         \
+		ipv6.d[3] = (unsigned short)e;                                         \
+		ipv6.d[2] = (unsigned short)f;                                         \
+		ipv6.d[1] = (unsigned short)g;                                         \
+		ipv6.d[0] = (unsigned short)h;                                         \
+		ipv6;                                                                  \
 	})
 
-#define SLICE_IP(x) \
+#define SLICE_IP(x)                                                            \
 	((x >> 24) & 0xff), ((x >> 16) & 0xff), ((x >> 8) & 0xff), ((x) & 0xff)
 
-#define SLICE_IPv6(x)                                                   \
-	((u16 *)&x)[7], ((u16 *)&x)[6], ((u16 *)&x)[5], ((u16 *)&x)[4], \
+#define SLICE_IPv6(x)                                                          \
+	((u16 *)&x)[7], ((u16 *)&x)[6], ((u16 *)&x)[5], ((u16 *)&x)[4],            \
 		((u16 *)&x)[3], ((u16 *)&x)[2], ((u16 *)&x)[1], ((u16 *)&x)[0]
 
 #define inet_daddr sk.__sk_common.skc_daddr

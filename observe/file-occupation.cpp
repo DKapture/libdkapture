@@ -52,13 +52,15 @@ static int filter_fd;
 static pthread_t t1;
 static int iter_fd;
 static std::atomic<bool> exit_flag(false);
-static std::map<pid_t, std::vector<struct BpfData> > log_stat;
+static std::map<pid_t, std::vector<struct BpfData>> log_stat;
 
-static struct option lopts[] = { { "path", required_argument, 0, 'p' },
-				 { "uuid", required_argument, 0, 'u' },
-				 { "inode", required_argument, 0, 'i' },
-				 { "help", no_argument, 0, 'h' },
-				 { 0, 0, 0, 0 } };
+static struct option lopts[] = {
+	{"path",	 required_argument, 0, 'p'},
+	{"uuid",	 required_argument, 0, 'u'},
+	{"inode", required_argument, 0, 'i'},
+	{"help",	 no_argument,		  0, 'h'},
+	{0,		0,				 0, 0  }
+};
 
 struct HelpMsg
 {
@@ -67,11 +69,12 @@ struct HelpMsg
 };
 
 static HelpMsg help_msg[] = {
-	{ "[path]", "path of the file to watch on\n" },
-	{ "[uuid]", "the uuid of filesystem to which the inode belong.\n"
-		    "\tyou can get the uuid by running command 'blkid'\n" },
-	{ "[inode]", "inode of the file to watch on\n" },
-	{ "", "print this help message\n" },
+	{"[path]",  "path of the file to watch on\n"		   },
+	{"[uuid]",
+	 "the uuid of filesystem to which the inode belong.\n"
+	 "\tyou can get the uuid by running command 'blkid'\n"},
+	{"[inode]", "inode of the file to watch on\n"		 },
+	{"",		 "print this help message\n"				},
 };
 
 void Usage(const char *arg0)
@@ -81,8 +84,13 @@ void Usage(const char *arg0)
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
-		printf("  -%c, --%s %s\n\t%s\n", lopts[i].val, lopts[i].name,
-		       help_msg[i].argparam, help_msg[i].msg);
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
 	}
 }
 
@@ -116,8 +124,7 @@ void parse_args(int argc, char **argv)
 	int optbits = 0;
 	optind = 1;
 	std::string sopts = long_opt2short_opt(lopts);
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) >
-	       0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -166,7 +173,7 @@ void parse_args(int argc, char **argv)
 	if (rule.path[0] == 0 && rule.inode == 0)
 	{
 		printf("\nYou need to specify a file path or file inode number to\n"
-		       "watch on by the options -p(--path) or -i(--inode)\n\n");
+			   "watch on by the options -p(--path) or -i(--inode)\n\n");
 		exit(-1);
 	}
 }
@@ -198,12 +205,18 @@ static void summary_print(void)
 				vma_cnt++;
 			}
 			else
+			{
 				printf("%d ", log.fd);
+			}
 		}
 		if (vma_cnt)
+		{
 			printf("vma(%ld)\n", vma_cnt);
+		}
 		else
+		{
 			printf("\n");
+		}
 	}
 	printf("\n");
 }
@@ -247,7 +260,7 @@ void register_signal()
 int main(int argc, char *args[])
 {
 	ssize_t rd_sz = 0;
-	char buf[PATH_MAX] = { 0 };
+	char buf[PATH_MAX] = {0};
 
 	parse_args(argc, args);
 	register_signal();
@@ -255,10 +268,14 @@ int main(int argc, char *args[])
 	int key = 0;
 	obj = file_occupation_bpf::open_and_load();
 	if (!obj)
+	{
 		exit(-1);
+	}
 
 	if (0 != file_occupation_bpf::attach(obj))
+	{
 		exit(-1);
+	}
 
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
 
@@ -271,7 +288,9 @@ int main(int argc, char *args[])
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
+	{
 		goto err_out;
+	}
 
 	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.file_iterator));
 	if (iter_fd < 0)
@@ -307,7 +326,9 @@ int main(int argc, char *args[])
 
 err_out:
 	if (rb)
+	{
 		ring_buffer__free(rb);
+	}
 	file_occupation_bpf::detach(obj);
 	file_occupation_bpf::destroy(obj);
 	return 0;
