@@ -119,6 +119,8 @@ RingBuffer::RingBuffer(size_t bsz)
 		shm_ctl = new SharedMemory();
 		spinlock = new SpinLock(&shm_ctl->ring_buffer_lock);
 		rb_ref_cnt = &shm_ctl->ring_buffer_ref_cnt;
+		comsumer_index = &shm_ctl->rdi;
+		producer_index = &shm_ctl->wri;
 	}
 	catch (...)
 	{
@@ -135,7 +137,6 @@ RingBuffer::RingBuffer(size_t bsz)
 	spinlock->lock();
 	(*rb_ref_cnt)++;
 	DEBUG(0, "ring buffer ref cnt: %ld", *rb_ref_cnt);
-	spinlock->unlock();
 	type = RING_BUF_TYPE_NORMAL;
 	page_size = getpagesize();
 	key_t key = 0x12345678 + bsz;
@@ -181,8 +182,6 @@ RingBuffer::RingBuffer(size_t bsz)
 			goto err;
 		}
 	}
-	rdi = 0;
-	wri = 0;
 	this->bsz = bsz;
 	if (addr1 < addr2)
 	{
@@ -194,8 +193,10 @@ RingBuffer::RingBuffer(size_t bsz)
 		data_mirror = addr1;
 		data = addr2;
 	}
+	spinlock->unlock();
 	return;
 err:
+	spinlock->unlock();
 	this->~RingBuffer();
 	throw std::system_error(
 		1,
@@ -261,6 +262,9 @@ RingBuffer::~RingBuffer()
 
 size_t RingBuffer::write(void *data, size_t dsz)
 {
+	spinlock->lock();
+	size_t wri = *producer_index;
+	size_t rdi = *comsumer_index;
 	// in case overflow happens when usz + dsz
 	size_t usz = wri - rdi;
 	if (usz + dsz > bsz)
@@ -268,21 +272,28 @@ size_t RingBuffer::write(void *data, size_t dsz)
 		dsz = bsz - usz;
 	}
 	size_t off = wri % bsz;
-	memcpy((char *)data + off, data, dsz);
+	memcpy((char *)this->data + off, data, dsz);
 	wri += dsz;
+	*producer_index = wri;
+	spinlock->unlock();
 	return dsz;
 }
 
 size_t RingBuffer::read(void *data, size_t dsz)
 {
+	spinlock->lock();
+	size_t wri = *producer_index;
+	size_t rdi = *comsumer_index;
 	size_t usz = wri - rdi;
 	if (usz < dsz)
 	{
 		dsz = usz;
 	}
 	size_t off = rdi & (bsz - 1);
-	memcpy(data, (char *)data + off, dsz);
+	memcpy(data, (char *)this->data + off, dsz);
 	rdi += dsz;
+	*comsumer_index = rdi;
+	spinlock->unlock();
 	return dsz;
 }
 
@@ -310,6 +321,9 @@ static inline int roundup_len(int len)
 
 int RingBuffer::poll(int timeout)
 {
+	if (type != RING_BUF_TYPE_BPF)
+		return -EINVAL;
+
 	int err;
 	struct epoll_event events;
 	int cnt = epoll_wait(epoll_fd, &events, 1, timeout);
@@ -363,4 +377,17 @@ int RingBuffer::poll(int timeout)
 		*comsumer_index = rci;
 	}
 	return cnt;
+}
+
+ulong RingBuffer::get_consumer_index(void) const
+{
+	return *comsumer_index;
+}
+ulong RingBuffer::get_producer_index(void) const
+{
+	return *producer_index;
+}
+size_t RingBuffer::get_bsz() const
+{
+	return bsz;
 }

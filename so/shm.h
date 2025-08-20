@@ -24,6 +24,8 @@ class SharedMemory
 	{
 		volatile long ring_buffer_lock;
 		volatile long ring_buffer_ref_cnt;
+		volatile size_t rdi;
+		volatile size_t wri;
 	};
 	struct // DataMap类使用
 	{

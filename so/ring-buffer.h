@@ -36,8 +36,6 @@ class RingBuffer
 		};
 		struct
 		{
-			size_t rdi = 0;
-			size_t wri = 0;
 			int shmid = -1;
 		};
 	};
@@ -51,18 +49,9 @@ class RingBuffer
 	RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx);
 	~RingBuffer();
 	int poll(int timeout);
-	ulong get_consumer_index(void)
-	{
-		return *comsumer_index;
-	}
-	ulong get_producer_index(void)
-	{
-		return *producer_index;
-	}
-	size_t get_bsz() const
-	{
-		return bsz;
-	}
+	ulong get_consumer_index(void) const;
+	ulong get_producer_index(void) const;
+	size_t get_bsz() const;
 
 #define RING_BUF_TYPE_BPF 0
 #define RING_BUF_TYPE_NORMAL 1
