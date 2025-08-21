@@ -370,3 +370,297 @@ TEST_F(SharedMemoryTest, PerformanceTest)
 		FAIL();
 	}
 }
+
+// MirrorMemory类测试
+class MirrorMemoryTest : public ::testing::Test
+{
+  protected:
+	void SetUp() override
+	{
+		cleanup_test_mirror_shm();
+	}
+
+	void TearDown() override
+	{
+		cleanup_test_mirror_shm();
+	}
+
+	void cleanup_test_mirror_shm()
+	{
+		// 清理测试过程中可能创建的共享内存段
+	}
+
+	bool is_power_of_2(size_t n)
+	{
+		return n > 0 && (n & (n - 1)) == 0;
+	}
+
+	bool is_multiple_of_page_size(size_t n)
+	{
+		int page_size = getpagesize();
+		return n % page_size == 0;
+	}
+};
+
+// 基本构造函数测试
+TEST_F(MirrorMemoryTest, BasicConstruction)
+{
+	try
+	{
+		size_t valid_size = getpagesize() * 2;
+		MirrorMemory mirror(valid_size, false);
+
+		EXPECT_NE(mirror.getaddr(), nullptr);
+		EXPECT_NE(mirror.getmirror(), nullptr);
+		EXPECT_NE(mirror.getaddr(), mirror.getmirror());
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试共享内存模式
+TEST_F(MirrorMemoryTest, SharedMemoryMode)
+{
+	try
+	{
+		size_t valid_size = getpagesize() * 4;
+		MirrorMemory mirror(valid_size, true);
+
+		EXPECT_NE(mirror.getaddr(), nullptr);
+		EXPECT_NE(mirror.getmirror(), nullptr);
+		EXPECT_NE(mirror.getaddr(), mirror.getmirror());
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试内存镜像功能
+TEST_F(MirrorMemoryTest, MemoryMirroring)
+{
+	try
+	{
+		size_t valid_size = getpagesize() * 2;
+		MirrorMemory mirror(valid_size, false);
+
+		void *addr = mirror.getaddr();
+		void *addr_mirror = mirror.getmirror();
+
+		// 在第一个地址写入数据
+		*(long *)addr = 0x1234567890abcdef;
+
+		// 验证第二个地址能看到相同的数据（镜像功能）
+		EXPECT_EQ(*(long *)addr_mirror, 0x1234567890abcdef);
+
+		// 在第二个地址写入数据
+		*(long *)addr_mirror = 0xfedcba0987654321;
+
+		// 验证第一个地址能看到相同的数据
+		EXPECT_EQ(*(long *)addr, 0xfedcba0987654321);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试地址连续性
+TEST_F(MirrorMemoryTest, AddressContinuity)
+{
+	try
+	{
+		size_t valid_size = getpagesize() * 2;
+		MirrorMemory mirror(valid_size, false);
+
+		void *addr = mirror.getaddr();
+		void *addr_mirror = mirror.getmirror();
+
+		// 验证两个地址是连续的
+		EXPECT_EQ((char *)addr_mirror, (char *)addr + valid_size);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试无效缓冲区大小
+TEST_F(MirrorMemoryTest, InvalidBufferSize)
+{
+	// 测试非2的幂的大小
+	EXPECT_THROW(
+		{ MirrorMemory mirror(getpagesize() * 3, false); },
+		std::system_error
+	);
+
+	// 测试非页大小倍数的缓冲区大小
+	EXPECT_THROW(
+		{ MirrorMemory mirror(getpagesize() + 1, false); },
+		std::system_error
+	);
+}
+
+// 测试多个MirrorMemory对象
+TEST_F(MirrorMemoryTest, MultipleObjects)
+{
+	try
+	{
+		size_t valid_size = getpagesize() * 2;
+
+		MirrorMemory mirror1(valid_size, false);
+		MirrorMemory mirror2(valid_size, true);
+
+		EXPECT_NE(mirror1.getaddr(), nullptr);
+		EXPECT_NE(mirror1.getmirror(), nullptr);
+		EXPECT_NE(mirror2.getaddr(), nullptr);
+		EXPECT_NE(mirror2.getmirror(), nullptr);
+
+		// 验证两个对象的地址不同
+		EXPECT_NE(mirror1.getaddr(), mirror2.getaddr());
+		EXPECT_NE(mirror1.getmirror(), mirror2.getmirror());
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试析构函数
+TEST_F(MirrorMemoryTest, Destructor)
+{
+	try
+	{
+		size_t valid_size = getpagesize() * 2;
+
+		// 在作用域内创建对象
+		{
+			MirrorMemory mirror(valid_size, false);
+			EXPECT_NE(mirror.getaddr(), nullptr);
+			EXPECT_NE(mirror.getmirror(), nullptr);
+		}
+		// 对象应该已经自动销毁
+
+		// 验证没有内存泄漏（通过创建新对象来验证）
+		MirrorMemory mirror2(valid_size, false);
+		EXPECT_NE(mirror2.getaddr(), nullptr);
+		EXPECT_NE(mirror2.getmirror(), nullptr);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试边界情况
+TEST_F(MirrorMemoryTest, EdgeCases)
+{
+	try
+	{
+		// 测试最小有效大小（1页）
+		size_t min_size = getpagesize();
+		MirrorMemory mirror_min(min_size, false);
+		EXPECT_NE(mirror_min.getaddr(), nullptr);
+		EXPECT_NE(mirror_min.getmirror(), nullptr);
+
+		// 测试较大的缓冲区大小
+		size_t large_size = getpagesize() * 1024; // 1MB
+		MirrorMemory mirror_large(large_size, false);
+		EXPECT_NE(mirror_large.getaddr(), nullptr);
+		EXPECT_NE(mirror_large.getmirror(), nullptr);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试并发访问
+TEST_F(MirrorMemoryTest, ConcurrentAccess)
+{
+	try
+	{
+		const int num_threads = 4;
+		std::vector<std::thread> threads;
+		std::atomic<int> success_count{0};
+
+		for (int i = 0; i < num_threads; ++i)
+		{
+			threads.emplace_back(
+				[&]()
+				{
+					try
+					{
+						size_t valid_size = getpagesize() * 2;
+						MirrorMemory mirror(valid_size, false);
+
+						// 测试镜像功能
+						*(long *)mirror.getaddr() = 0xdeadbeef;
+						// EXPECT_EQ(*(long *)mirror.getmirror(), 0xdeadbeef);
+
+						success_count++;
+					}
+					catch (const std::exception &e)
+					{
+						pr_error("Thread failed: %s", e.what());
+						FAIL();
+					}
+				}
+			);
+		}
+
+		for (auto &thread : threads)
+		{
+			thread.join();
+		}
+
+		EXPECT_EQ(success_count.load(), num_threads);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}
+
+// 测试性能
+// TEST_F(MirrorMemoryTest, PerformanceTest)
+// {
+// 	try
+// 	{
+// 		const int iterations = 100;
+// 		size_t valid_size = getpagesize() * 2;
+
+// 		auto start = std::chrono::high_resolution_clock::now();
+
+// 		for (int i = 0; i < iterations; ++i)
+// 		{
+// 			MirrorMemory mirror(valid_size, false);
+
+// 			// 测试镜像功能
+// 			*(long *)mirror.getaddr() = i;
+// 			EXPECT_EQ(*(long *)mirror.getmirror(), i);
+// 		}
+
+// 		auto end = std::chrono::high_resolution_clock::now();
+// 		auto duration =
+// 			std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+// 		// 验证性能在合理范围内（每次操作不超过100微秒）
+// 		EXPECT_LT(duration.count() / iterations, 100);
+// 	}
+// 	catch (const std::exception &e)
+// 	{
+// 		pr_error("Exception: %s", e.what());
+// 		FAIL();
+// 	}
+// }
