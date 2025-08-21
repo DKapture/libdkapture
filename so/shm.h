@@ -49,3 +49,17 @@ class SharedMemory
 	SharedMemory(){};
 	~SharedMemory(){};
 };
+
+class MirrorMemory
+{
+  public:
+	MirrorMemory(size_t bsz, bool shared = false);
+	~MirrorMemory();
+	void *getaddr() const;
+	void *getmirror() const;
+
+  private:
+	void *addr;
+	size_t bsz;
+	int shmid;
+};

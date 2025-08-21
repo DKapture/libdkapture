@@ -1,4 +1,7 @@
+#include <cerrno>
+#include <cstddef>
 #include <sys/ipc.h>
+#include <sys/mman.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/types.h>
@@ -195,4 +198,135 @@ bool SharedMemory::check_consistency(volatile SharedMemory *shm_ctl)
 	return SpinLock::check_consistency(&shm_ctl->data_map_lock) &&
 		   SpinLock::check_consistency(&shm_ctl->ring_buffer_lock) &&
 		   SpinLock::check_consistency(&shm_ctl->bpf_lock);
+}
+
+MirrorMemory::MirrorMemory(size_t bsz, bool shared) : addr(nullptr), bsz(0), shmid(-1)
+{
+	void *addr_mmap = nullptr;
+	void *addr = nullptr;
+	void *addr_mirror = nullptr;
+	int shmid = -1;
+	int page_size = getpagesize();
+	static key_t g_key = 0x12345678;
+	key_t key;
+
+	if (bsz % page_size || bsz & (bsz - 1))
+	{
+		pr_error("buf size must be power of 2 and a multiple of page size");
+		goto err;
+	}
+
+	/**
+	 * 这里只是拿到一块没有使用的足够大的地址空间
+	 * 需要的地址空间大小位 bsz * 2, mmap在第一参数指定null时，
+	 * 会返回页对齐的地址，这个地址空间后面会被shmat重新映射，
+	 * 所以不要munmap释放，由shmdt释放
+	 */
+	addr_mmap = mmap(nullptr, bsz * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (addr_mmap == MAP_FAILED)
+	{
+		pr_error("addr space exhausted: %s", strerror(errno));
+		goto err;
+	}
+
+	if (shared)
+	{
+		key = __sync_fetch_and_add(&g_key, 1);
+		DEBUG(0, "shared shm key: %d, bsz: %ld", key, bsz);
+	}
+	else
+	{
+		key = IPC_PRIVATE;
+		DEBUG(0, "private shm key: %d, bsz: %ld", key, bsz);
+	}
+
+	shmid = shmget(key, bsz, IPC_CREAT | 0600);
+	if (shmid < 0)
+	{
+		pr_error("shmget: %s", strerror(errno));
+		goto err;
+	}
+	DEBUG(0, "mmap addr: %p, bsz: %ld", addr_mmap, bsz);
+	addr = shmat(shmid, addr_mmap, SHM_REMAP);
+	if (addr == (void *)-1)
+	{
+		pr_error("shmat: %s", strerror(errno));
+		goto err;
+	}
+	DEBUG(0, "mirror shm 1st addr: %p", addr);
+	addr_mirror = (void *)((char *)addr_mmap + bsz);
+	addr_mirror = shmat(shmid, addr_mirror, SHM_REMAP);
+	if (addr_mirror == (void *)-1)
+	{
+		pr_error("shmat: %s", strerror(errno));
+		goto err;
+	}
+	DEBUG(0, "mirror shm 2nd addr: %p", addr_mirror);
+
+	if (0)
+	{
+		// 调试代码
+		*(long *)addr = 0xa0a0a0a0a0;
+		*(long *)addr_mirror = 0x0a0a0a0a0a;
+
+		if (*(long *)addr != 0x0a0a0a0a0a)
+		{
+			pr_error("share memory map failure");
+			goto err;
+		}
+	}
+	this->addr = addr;
+	this->bsz = bsz;
+	this->shmid = shmid;
+	return;
+err:
+	if (addr != (char *)-1)
+	{
+		shmdt(addr);
+	}
+	if (addr_mirror != (char *)-1)
+	{
+		shmdt(addr_mirror);
+	}
+	if (shmid != -1)
+	{
+		shmctl(shmid, IPC_RMID, nullptr);
+	}
+	if (addr_mmap != MAP_FAILED)
+	{
+		munmap(addr_mmap, bsz * 2);
+	}
+	throw std::system_error(
+		errno,
+		std::generic_category(),
+		"mirror memory creatation failture"
+		", check stdout for details"
+	);
+}
+
+MirrorMemory::~MirrorMemory()
+{
+	size_t bsz = this->bsz;
+	void *addr = this->addr;
+	int shmid = this->shmid;
+	void *addr_mirror = (char *)((char *)addr + bsz);
+	void *addr_mmap = addr;
+	if (addr)
+	{
+		shmdt(addr);
+		shmdt(addr_mirror);
+		shmctl(shmid, IPC_RMID, nullptr);
+		munmap(addr_mmap, bsz * 2);
+	}
+}
+
+void *MirrorMemory::getaddr() const
+{
+	return addr;
+}
+
+void *MirrorMemory::getmirror() const
+{
+	void *addr_mirror = (char *)((char *)addr + bsz);
+	return addr_mirror;
 }
