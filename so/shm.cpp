@@ -200,15 +200,13 @@ bool SharedMemory::check_consistency(volatile SharedMemory *shm_ctl)
 		   SpinLock::check_consistency(&shm_ctl->bpf_lock);
 }
 
-MirrorMemory::MirrorMemory(size_t bsz, bool shared) : addr(nullptr), bsz(0), shmid(-1)
+MirrorMemory::MirrorMemory(size_t bsz, int key) : addr(nullptr), bsz(0), shmid(-1)
 {
 	void *addr_mmap = nullptr;
 	void *addr = nullptr;
 	void *addr_mirror = nullptr;
 	int shmid = -1;
 	int page_size = getpagesize();
-	static key_t g_key = 0x12345678;
-	key_t key;
 
 	if (bsz % page_size || bsz & (bsz - 1))
 	{
@@ -227,17 +225,6 @@ MirrorMemory::MirrorMemory(size_t bsz, bool shared) : addr(nullptr), bsz(0), shm
 	{
 		pr_error("addr space exhausted: %s", strerror(errno));
 		goto err;
-	}
-
-	if (shared)
-	{
-		key = __sync_fetch_and_add(&g_key, 1);
-		DEBUG(0, "shared shm key: %d, bsz: %ld", key, bsz);
-	}
-	else
-	{
-		key = IPC_PRIVATE;
-		DEBUG(0, "private shm key: %d, bsz: %ld", key, bsz);
 	}
 
 	shmid = shmget(key, bsz, IPC_CREAT | 0600);

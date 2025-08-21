@@ -408,7 +408,7 @@ TEST_F(MirrorMemoryTest, BasicConstruction)
 	try
 	{
 		size_t valid_size = getpagesize() * 2;
-		MirrorMemory mirror(valid_size, false);
+		MirrorMemory mirror(valid_size, IPC_PRIVATE);
 
 		EXPECT_NE(mirror.getaddr(), nullptr);
 		EXPECT_NE(mirror.getmirror(), nullptr);
@@ -426,8 +426,9 @@ TEST_F(MirrorMemoryTest, SharedMemoryMode)
 {
 	try
 	{
+		key_t key = 0x12345678;
 		size_t valid_size = getpagesize() * 4;
-		MirrorMemory mirror(valid_size, true);
+		MirrorMemory mirror(valid_size, key);
 
 		EXPECT_NE(mirror.getaddr(), nullptr);
 		EXPECT_NE(mirror.getmirror(), nullptr);
@@ -446,7 +447,7 @@ TEST_F(MirrorMemoryTest, MemoryMirroring)
 	try
 	{
 		size_t valid_size = getpagesize() * 2;
-		MirrorMemory mirror(valid_size, false);
+		MirrorMemory mirror(valid_size, IPC_PRIVATE);
 
 		void *addr = mirror.getaddr();
 		void *addr_mirror = mirror.getmirror();
@@ -476,7 +477,7 @@ TEST_F(MirrorMemoryTest, AddressContinuity)
 	try
 	{
 		size_t valid_size = getpagesize() * 2;
-		MirrorMemory mirror(valid_size, false);
+		MirrorMemory mirror(valid_size, IPC_PRIVATE);
 
 		void *addr = mirror.getaddr();
 		void *addr_mirror = mirror.getmirror();
@@ -496,13 +497,13 @@ TEST_F(MirrorMemoryTest, InvalidBufferSize)
 {
 	// 测试非2的幂的大小
 	EXPECT_THROW(
-		{ MirrorMemory mirror(getpagesize() * 3, false); },
+		{ MirrorMemory mirror(getpagesize() * 3, IPC_PRIVATE); },
 		std::system_error
 	);
 
 	// 测试非页大小倍数的缓冲区大小
 	EXPECT_THROW(
-		{ MirrorMemory mirror(getpagesize() + 1, false); },
+		{ MirrorMemory mirror(getpagesize() + 1, IPC_PRIVATE); },
 		std::system_error
 	);
 }
@@ -512,10 +513,11 @@ TEST_F(MirrorMemoryTest, MultipleObjects)
 {
 	try
 	{
+		key_t key = 0x12345678;
 		size_t valid_size = getpagesize() * 2;
 
-		MirrorMemory mirror1(valid_size, false);
-		MirrorMemory mirror2(valid_size, true);
+		MirrorMemory mirror1(valid_size, IPC_PRIVATE);
+		MirrorMemory mirror2(valid_size, key);
 
 		EXPECT_NE(mirror1.getaddr(), nullptr);
 		EXPECT_NE(mirror1.getmirror(), nullptr);
@@ -542,14 +544,14 @@ TEST_F(MirrorMemoryTest, Destructor)
 
 		// 在作用域内创建对象
 		{
-			MirrorMemory mirror(valid_size, false);
+			MirrorMemory mirror(valid_size, IPC_PRIVATE);
 			EXPECT_NE(mirror.getaddr(), nullptr);
 			EXPECT_NE(mirror.getmirror(), nullptr);
 		}
 		// 对象应该已经自动销毁
 
 		// 验证没有内存泄漏（通过创建新对象来验证）
-		MirrorMemory mirror2(valid_size, false);
+		MirrorMemory mirror2(valid_size, IPC_PRIVATE);
 		EXPECT_NE(mirror2.getaddr(), nullptr);
 		EXPECT_NE(mirror2.getmirror(), nullptr);
 	}
@@ -567,13 +569,13 @@ TEST_F(MirrorMemoryTest, EdgeCases)
 	{
 		// 测试最小有效大小（1页）
 		size_t min_size = getpagesize();
-		MirrorMemory mirror_min(min_size, false);
+		MirrorMemory mirror_min(min_size, IPC_PRIVATE);
 		EXPECT_NE(mirror_min.getaddr(), nullptr);
 		EXPECT_NE(mirror_min.getmirror(), nullptr);
 
 		// 测试较大的缓冲区大小
 		size_t large_size = getpagesize() * 1024; // 1MB
-		MirrorMemory mirror_large(large_size, false);
+		MirrorMemory mirror_large(large_size, IPC_PRIVATE);
 		EXPECT_NE(mirror_large.getaddr(), nullptr);
 		EXPECT_NE(mirror_large.getmirror(), nullptr);
 	}
@@ -601,7 +603,7 @@ TEST_F(MirrorMemoryTest, ConcurrentAccess)
 					try
 					{
 						size_t valid_size = getpagesize() * 2;
-						MirrorMemory mirror(valid_size, false);
+						MirrorMemory mirror(valid_size, IPC_PRIVATE);
 
 						// 测试镜像功能
 						*(long *)mirror.getaddr() = 0xdeadbeef;
@@ -633,34 +635,34 @@ TEST_F(MirrorMemoryTest, ConcurrentAccess)
 }
 
 // 测试性能
-// TEST_F(MirrorMemoryTest, PerformanceTest)
-// {
-// 	try
-// 	{
-// 		const int iterations = 100;
-// 		size_t valid_size = getpagesize() * 2;
+TEST_F(MirrorMemoryTest, PerformanceTest)
+{
+	try
+	{
+		const int iterations = 100;
+		size_t valid_size = getpagesize() * 2;
 
-// 		auto start = std::chrono::high_resolution_clock::now();
+		auto start = std::chrono::high_resolution_clock::now();
 
-// 		for (int i = 0; i < iterations; ++i)
-// 		{
-// 			MirrorMemory mirror(valid_size, false);
+		for (int i = 0; i < iterations; ++i)
+		{
+			MirrorMemory mirror(valid_size, IPC_PRIVATE);
 
-// 			// 测试镜像功能
-// 			*(long *)mirror.getaddr() = i;
-// 			EXPECT_EQ(*(long *)mirror.getmirror(), i);
-// 		}
+			// 测试镜像功能
+			*(long *)mirror.getaddr() = i;
+			EXPECT_EQ(*(long *)mirror.getmirror(), i);
+		}
 
-// 		auto end = std::chrono::high_resolution_clock::now();
-// 		auto duration =
-// 			std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+		auto end = std::chrono::high_resolution_clock::now();
+		auto duration =
+			std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-// 		// 验证性能在合理范围内（每次操作不超过100微秒）
-// 		EXPECT_LT(duration.count() / iterations, 100);
-// 	}
-// 	catch (const std::exception &e)
-// 	{
-// 		pr_error("Exception: %s", e.what());
-// 		FAIL();
-// 	}
-// }
+		// 验证性能在合理范围内（每次操作不超过100微秒）
+		EXPECT_LT(duration.count() / iterations, 100);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("Exception: %s", e.what());
+		FAIL();
+	}
+}

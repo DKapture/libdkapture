@@ -1,5 +1,6 @@
 #pragma once
 #include "stddef.h"
+#include <sys/ipc.h>
 
 class SharedMemory
 {
@@ -53,7 +54,7 @@ class SharedMemory
 class MirrorMemory
 {
   public:
-	MirrorMemory(size_t bsz, bool shared = false);
+	MirrorMemory(size_t bsz, int key = IPC_PRIVATE);
 	~MirrorMemory();
 	void *getaddr() const;
 	void *getmirror() const;
