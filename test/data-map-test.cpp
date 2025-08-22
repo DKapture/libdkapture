@@ -50,10 +50,10 @@ TEST_F(DataMapTest, PushAndFind)
 	int ret = data_map->find(hash, 1000, buffer, sizeof(buffer));
 
 	// Verify the result
-	EXPECT_GT(ret, 0);
-	EXPECT_EQ(((DKapture::DataHdr *)buffer)->type, DKapture::PROC_PID_STAT);
-	EXPECT_EQ(((DKapture::DataHdr *)buffer)->pid, pid);
-	EXPECT_STREQ(((DKapture::DataHdr *)buffer)->comm, "test");
+	ASSERT_GT(ret, 0);
+	ASSERT_EQ(((DKapture::DataHdr *)buffer)->type, DKapture::PROC_PID_STAT);
+	ASSERT_EQ(((DKapture::DataHdr *)buffer)->pid, pid);
+	ASSERT_STREQ(((DKapture::DataHdr *)buffer)->comm, "test");
 }
 
 TEST_F(DataMapTest, data_expired)
@@ -137,9 +137,9 @@ TEST_F(DataMapTest, UpdateAndFind)
 	ret = data_map->find(hash, 1000, buffer, sizeof(buffer));
 
 	// Verify the result
-	EXPECT_GT(ret, 0);
-	EXPECT_EQ(((DKapture::DataHdr *)buffer)->type, DKapture::PROC_PID_STAT);
-	EXPECT_EQ(((DKapture::DataHdr *)buffer)->pid, pid);
+	ASSERT_GT(ret, 0);
+	ASSERT_EQ(((DKapture::DataHdr *)buffer)->type, DKapture::PROC_PID_STAT);
+	ASSERT_EQ(((DKapture::DataHdr *)buffer)->pid, pid);
 }
 
 TEST_F(DataMapTest, AsyncUpdate)
