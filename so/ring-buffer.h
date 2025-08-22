@@ -22,6 +22,10 @@ class RingBuffer
 	 */
 	size_t bsz = 0;
 	int page_size;
+	volatile ulong *comsumer_index;
+	volatile ulong *producer_index;
+	volatile void *data = nullptr;
+	volatile void *data_mirror = nullptr;
 	union
 	{
 		struct
@@ -30,20 +34,16 @@ class RingBuffer
 			int map_fd;
 			void *ctx;
 			ulong rci; // locked consumer index
-			volatile ulong *comsumer_index;
-			volatile ulong *producer_index;
 			ring_buffer_sample_fn cb;
 		};
 		struct
 		{
 			int shmid = -1;
+			SharedMemory *shm_ctl = nullptr;
+			SpinLock *spinlock = nullptr;
+			volatile long *rb_ref_cnt = 0;
 		};
 	};
-	volatile void *data_mirror = nullptr;
-	volatile void *data = nullptr;
-	SharedMemory *shm_ctl = nullptr;
-	SpinLock *spinlock = nullptr;
-	volatile long *rb_ref_cnt = 0;
 
   public:
 	RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx);

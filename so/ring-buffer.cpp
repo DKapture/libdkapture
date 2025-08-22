@@ -219,6 +219,26 @@ RingBuffer::~RingBuffer()
 		{
 			shmdt((void *)data_mirror);
 		}
+
+		if (spinlock)
+		{
+			spinlock->lock();
+			DEBUG(0, "ring buffer ref cnt: %ld", *rb_ref_cnt);
+			if (--(*rb_ref_cnt) <= 0)
+			{
+				*rb_ref_cnt = 0;
+				shmctl(shmid, IPC_RMID, nullptr);
+			}
+			spinlock->unlock();
+			delete spinlock;
+			spinlock = nullptr;
+		}
+	
+		if (shm_ctl)
+		{
+			delete shm_ctl;
+			shm_ctl = nullptr;
+		}
 	}
 	else
 	{
@@ -237,26 +257,6 @@ RingBuffer::~RingBuffer()
 			close(epoll_fd);
 			epoll_fd = -1;
 		}
-	}
-
-	if (spinlock)
-	{
-		spinlock->lock();
-		DEBUG(0, "ring buffer ref cnt: %ld", *rb_ref_cnt);
-		if (--(*rb_ref_cnt) <= 0)
-		{
-			*rb_ref_cnt = 0;
-			shmctl(shmid, IPC_RMID, nullptr);
-		}
-		spinlock->unlock();
-		delete spinlock;
-		spinlock = nullptr;
-	}
-
-	if (shm_ctl)
-	{
-		delete shm_ctl;
-		shm_ctl = nullptr;
 	}
 }
 
