@@ -275,10 +275,6 @@ err:
 	{
 		shmdt(addr_mirror);
 	}
-	if (shmid != -1)
-	{
-		shmctl(shmid, IPC_RMID, nullptr);
-	}
 	if (addr_mmap != MAP_FAILED)
 	{
 		munmap(addr_mmap, bsz * 2);
@@ -302,7 +298,6 @@ MirrorMemory::~MirrorMemory()
 	{
 		shmdt(addr);
 		shmdt(addr_mirror);
-		shmctl(shmid, IPC_RMID, nullptr);
 		munmap(addr_mmap, bsz * 2);
 	}
 }
