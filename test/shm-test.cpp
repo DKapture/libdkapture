@@ -424,19 +424,32 @@ TEST_F(MirrorMemoryTest, BasicConstruction)
 // 测试共享内存模式
 TEST_F(MirrorMemoryTest, SharedMemoryMode)
 {
+	int status;	
+	key_t key = 0x12345678;
+	size_t valid_size = getpagesize() * 4;
+	pid_t pid = fork();
+	ASSERT_NE(pid, -1);
 	try
 	{
-		key_t key = 0x12345678;
-		size_t valid_size = getpagesize() * 4;
+		if (pid == 0)
+		{
+			MirrorMemory mirror(valid_size, key);
+			*(long *)mirror.getaddr() = 0x1234567890abcdef;
+			exit(0);
+		}
 		MirrorMemory mirror(valid_size, key);
-
-		EXPECT_NE(mirror.getaddr(), nullptr);
-		EXPECT_NE(mirror.getmirror(), nullptr);
-		EXPECT_NE(mirror.getaddr(), mirror.getmirror());
+		EXPECT_EQ((char *)mirror.getaddr() + valid_size, mirror.getmirror());
+		waitpid(pid, &status, 0);
+		ASSERT_EQ(status, 0);
+		EXPECT_EQ(*(long *)mirror.getaddr(), 0x1234567890abcdef);
 	}
 	catch (const std::exception &e)
 	{
 		pr_error("Exception: %s", e.what());
+		if (pid == 0)
+		{
+			exit(1);
+		}
 		FAIL();
 	}
 }
