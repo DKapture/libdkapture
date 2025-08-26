@@ -38,10 +38,9 @@ class RingBuffer
 		};
 		struct
 		{
-			int shmid = -1;
 			SharedMemory *shm_ctl = nullptr;
 			SpinLock *spinlock = nullptr;
-			volatile long *rb_ref_cnt = 0;
+			MirrorMemory *mirror_shm = nullptr;
 		};
 	};
 

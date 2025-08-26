@@ -4,12 +4,14 @@
 
 #include <string>
 #include <exception>
+#include <sys/types.h>
 #include <system_error>
 
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 
 #include "Ucom.h"
+#include "Ulog.h"
 #include "ring-buffer.h"
 
 #define RING_BUF_TYPE_BPF 0
@@ -111,14 +113,12 @@ err_out:
 	throw exc;
 }
 
-RingBuffer::RingBuffer(size_t bsz)
+RingBuffer::RingBuffer(size_t bsz) : mirror_shm(nullptr)
 {
-	void *addr1, *addr2;
 	try
 	{
 		shm_ctl = new SharedMemory();
 		spinlock = new SpinLock(&shm_ctl->ring_buffer_lock);
-		rb_ref_cnt = &shm_ctl->ring_buffer_ref_cnt;
 		comsumer_index = &shm_ctl->rdi;
 		producer_index = &shm_ctl->wri;
 	}
@@ -127,113 +127,38 @@ RingBuffer::RingBuffer(size_t bsz)
 		this->~RingBuffer();
 		throw;
 	}
-	/**
-	 * TODO：信号中断未解锁场景
-	 * 这里原子自增操作满足不了需求，与释放处同步，我们需要在
-	 * spinlock->unlock()后，要么新建共享内存，要么引用未被标记为删除
-	 * 的共享内存，如果只用原子自增，则会出现引用被标记为删除的共享内存的场景，
-	 * 非真正共享，会导致一部分用旧共享内存，另一部分用新共享内存。
-	 */
-	spinlock->lock();
-	(*rb_ref_cnt)++;
-	DEBUG(0, "ring buffer ref cnt: %ld", *rb_ref_cnt);
 	type = RING_BUF_TYPE_NORMAL;
-	page_size = getpagesize();
 	key_t key = 0x12345678 + bsz;
-	if (bsz % page_size || bsz & (bsz - 1))
+	try
 	{
-		pr_error("buf size must be power of 2 and a multiple of page size");
-		goto err;
+		mirror_shm = new MirrorMemory(bsz, key);
 	}
-	shmid = shmget(key, bsz, IPC_CREAT | 0600);
-	if (shmid < 0)
+	catch (...)
 	{
-		pr_error("shmget: %s", strerror(errno));
-		goto err;
+		this->~RingBuffer();
+		throw;
 	}
-	addr1 = shmat(shmid, nullptr, 0);
-	if (!addr1 || addr1 == (void *)-1)
-	{
-		pr_error("shmat: %s", strerror(errno));
-		goto err;
-	}
-	DEBUG(0, "shm addr1: %p", addr1);
-	addr2 = shmat(shmid, (char *)addr1 - bsz, 0);
-	if (!addr2 || addr2 == (void *)-1)
-	{
-		addr2 = shmat(shmid, (char *)addr1 + bsz, 0);
-		if (!addr2 || addr2 == (void *)-1)
-		{
-			pr_error("shmat: %s", strerror(errno));
-			goto err;
-		}
-	}
-	DEBUG(0, "shm addr2: %p", addr2);
-
-	if (0)
-	{
-		// 调试代码
-		*(long *)addr1 = 0xa0a0a0a0a0;
-		*(long *)addr2 = 0x0a0a0a0a0a;
-
-		if (*(long *)addr1 != 0x0a0a0a0a0a)
-		{
-			pr_error("share memory map failure");
-			goto err;
-		}
-	}
+	this->data = mirror_shm->getaddr();
 	this->bsz = bsz;
-	if (addr1 < addr2)
-	{
-		data_mirror = addr2;
-		data = addr1;
-	}
-	else
-	{
-		data_mirror = addr1;
-		data = addr2;
-	}
-	spinlock->unlock();
 	return;
-err:
-	spinlock->unlock();
-	this->~RingBuffer();
-	throw std::system_error(
-		1,
-		std::generic_category(),
-		"circle buf memory construction failure"
-		", check stdout for details"
-	);
 }
 
 RingBuffer::~RingBuffer()
 {
 	if (type == RING_BUF_TYPE_NORMAL)
 	{
-		if (data)
-		{
-			shmdt((void *)data);
-		}
-
-		if (data_mirror)
-		{
-			shmdt((void *)data_mirror);
-		}
-
 		if (spinlock)
 		{
-			spinlock->lock();
-			DEBUG(0, "ring buffer ref cnt: %ld", *rb_ref_cnt);
-			if (--(*rb_ref_cnt) <= 0)
-			{
-				*rb_ref_cnt = 0;
-				shmctl(shmid, IPC_RMID, nullptr);
-			}
-			spinlock->unlock();
 			delete spinlock;
 			spinlock = nullptr;
 		}
-	
+
+		if (mirror_shm)
+		{
+			delete mirror_shm;
+			mirror_shm = nullptr;
+		}
+
 		if (shm_ctl)
 		{
 			delete shm_ctl;
