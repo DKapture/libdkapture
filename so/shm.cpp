@@ -176,7 +176,6 @@ void SharedMemory::cleanup()
 	if (shm_info.shm_nattch == 0)
 	{
 		/**
-		 * 共享内存没有初始化成功，直接删除。
 		 * 不用考虑获取shm_info到IPC_RMID之间，shm_nattch发生改变，
 		 * 出现这种情况的弊端只是旧的进程与新的进程共享的不是一块内存，
 		 * 会些许降低多线程下的性能，不影响功能。
@@ -296,9 +295,20 @@ MirrorMemory::~MirrorMemory()
 	void *addr_mmap = addr;
 	if (addr)
 	{
-		shmdt(addr);
-		shmdt(addr_mirror);
+		/**
+		 * shmdt和munmap释放只需要选择一种即可
+		 * shmdt(addr);
+		 * shmdt(addr_mirror);
+		 */
 		munmap(addr_mmap, bsz * 2);
+		// 判断shmid是否还有人使用，否则删除它
+		struct shmid_ds shminfo;
+		if (shmctl(shmid, IPC_STAT, &shminfo) == 0)
+		{
+			// 此处会有竞争问题，但不影响功能
+			if (shminfo.shm_nattch == 0)
+				shmctl(shmid, IPC_RMID, nullptr);
+		}
 	}
 }
 
