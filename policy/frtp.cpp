@@ -64,7 +64,6 @@ struct BpfData
 };
 
 char line[8192];
-struct Rule rule = {0};
 static int filter_fd;
 static int log_map_fd;
 struct ring_buffer *rb = NULL;
@@ -91,7 +90,7 @@ static HelpMsg help_msg[] = {
 };
 
 // Function to print usage information
-void Usage(const char *arg0)
+static void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
 	printf("  protect system files from malicious opening according to the "
@@ -110,7 +109,7 @@ void Usage(const char *arg0)
 }
 
 // Convert long options to short options string
-std::string long_opt2short_opt(const option lopts[])
+static std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
 	for (int i = 0; lopts[i].name; i++)
@@ -135,13 +134,16 @@ std::string long_opt2short_opt(const option lopts[])
 }
 
 // Parse command line arguments
-void parse_args(int argc, char **argv)
+static int parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
+	optind = 0;
+	opterr = 0;
 	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
 												   // short options
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
+
 		switch (opt)
 		{
 		case 'p': // Process ID
@@ -149,20 +151,24 @@ void parse_args(int argc, char **argv)
 			break;
 		case 'h': // Help
 			Usage(argv[0]);
-			exit(0);
-			break;
+			return 1;
 		default: // Invalid option
 			Usage(argv[0]);
-			exit(-1);
-			break;
+			return -1;
 		}
 	}
 
 	if (!policy_file)
 	{
+#ifndef BUILTIN
 		policy_file = "frtp.pol";
 		pr_info("No policy file specified, use frtp.pol as default");
+#else
+		pr_error("No policy file specified.");
+		return -1;
+#endif
 	}
+	return 0;
 }
 
 static std::string act2str(Action act)
@@ -188,23 +194,24 @@ static std::string act2str(Action act)
 	return str;
 }
 
-static void path2target(const char *path, struct Target *target)
+static int path2target(const char *path, struct Target *target)
 {
 	if (access(path, F_OK) == -1)
 	{
 		pr_error("File %s pr_error: %s\n", path, strerror(errno));
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
 	struct stat st;
 	if (stat(path, &st) != 0)
 	{
 		pr_error("stat %s: %s\n", path, strerror(errno));
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
 	target->ino = st.st_ino;
 	target->dev = dev_old2new(st.st_dev);
+	return 0;
 }
 
 static void add_directories_recursively(
@@ -242,7 +249,7 @@ static void add_directories_recursively(
 		);
 
 		struct stat st;
-		if (stat(full_path, &st) != 0)
+		if (lstat(full_path, &st) != 0)
 		{
 			pr_error("Cannot stat %s: %s", full_path, strerror(errno));
 			continue;
@@ -257,21 +264,21 @@ static void add_directories_recursively(
 	closedir(dir);
 }
 
-std::vector<struct Rule> parse_policy_file(const char *filename)
+static int
+parse_policy_file(const char *filename, std::vector<struct Rule> &rules)
 {
-	std::vector<struct Rule> rules;
 	FILE *file = fopen(filename, "r");
 	if (!file)
 	{
 		pr_error("fopen: %s: %s\n", strerror(errno), filename);
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
 	char line[8192];
 	while (fgets(line, sizeof(line), file))
 	{
-		char action[3];
-		char type[6];
+		char action[21];
+		char type[21];
 		char identifier[4096];
 		char target_path[4096];
 
@@ -282,7 +289,7 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 
 		if (sscanf(
 				line,
-				"forbid %5[^=]=%4095s %2s %4095s",
+				"forbid %20[^=]=%4095s %20s %4095s",
 				type,
 				identifier,
 				action,
@@ -297,12 +304,23 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 
 		if (strcmp(type, "proc") == 0)
 		{
+			if (identifier[0] != '/')
+			{
+				pr_error("Invalid process path: %s", identifier);
+				continue;
+			}
 			strncpy(rule.process, identifier, sizeof(rule.process));
 			rule.process[sizeof(rule.process) - 1] = 0;
 		}
 		else if (strcmp(type, "pid") == 0)
 		{
-			rule.pid = strtol(identifier, NULL, 10);
+			char *endptr;
+			rule.pid = strtol(identifier, &endptr, 10);
+			if (*endptr != '\0' || rule.pid < 0)
+			{
+				pr_error("Invalid PID: %s", identifier);
+				continue;
+			}
 			rule.not_pid = 0;
 		}
 		else
@@ -331,6 +349,12 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 
 		bool is_dir = false;
 		size_t path_len = strlen(target_path);
+
+		if (target_path[0] != '/')
+		{
+			pr_error("Invalid target path: %s", target_path);
+			continue;
+		}
 
 		if (path_len >= 2 && strcmp(target_path + path_len - 2, "/*") == 0)
 		{
@@ -395,10 +419,10 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 	}
 
 	fclose(file);
-	return rules;
+	return 0;
 }
 
-void load_rules(const std::vector<struct Rule> &rules)
+static int load_rules(const std::vector<struct Rule> &rules)
 {
 	uint32_t key = 0;
 	for (const auto &rule : rules)
@@ -407,9 +431,10 @@ void load_rules(const std::vector<struct Rule> &rules)
 		if (bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY) != 0)
 		{
 			perror("bpf_map_update_elem");
-			exit(EXIT_FAILURE);
+			return -1;
 		}
 	}
+	return 0;
 }
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
@@ -444,7 +469,7 @@ void ringbuf_worker(void)
 	}
 }
 
-void register_signal()
+static int register_signal()
 {
 	struct sigaction sa;
 	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
@@ -454,47 +479,87 @@ void register_signal()
 	if (sigaction(SIGINT, &sa, NULL) == -1)
 	{
 		perror("sigaction");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
+	return 0;
 }
 
+#ifdef BUILTIN
+int frtp_init(int argc, char **argv, FILE *output, int64_t timeout)
+#else
 int main(int argc, char **argv)
+#endif
 {
 	std::vector<struct Rule> rules;
-
-	parse_args(argc, argv);
-
-	register_signal();
 	std::thread *rb_thread;
+#ifdef BUILTIN
+	Log::set_file(output);
+#endif
+	int ret = parse_args(argc, argv);
+	if (ret > 0)
+	{
+		return 0;
+	}
+	else if (ret < 0)
+	{
+		return ret;
+	}
+
+	ret = register_signal();
+	if (ret < 0)
+	{
+		return ret;
+	}
 
 	obj = frtp_bpf::open_and_load();
 	if (!obj)
 	{
-		exit(-1);
+		return -1;
 	}
+
+	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto out_destroy);
+
+	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto out_destroy);
+
 	if (0 != frtp_bpf::attach(obj))
 	{
-		exit(-1);
+		ret = -1;
+		goto out_destroy;
 	}
 
-	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
-
-	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
 	{
-		goto err_out; // Handle pr_error
+		ret = -1;
+		goto out_detach;
 	}
-	rules = parse_policy_file(policy_file);
-	load_rules(rules);
+
+	ret = parse_policy_file(policy_file, rules);
+	if (ret)
+	{
+		goto out_detach;
+	}
+
+	ret = load_rules(rules);
+	if (ret)
+	{
+		goto out_detach;
+	}
 
 	rb_thread = new std::thread(ringbuf_worker);
+#ifndef BUILTIN
 	follow_trace_pipe();
-
+#else
+	std::this_thread::sleep_for(std::chrono::microseconds(timeout));
+	exit_flag = true;
+#endif
 	rb_thread->join();
 	delete rb_thread;
-err_out:
-	frtp_bpf::detach(obj);	// Detach BPF program
+
+out_detach:
+	frtp_bpf::detach(obj); // Detach BPF program
+out_destroy:
 	frtp_bpf::destroy(obj); // Clean up BPF object
-	return -1;
+	Log::set_file(stderr);
+	return ret;
 }
