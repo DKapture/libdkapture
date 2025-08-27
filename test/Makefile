@@ -16,6 +16,7 @@ CXXFLAGS = -g -D__GTEST__ -DBUILTIN -MMD \
 		   -I$(PROJ_ROOT)/googletest/googletest/include \
 		   -I$(PROJ_ROOT)/build/include \
 		   -I$(PROJ_ROOT)/build/observe \
+		   -I$(PROJ_ROOT)/build/policy
 
 LDFLAGS = -Wl,-rpath=$(PROJ_ROOT)/googletest/build/lib/ -luuid
 
@@ -36,7 +37,8 @@ $(TARGET): $(OBJS) $(GTEST_LIBS) \
 	$(BUILD_DIR)/lsock.o \
 	$(BUILD_DIR)/kmemleak.o \
 	$(BUILD_DIR)/irqsnoop.o \
-	$(BUILD_DIR)/mountsnoop.o
+	$(BUILD_DIR)/mountsnoop.o \
+	$(BUILD_DIR)/frtp.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
 $(BUILD_DIR):
@@ -51,8 +53,14 @@ $(BUILD_DIR)/%.o: %.cpp $(GTEST_HDRS) $(PROJ_ROOT)/build/observe/proc-info.skel.
 $(BUILD_DIR)/%.o: $(PROJ_ROOT)/observe/%.cpp $(PROJ_ROOT)/build/observe/%.skel.h | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/%.o: $(PROJ_ROOT)/policy/%.cpp $(PROJ_ROOT)/build/policy/%.skel.h | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(PROJ_ROOT)/build/observe/%:
 	make -C $(PROJ_ROOT)/observe $@ SHARED_LIB=1
+
+$(PROJ_ROOT)/build/policy/%:
+	make -C $(PROJ_ROOT)/policy $@ SHARED_LIB=1
 
 $(PROJ_ROOT)/googletest/build/lib/libgtest_main.so: $(PROJ_ROOT)/googletest/build/lib/libgtest.so
 
