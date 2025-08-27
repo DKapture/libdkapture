@@ -20,7 +20,7 @@
 #include <map>
 #include <uuid/uuid.h>
 
-#include "file-occupation.skel.h"
+#include "lsof.skel.h"
 #include "Ucom.h"
 #include "jhash.h"
 
@@ -45,7 +45,7 @@ struct BpfData
 	char comm[16];
 };
 
-static file_occupation_bpf *obj;
+static lsof_bpf *obj;
 static int log_map_fd;
 struct ring_buffer *rb = NULL;
 static int filter_fd;
@@ -266,13 +266,13 @@ int main(int argc, char *args[])
 	register_signal();
 
 	int key = 0;
-	obj = file_occupation_bpf::open_and_load();
+	obj = lsof_bpf::open_and_load();
 	if (!obj)
 	{
 		exit(-1);
 	}
 
-	if (0 != file_occupation_bpf::attach(obj))
+	if (0 != lsof_bpf::attach(obj))
 	{
 		exit(-1);
 	}
@@ -329,7 +329,7 @@ err_out:
 	{
 		ring_buffer__free(rb);
 	}
-	file_occupation_bpf::detach(obj);
-	file_occupation_bpf::destroy(obj);
+	lsof_bpf::detach(obj);
+	lsof_bpf::destroy(obj);
 	return 0;
 }

@@ -251,7 +251,7 @@ class MountSnoopParser(EventParser):
 
 
 class FileOccupationParser(EventParser):
-    """Parser for file-occupation tool output"""
+    """Parser for lsof tool output"""
     
     def setup_patterns(self):
         self.patterns = {
@@ -261,20 +261,20 @@ class FileOccupationParser(EventParser):
         }
     
     def parse(self, raw_line: str) -> Optional[Event]:
-        """Parse file-occupation output line"""
+        """Parse lsof output line"""
         timestamp = self.extract_timestamp(raw_line)
         if not timestamp:
             return None
         
-        clean_line = re.sub(r'^\[.*?\] \[file-occupation\] ', '', raw_line)
+        clean_line = re.sub(r'^\[.*?\] \[lsof\] ', '', raw_line)
         
         occ_match = self.patterns['occupation'].search(clean_line)
         if occ_match:
             return Event(
                 timestamp=timestamp,
-                tool="file-occupation",
+                tool="lsof",
                 raw_data=clean_line,
-                event_type="file_occupation",
+                event_type="lsof",
                 pid=int(occ_match.group(1)) if occ_match.group(1).isdigit() else 0,
                 path=occ_match.group(4),
                 details={
@@ -285,7 +285,7 @@ class FileOccupationParser(EventParser):
         
         return Event(
             timestamp=timestamp,
-            tool="file-occupation",
+            tool="lsof",
             raw_data=clean_line,
             event_type="unknown"
         )
@@ -300,7 +300,7 @@ class EventProcessor:
             'trace-file': TraceFileParser(),
             'ext4snoop': Ext4SnoopParser(),
             'mountsnoop': MountSnoopParser(),
-            'file-occupation': FileOccupationParser()
+            'lsof': FileOccupationParser()
         }
         
         self.event_buffer = deque(maxlen=1000)
@@ -322,7 +322,7 @@ class EventProcessor:
             'trace-file': r'\[trace-file\]',
             'ext4snoop': r'\[ext4snoop\]',
             'mountsnoop': r'\[mountsnoop\]',
-            'file-occupation': r'\[file-occupation\]'
+            'lsof': r'\[lsof\]'
         }
         
         for tool, pattern in tool_patterns.items():
@@ -337,8 +337,8 @@ class EventProcessor:
                 return 'ext4snoop'
             elif 'mountsnoop' in pipe_path:
                 return 'mountsnoop'
-            elif 'file-occupation' in pipe_path:
-                return 'file-occupation'
+            elif 'lsof' in pipe_path:
+                return 'lsof'
         
         return None
     
@@ -364,8 +364,8 @@ class EventProcessor:
             pipes.append(self.args.ext4snoop_pipe)
         if self.args.mountsnoop_pipe and self.args.mountsnoop_pipe != 'none':
             pipes.append(self.args.mountsnoop_pipe)
-        if self.args.file_occupation_pipe and self.args.file_occupation_pipe != 'none':
-            pipes.append(self.args.file_occupation_pipe)
+        if self.args.lsof_pipe and self.args.lsof_pipe != 'none':
+            pipes.append(self.args.lsof_pipe)
         
         try:
             while self.running:
@@ -468,9 +468,9 @@ def parse_arguments():
     )
     
     parser.add_argument(
-        '--file-occupation-pipe',
+        '--lsof-pipe',
         type=str,
-        help='file-occupation tool pipe path'
+        help='lsof tool pipe path'
     )
     
     parser.add_argument(

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # File Monitor Script - Event Stream Fusion Engine
-# Combined monitoring with trace-file, ext4snoop, mountsnoop, file-occupation
+# Combined monitoring with trace-file, ext4snoop, mountsnoop, lsof
 # Version: 1.0
 
 set -e
@@ -24,13 +24,13 @@ MAIN_PIPE="/tmp/file-monitor-main-$$"
 TRACE_FILE_PIPE="/tmp/file-monitor-trace-file-$$"
 EXT4SNOOP_PIPE="/tmp/file-monitor-ext4snoop-$$"
 MOUNTSNOOP_PIPE="/tmp/file-monitor-mountsnoop-$$"
-FILE_OCCUPATION_PIPE="/tmp/file-monitor-file-occupation-$$"
+LSOF_PIPE="/tmp/file-monitor-lsof-$$"
 
 # Default configuration
 ENABLE_TRACE_FILE=true
 ENABLE_EXT4SNOOP=true
 ENABLE_MOUNTSNOOP=true
-ENABLE_FILE_OCCUPATION=true
+ENABLE_LSOF=true
 OUTPUT_FORMAT="text"
 OUTPUT_FILE=""
 CORRELATION_WINDOW=5
@@ -64,8 +64,8 @@ OPTIONS:
     --disable-ext4snoop     Disable ext4snoop tool
     --enable-mountsnoop     Enable mountsnoop tool
     --disable-mountsnoop    Disable mountsnoop tool
-    --enable-file-occupation Enable file-occupation tool
-    --disable-file-occupation Disable file-occupation tool
+    --enable-lsof Enable lsof tool
+    --disable-lsof Disable lsof tool
 
 EXAMPLES:
     $0                                    # Run with default configuration
@@ -81,7 +81,7 @@ TOOLS MONITORED:
     - trace-file:      VFS operations monitoring
     - ext4snoop:       ext4 filesystem events
     - mountsnoop:      Mount/unmount operations
-    - file-occupation: File descriptor snapshots
+    - lsof: File descriptor snapshots
 
 REQUIREMENTS:
     - Root privileges
@@ -149,7 +149,7 @@ check_dependencies() {
     [[ "$ENABLE_TRACE_FILE" == true ]] && tools+=("trace-file")
     [[ "$ENABLE_EXT4SNOOP" == true ]] && tools+=("ext4snoop")
     [[ "$ENABLE_MOUNTSNOOP" == true ]] && tools+=("mountsnoop")
-    [[ "$ENABLE_FILE_OCCUPATION" == true ]] && tools+=("file-occupation")
+    [[ "$ENABLE_LSOF" == true ]] && tools+=("lsof")
     
     log INFO "Checking ${#tools[@]} enabled tools: ${tools[*]}"
     
@@ -195,7 +195,7 @@ load_config() {
                 ENABLE_TRACE_FILE) ENABLE_TRACE_FILE="$value" ;;
                 ENABLE_EXT4SNOOP) ENABLE_EXT4SNOOP="$value" ;;
                 ENABLE_MOUNTSNOOP) ENABLE_MOUNTSNOOP="$value" ;;
-                ENABLE_FILE_OCCUPATION) ENABLE_FILE_OCCUPATION="$value" ;;
+                ENABLE_LSOF) ENABLE_LSOF="$value" ;;
                 OUTPUT_FORMAT) OUTPUT_FORMAT="$value" ;;
                 CORRELATION_WINDOW) CORRELATION_WINDOW="$value" ;;
                 VERBOSE) VERBOSE="$value" ;;
@@ -280,12 +280,12 @@ parse_arguments() {
                 ENABLE_MOUNTSNOOP=false
                 shift
                 ;;
-            --enable-file-occupation)
-                ENABLE_FILE_OCCUPATION=true
+            --enable-lsof)
+                ENABLE_LSOF=true
                 shift
                 ;;
-            --disable-file-occupation)
-                ENABLE_FILE_OCCUPATION=false
+            --disable-lsof)
+                ENABLE_LSOF=false
                 shift
                 ;;
             *)
@@ -305,12 +305,12 @@ validate_config() {
     log DEBUG "ENABLE_TRACE_FILE=$ENABLE_TRACE_FILE"
     log DEBUG "ENABLE_EXT4SNOOP=$ENABLE_EXT4SNOOP"
     log DEBUG "ENABLE_MOUNTSNOOP=$ENABLE_MOUNTSNOOP"
-    log DEBUG "ENABLE_FILE_OCCUPATION=$ENABLE_FILE_OCCUPATION"
+    log DEBUG "ENABLE_LSOF=$ENABLE_LSOF"
     
     [[ "$ENABLE_TRACE_FILE" == true ]] && enabled_tools=$((enabled_tools + 1))
     [[ "$ENABLE_EXT4SNOOP" == true ]] && enabled_tools=$((enabled_tools + 1))
     [[ "$ENABLE_MOUNTSNOOP" == true ]] && enabled_tools=$((enabled_tools + 1))
-    [[ "$ENABLE_FILE_OCCUPATION" == true ]] && enabled_tools=$((enabled_tools + 1))
+    [[ "$ENABLE_LSOF" == true ]] && enabled_tools=$((enabled_tools + 1))
     
     log DEBUG "Total enabled tools: $enabled_tools"
     
@@ -336,7 +336,7 @@ create_pipes() {
     [[ "$ENABLE_TRACE_FILE" == true ]] && pipes+=("$TRACE_FILE_PIPE")
     [[ "$ENABLE_EXT4SNOOP" == true ]] && pipes+=("$EXT4SNOOP_PIPE")
     [[ "$ENABLE_MOUNTSNOOP" == true ]] && pipes+=("$MOUNTSNOOP_PIPE")
-    [[ "$ENABLE_FILE_OCCUPATION" == true ]] && pipes+=("$FILE_OCCUPATION_PIPE")
+    [[ "$ENABLE_LSOF" == true ]] && pipes+=("$LSOF_PIPE")
     
     for pipe in "${pipes[@]}"; do
         if [[ -e "$pipe" ]]; then
@@ -378,7 +378,7 @@ cleanup() {
     done
     
     # Remove named pipes
-    local pipes=("$MAIN_PIPE" "$TRACE_FILE_PIPE" "$EXT4SNOOP_PIPE" "$MOUNTSNOOP_PIPE" "$FILE_OCCUPATION_PIPE")
+    local pipes=("$MAIN_PIPE" "$TRACE_FILE_PIPE" "$EXT4SNOOP_PIPE" "$MOUNTSNOOP_PIPE" "$LSOF_PIPE")
     for pipe in "${pipes[@]}"; do
         if [[ -e "$pipe" ]]; then
             rm -f "$pipe"
@@ -445,7 +445,7 @@ start_event_router() {
     [[ "$ENABLE_TRACE_FILE" == true ]] && python_args+=("--trace-file-pipe" "$TRACE_FILE_PIPE")
     [[ "$ENABLE_EXT4SNOOP" == true ]] && python_args+=("--ext4snoop-pipe" "$EXT4SNOOP_PIPE")
     [[ "$ENABLE_MOUNTSNOOP" == true ]] && python_args+=("--mountsnoop-pipe" "$MOUNTSNOOP_PIPE")
-    [[ "$ENABLE_FILE_OCCUPATION" == true ]] && python_args+=("--file-occupation-pipe" "$FILE_OCCUPATION_PIPE")
+    [[ "$ENABLE_LSOF" == true ]] && python_args+=("--lsof-pipe" "$LSOF_PIPE")
     [[ -n "$FILTER_PID" ]] && python_args+=("--filter-pid" "$FILTER_PID")
     [[ -n "$FILTER_COMM" ]] && python_args+=("--filter-comm" "$FILTER_COMM")
     [[ -n "$FILTER_PATH" ]] && python_args+=("--filter-path" "$FILTER_PATH")
@@ -480,7 +480,7 @@ build_tool_args() {
             # mountsnoop uses different argument format
             [[ -n "$FILTER_PATH" ]] && args+=("$FILTER_PATH")
             ;;
-        file-occupation)
+        lsof)
             [[ -n "$FILTER_PATH" ]] && args+=("-p" "$FILTER_PATH")
             ;;
     esac
@@ -488,25 +488,25 @@ build_tool_args() {
     echo "${args[@]}"
 }
 
-# Function to start file-occupation snapshots
-start_file_occupation_monitor() {
-    if [[ "$ENABLE_FILE_OCCUPATION" != true ]]; then
+# Function to start lsof snapshots
+start_lsof_monitor() {
+    if [[ "$ENABLE_LSOF" != true ]]; then
         return
     fi
     
-    log INFO "Starting file-occupation snapshot monitor"
+    log INFO "Starting lsof snapshot monitor"
     
     if [[ "$DRY_RUN" == true ]]; then
-        echo "Would start file-occupation monitor with 5-second intervals"
+        echo "Would start lsof monitor with 5-second intervals"
         return
     fi
     
     (
         while true; do
-            local args=($(build_tool_args "file-occupation"))
-            echo "SNAPSHOT_START:$(date '+%Y-%m-%d %H:%M:%S')" > "$FILE_OCCUPATION_PIPE"
-            "$TOOLS_DIR/file-occupation" "${args[@]}" >> "$FILE_OCCUPATION_PIPE" 2>/dev/null || true
-            echo "SNAPSHOT_END:$(date '+%Y-%m-%d %H:%M:%S')" >> "$FILE_OCCUPATION_PIPE"
+            local args=($(build_tool_args "lsof"))
+            echo "SNAPSHOT_START:$(date '+%Y-%m-%d %H:%M:%S')" > "$LSOF_PIPE"
+            "$TOOLS_DIR/lsof" "${args[@]}" >> "$LSOF_PIPE" 2>/dev/null || true
+            echo "SNAPSHOT_END:$(date '+%Y-%m-%d %H:%M:%S')" >> "$LSOF_PIPE"
             sleep 5
         done
     ) &
@@ -546,7 +546,7 @@ main() {
         echo "trace-file: $ENABLE_TRACE_FILE"
         echo "ext4snoop: $ENABLE_EXT4SNOOP"
         echo "mountsnoop: $ENABLE_MOUNTSNOOP"
-        echo "file-occupation: $ENABLE_FILE_OCCUPATION"
+        echo "lsof: $ENABLE_LSOF"
         echo "Output format: $OUTPUT_FORMAT"
         echo "Output file: ${OUTPUT_FILE:-stdout}"
         echo "Correlation window: $CORRELATION_WINDOW seconds"
@@ -579,8 +579,8 @@ main() {
         start_tool "mountsnoop" "$MOUNTSNOOP_PIPE" "${args[@]}"
     fi
     
-    # Start file-occupation monitor
-    start_file_occupation_monitor
+    # Start lsof monitor
+    start_lsof_monitor
     
     # Start event router
     start_event_router
