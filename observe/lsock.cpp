@@ -28,6 +28,7 @@
 #include "types.h"
 #include "dkapture.h"
 #include "net.h"
+#include <sys/mman.h>
 
 #define ITER_PASS_STRING 0
 
@@ -756,15 +757,22 @@ class CircleBuf
 	size_t bsz; // totle buffer size
 	size_t usz; // used buffer size
 	int shmid = -1;
-	void *addr1 = nullptr;
-	void *addr2 = nullptr;
+	void *addr_map = nullptr;
 
   public:
 	CircleBuf(size_t bsz)
 	{
+		void *addr1 = nullptr;
+		void *addr2 = nullptr;
 		if (bsz % page_size)
 		{
 			pr_error("buf size must be multiple of page size\n");
+			goto err;
+		}
+		addr_map = mmap(nullptr, bsz * 2, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+		if (addr1 == MAP_FAILED)
+		{
+			pr_error("mmap: %s\n", strerror(errno));
 			goto err;
 		}
 		shmid = shmget(IPC_PRIVATE, bsz, IPC_CREAT | 0600);
@@ -773,22 +781,20 @@ class CircleBuf
 			pr_error("shmget: %s\n", strerror(errno));
 			goto err;
 		}
-		addr1 = shmat(shmid, nullptr, 0);
-		if (!addr1 || addr1 == (void *)-1)
+		addr1 = addr_map;
+		addr2 = (char *)addr_map + bsz;
+		addr1 = shmat(shmid, addr1, SHM_REMAP);
+		if (addr1 == (void *)-1)
 		{
 			pr_error("shmat: %s\n", strerror(errno));
 			goto err;
 		}
 		DEBUG(0, "shm addr1: %p\n", addr1);
-		addr2 = shmat(shmid, (char *)addr1 - bsz, 0);
-		if (!addr2 || addr2 == (void *)-1)
+		addr2 = shmat(shmid, addr2, SHM_REMAP);
+		if (addr2 == (void *)-1)
 		{
-			addr2 = shmat(shmid, (char *)addr1 + bsz, 0);
-			if (!addr2 || addr2 == (void *)-1)
-			{
-				pr_error("shmat: %s", strerror(errno));
-				goto err;
-			}
+			pr_error("shmat: %s", strerror(errno));
+			goto err;
 		}
 		DEBUG(0, "shm addr2: %p\n", addr2);
 
@@ -804,10 +810,6 @@ class CircleBuf
 		wri = 0;
 		usz = 0;
 		this->bsz = bsz;
-		if (addr1 < addr2)
-		{
-			std::swap(addr1, addr2);
-		}
 		return;
 	err:
 		this->~CircleBuf();
@@ -816,6 +818,10 @@ class CircleBuf
 	}
 	~CircleBuf()
 	{
+		if (addr_map)
+		{
+			munmap(addr_map, bsz * 2);
+		}
 		if (shmid >= 0)
 		{
 			shmctl(shmid, IPC_RMID, NULL);
@@ -823,7 +829,7 @@ class CircleBuf
 	}
 	char *buf()
 	{
-		return (char *)addr2;
+		return (char *)addr_map;
 	}
 	size_t write(void *data, size_t dsz)
 	{
@@ -832,7 +838,7 @@ class CircleBuf
 		{
 			dsz = bsz - usz;
 		}
-		memcpy(addr2, data, dsz);
+		memcpy(addr_map, data, dsz);
 		wri += dsz;
 		usz += dsz;
 		wri %= bsz;
@@ -844,7 +850,7 @@ class CircleBuf
 		{
 			dsz = usz;
 		}
-		memcpy(data, addr2, dsz);
+		memcpy(data, addr_map, dsz);
 		rdi += dsz;
 		usz -= dsz;
 		rdi %= bsz;
