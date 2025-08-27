@@ -29,6 +29,11 @@
 
 #define RB_MAP_SIZE (1024 * 1024)
 #define BPF_PIN_PATH "/sys/fs/bpf/dkapture"
+#define ALIGN_UP(x, a) ((x) + (a) - (x) % (a))
+
+extern int
+frtp_init(int argc, char **argv, std::string &result, int64_t timeout = 50);
+uintptr_t test_id;
 
 struct bpf_link
 {
@@ -286,11 +291,24 @@ int bpf_object__find_map_fd_by_name(
 	return -(errno = ENOENT);
 }
 
+static int bpf_object__open_skeleton_frtp(
+	struct bpf_object_skeleton *s,
+	const struct bpf_object_open_opts *opts
+)
+{
+
+	return 0;
+}
+
 int bpf_object__open_skeleton(
 	struct bpf_object_skeleton *s,
 	const struct bpf_object_open_opts *opts
 )
 {
+	if (test_id == (uintptr_t)frtp_init)
+	{
+		return bpf_object__open_skeleton_frtp(s, opts);
+	}
 	if (access(BPF_PIN_PATH, F_OK) != 0)
 	{
 		if (0 != mkdir(BPF_PIN_PATH, 0700))
@@ -410,14 +428,67 @@ int bpf_ringbuffer_push(
 	return write(m_bpf_rb->map_fd, dh, sizeof(DKapture::DataHdr) + dh->dsz);
 }
 
+static void frtp_gen_logs(char *dest, size_t bsz, size_t *usz)
+{
+	int pid = 1;
+	unsigned int act = 0x2;
+	size_t length = 0;
+	const char *str1 = "/usr/bin/binary";
+	const char *str2 = "123,456 7890";
+	struct BpfData
+	{
+		unsigned int act;
+		pid_t pid;
+		char process[];
+	} *buffer = (struct BpfData *)new char[128];
+
+	size_t struct_size = ALIGN_UP(
+		sizeof(struct BpfData) + strlen(str1) + 1 + strlen(str2) + 1,
+		8
+	);
+	assert(struct_size <= 128);
+	*usz = struct_size;
+	strcpy(buffer->process, str1);
+	strcpy(buffer->process + strlen(str1) + 1, str2);
+	buffer->act = act;
+	while (length <= bsz - struct_size)
+	{
+		buffer->pid = pid++;
+		memcpy(dest + length, buffer, struct_size);
+		length += struct_size;
+	}
+	delete buffer;
+}
+
 int ring_buffer__poll(struct ring_buffer *rb, int timeout_ms)
 {
+	if (test_id == (uintptr_t)frtp_init)
+	{
+		auto fn = (ring_buffer_sample_fn)rb;
+		size_t usz;
+		struct BpfData
+		{
+			unsigned int act;
+			pid_t pid;
+			char process[];
+		};
+		char buffer[4096] = {0};
+		frtp_gen_logs(buffer, 4096, &usz);
+		for(size_t i = 0; i < 4096; i+= usz){
+			fn(nullptr, buffer + i, 0);
+		}
+		return 0;
+	}
 	usleep(100000);
 	return 0;
 }
 
 void ring_buffer__free(struct ring_buffer *rb)
 {
+	if (test_id == (uintptr_t)frtp_init)
+	{
+		return;
+	}
 	free(rb);
 }
 
@@ -433,7 +504,11 @@ struct ring_buffer *ring_buffer__new(
 	const struct ring_buffer_opts *opts
 )
 {
-	return (struct ring_buffer *)malloc(1024);
+	if (test_id == (uintptr_t)frtp_init)
+	{
+		return (struct ring_buffer *)sample_cb;
+	}
+	return (struct ring_buffer *)malloc(4096);
 }
 
 int bpf_map__set_value_size(struct bpf_map *map, __u32 size)
