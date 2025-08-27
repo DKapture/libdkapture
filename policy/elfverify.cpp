@@ -13,7 +13,6 @@
 #include <vector>
 #include <thread>
 #include <atomic>
-#include <uuid/uuid.h>
 #include <dirent.h>
 #include <pwd.h>
 #include "Ucom.h"

@@ -17,11 +17,11 @@ Options:
   -p, --path <path>
         file path to trace
 
-  -u, --uuid [uuid]
+  -d, --dev [dev]
         when using the inode number of <path> as the filter,
-        this option specify the uuid of filesystem to which
+        this option specify the device number of filesystem to which
         the inode belong.
-        you can get the uuid by running command 'blkid'
+        you can get the dev by running command 'stat -c %d <file>'
 
   -i, --inode <ino>
         use file inode as filter
@@ -31,8 +31,21 @@ Options:
 ```
 
 - -p：指定需要跟踪的文件，路径必须是绝对路径。
-- -u：指定目标文件所属的文件系统 UUID。
+- -d：指定目标文件所属的文件系统设备号。
 - -i：指定文件 inode 号。
+
+## 获取设备号的方法
+
+要获取文件系统的设备号，可以使用以下命令：
+
+```bash
+# 获取文件的设备号
+stat -c %d <file_path>
+
+# 或者使用ls命令
+ls -l <file_path>
+# 输出中的主次设备号，例如：8,1 表示主设备号为8，次设备号为1
+```
 
 ## 事件列表
 
@@ -89,4 +102,16 @@ uid:0 ls[2037379]: event: close, ino: 7865113
 uid:1000 code[3093]: event: getattr, request_mask: 4095, query_flags: 256, ino: 7865113, ret: 0(Success)
 uid:1000 code[3095]: event: getattr, request_mask: 4095, query_flags: 256, ino: 7865113, ret: 0(Success)
 uid:1000 code[3092]: event: getattr, request_mask: 4095, query_flags: 256, ino: 7865113, ret: 0(Success)
+```
+
+## 使用设备号和inode的示例
+
+```bash
+# 获取文件系统的设备号
+$ stat -c %d /usr/bin/ls
+2050
+
+# 使用设备号和inode进行跟踪
+$ sudo ./observe/trace-file -d 2050 -i
+# 这将跟踪设备号为2050，inode为指定值的文件上的所有事件
 ```

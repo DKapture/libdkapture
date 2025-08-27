@@ -18,13 +18,21 @@
 #include <algorithm>
 #include <pthread.h>
 #include <map>
-#include <uuid/uuid.h>
+#include <sys/sysmacros.h> // 添加这个头文件用于设备号操作
 
 #include "lsof.skel.h"
 #include "Ucom.h"
 #include "jhash.h"
 
 #define PAGE_SIZE 4096
+
+// 添加设备号转换函数，参考frtp
+static inline uint32_t dev_old2new(dev_t old)
+{
+	uint32_t major = gnu_dev_major(old);
+	uint32_t minor = gnu_dev_minor(old);
+	return ((major & 0xfff) << 20) | (minor & 0xfffff);
+}
 
 union Rule
 {
@@ -33,7 +41,7 @@ union Rule
 	{
 		u64 not_inode; // used for judging whether it's inode filter
 		u64 inode;
-		uuid_t dev_uuid;
+		dev_t dev; // 设备号
 	};
 } rule;
 
@@ -56,7 +64,7 @@ static std::map<pid_t, std::vector<struct BpfData>> log_stat;
 
 static struct option lopts[] = {
 	{"path",	 required_argument, 0, 'p'},
-	{"uuid",	 required_argument, 0, 'u'},
+	{"dev",	 required_argument, 0, 'd'},
 	{"inode", required_argument, 0, 'i'},
 	{"help",	 no_argument,		  0, 'h'},
 	{0,		0,				 0, 0  }
@@ -70,9 +78,9 @@ struct HelpMsg
 
 static HelpMsg help_msg[] = {
 	{"[path]",  "path of the file to watch on\n"		   },
-	{"[uuid]",
-	 "the uuid of filesystem to which the inode belong.\n"
-	 "\tyou can get the uuid by running command 'blkid'\n"},
+	{"[dev]",
+	 "the device number of filesystem to which the inode belong.\n"
+	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"}, // 更新帮助信息
 	{"[inode]", "inode of the file to watch on\n"		 },
 	{"",		 "print this help message\n"				},
 };
@@ -118,13 +126,13 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 
-void parse_args(int argc, char **argv)
+void parse_args(int argc, char *args[])
 {
 	int opt, opt_idx;
 	int optbits = 0;
 	optind = 1;
 	std::string sopts = long_opt2short_opt(lopts);
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
+	while ((opt = getopt_long(argc, args, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
 		{
@@ -133,14 +141,10 @@ void parse_args(int argc, char **argv)
 			rule.path[sizeof(rule.path) - 1] = 0;
 			optbits |= 1;
 			break;
-		case 'u':
-			if (uuid_parse(optarg, rule.dev_uuid) == -1)
-			{
-				printf("uuid format error\n");
-				exit(-1);
-			}
-			optbits |= 1 << 1;
+		case 'd':
+			rule.dev = strtoul(optarg, NULL, 10); // 直接解析设备号
 			rule.not_inode = 0;
+			optbits |= 1 << 1;
 			break;
 		case 'i':
 			rule.inode = atoi(optarg);
@@ -148,11 +152,11 @@ void parse_args(int argc, char **argv)
 			optbits |= 1 << 2;
 			break;
 		case 'h':
-			Usage(argv[0]);
+			Usage(args[0]);
 			exit(0);
 			break;
 		default:
-			Usage(argv[0]);
+			Usage(args[0]);
 			exit(-1);
 			break;
 		}
@@ -166,7 +170,7 @@ void parse_args(int argc, char **argv)
 
 	if (!!(optbits & 2) ^ !!(optbits & 4))
 	{
-		printf("error: -u and -i must be used together\n");
+		printf("error: -d and -i must be used together\n"); // 更新错误信息
 		exit(-1);
 	}
 

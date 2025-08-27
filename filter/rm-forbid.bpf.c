@@ -11,9 +11,13 @@
 
 char _license[] SEC("license") = "GPL";
 
+// 添加设备号转换宏定义，参考frtp
+#define MAJOR(dev) (u32)((dev & 0xfff00000) >> 20)
+#define MINOR(dev) (u32)(dev & 0xfffff)
+
 struct Rule
 {
-	uuid_t dev_uuid;
+	dev_t dev; // 设备号
 	u64 inode;
 };
 
@@ -51,28 +55,17 @@ static int unlink_check(struct path *dir, struct dentry *dentry)
 		return -EBUSY;
 	}
 
-	char *uuid = (char *)&dir->mnt->mnt_sb->s_uuid;
+	// 获取文件系统的设备号
+	dev_t fs_dev = dir->mnt->mnt_sb->s_dev;
 
-	if (0)
+	if (0) // switch to 1 to enable debug
 	{
-		__attribute__((aligned(8))) char tmp[16];
-		memcpy(tmp, uuid, sizeof(tmp));
-		byte_reverse(tmp, sizeof(tmp));
-		DEBUG(
-			1,
-			"UUID: %04x-%02x-%02x-%02x-%02x%04x",
-			*(u32 *)(tmp + 12),
-			*(u16 *)(tmp + 10),
-			*(u16 *)(tmp + 8),
-			*(u16 *)(tmp + 6),
-			*(u16 *)(tmp + 4),
-			*(u32 *)tmp
-		);
+		bpf_info("FS dev: major=%u, minor=%u", 
+			MAJOR(fs_dev), MINOR(fs_dev));
 	}
 
-	__attribute__((aligned(8))) char zero_uuid[16] = {0};
-	if (memncmp(&rule->dev_uuid, zero_uuid, sizeof(uuid_t)) &&
-		memncmp(&rule->dev_uuid, uuid, sizeof(uuid_t)))
+	// 检查设备号是否匹配
+	if (rule->dev && rule->dev != fs_dev)
 	{
 		return 0;
 	}

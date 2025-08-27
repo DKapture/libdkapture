@@ -10,6 +10,10 @@
 
 char _license[] SEC("license") = "GPL";
 
+// 添加设备号转换宏定义，参考frtp
+#define MAJOR(dev) (u32)((dev & 0xfff00000) >> 20)
+#define MINOR(dev) (u32)(dev & 0xfffff)
+
 union Rule
 {
 	char path[PAGE_SIZE];
@@ -17,7 +21,7 @@ union Rule
 	{
 		u64 not_inode; // used for judging whether it's inode filter
 		u64 inode;
-		uuid_t dev_uuid;
+		dev_t dev; // 设备号
 	};
 };
 
@@ -91,11 +95,8 @@ static bool file_filter(struct file *file)
 	}
 	else
 	{
-		if (memncmp(
-				&rule->dev_uuid,
-				&file->f_path.mnt->mnt_sb->s_uuid,
-				sizeof(uuid_t)
-			))
+		// 使用设备号进行比较
+		if (rule->dev != file->f_path.mnt->mnt_sb->s_dev)
 		{
 			goto exit;
 		}
@@ -105,11 +106,11 @@ static bool file_filter(struct file *file)
 		}
 	}
 
-	if (0) // change to 1 when DEBUG uuid
+	if (0) // change to 1 when DEBUG dev
 	{
-		char buf[36] = {};
-		hex_print(buf, &file->f_path.mnt->mnt_sb->s_uuid, sizeof(uuid_t));
-		bpf_info("uuid: %s", buf);
+		bpf_info("dev: major=%u, minor=%u", 
+			MAJOR(file->f_path.mnt->mnt_sb->s_dev),
+			MINOR(file->f_path.mnt->mnt_sb->s_dev));
 	}
 	ret = true;
 

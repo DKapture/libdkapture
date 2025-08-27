@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <pthread.h>
 #include <map>
-#include <uuid/uuid.h>
 
 #include <fstream>
 #include <sstream>

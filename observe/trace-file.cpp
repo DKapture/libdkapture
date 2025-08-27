@@ -13,7 +13,7 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <uuid/uuid.h>
+#include <sys/sysmacros.h> // 添加这个头文件用于设备号操作
 
 #include <vector>
 #include <thread>
@@ -29,6 +29,14 @@
 #undef XATTR_NAME_MAX
 #define XATTR_NAME_MAX 256
 #define XATTR_VALUE_MAX 1024
+
+// 添加设备号转换函数，参考frtp
+static inline uint32_t dev_old2new(dev_t old)
+{
+	uint32_t major = gnu_dev_major(old);
+	uint32_t minor = gnu_dev_minor(old);
+	return ((major & 0xfff) << 20) | (minor & 0xfffff);
+}
 
 #define LOG_DUMP(type, log)                                                    \
 	{                                                                          \
@@ -936,7 +944,7 @@ union Rule
 	{
 		u64 not_inode; // used for judging whether it's inode filter
 		u64 inode;
-		uuid_t dev_uuid;
+		dev_t dev; // 设备号
 	};
 } rule = {};
 
@@ -948,7 +956,7 @@ static std::atomic<bool> exit_flag(false);
 
 static struct option lopts[] = {
 	{"path",	 required_argument, 0, 'p'},
-	{"uuid",	 required_argument, 0, 'u'},
+	{"dev",	 required_argument, 0, 'd'},
 	{"inode", no_argument,	   0, 'i'},
 	{"help",	 no_argument,		  0, 'h'},
 	{0,		0,				 0, 0  }
@@ -964,11 +972,11 @@ struct HelpMsg
 // Help messages
 static HelpMsg help_msg[] = {
 	{"<path>", "file path to trace\n"					 },
-	{"[uuid]",
+	{"[dev]",
 	 "when using the inode number of <path> as the filter,\n"
-	 "\tthis option specify the uuid of filesystem to which\n"
+	 "\tthis option specify the device number of filesystem to which\n"
 	 "\tthe inode belong.\n"
-	 "\tyou can get the uuid by running command 'blkid'\n"},
+	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"}, // 更新帮助信息
 	{"<ino>",  "use file inode as filter\n"				  },
 	{"",		 "print this help message\n"				},
 };
@@ -1017,7 +1025,7 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 
-static uuid_t dev_uuid;
+static dev_t dev_num;
 // Parse command line arguments
 void parse_args(int argc, char **argv)
 {
@@ -1048,12 +1056,15 @@ void parse_args(int argc, char **argv)
 			}
 			DEBUG(0, "path: %s\n", optarg);
 			break;
-		case 'u':
-			if (uuid_parse(optarg, dev_uuid) == -1)
+		case 'd':
+			// 解析设备号，格式为 "major:minor"
+			unsigned int major_num, minor_num;
+			if (sscanf(optarg, "%u:%u", &major_num, &minor_num) != 2)
 			{
-				printf("uuid format error: %s\n", optarg);
+				printf("dev format error: %s (should be major:minor)\n", optarg);
 				exit(-1);
 			}
+			dev_num = makedev(major_num, minor_num);
 			rule.not_inode = 0;
 			break;
 		case 'i':
@@ -1078,18 +1089,18 @@ void parse_args(int argc, char **argv)
 	}
 
 	if (use_inode)
-	{ // the memory data of dev_uuid must not be all zero
-		if (0 == memcmp(dev_uuid, buf, sizeof(uuid_t)))
+	{ // the memory data of dev_num must not be all zero
+		if (dev_num == 0)
 		{
-			printf("error: -i option requires -u option to set uuid of "
-				   "filesystem\n");
+			printf("error: -i option requires -d option to set device number of "
+				   "filesystem\n"); // 更新错误信息
 			Usage(argv[0]);
 			exit(-1);
 		}
 	}
-	else if (dev_uuid[0])
+	else if (dev_num)
 	{
-		printf("error: -u option must be applied with -i option\n");
+		printf("error: -d option must be applied with -i option\n"); // 更新错误信息
 		Usage(argv[0]);
 		exit(-1);
 	}
@@ -1164,7 +1175,7 @@ static int update_filter(int filter_fd)
 		}
 		rule.not_inode = 0;
 		rule.inode = statbuf.st_ino;
-		memmove(rule.dev_uuid, dev_uuid, sizeof(uuid_t));
+		rule.dev = dev_num;
 	}
 
 	char *buf = (typeof(buf))malloc(4096);

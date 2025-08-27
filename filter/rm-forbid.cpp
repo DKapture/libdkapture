@@ -17,15 +17,23 @@
 #include <map>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <uuid/uuid.h>
+#include <sys/sysmacros.h> // 添加这个头文件用于设备号操作
 
 #include "rm-forbid.skel.h"
 #include "Ucom.h"
 #include "jhash.h"
 
+// 添加设备号转换函数，参考frtp
+static inline uint32_t dev_old2new(dev_t old)
+{
+	uint32_t major = gnu_dev_major(old);
+	uint32_t minor = gnu_dev_minor(old);
+	return ((major & 0xfff) << 20) | (minor & 0xfffff);
+}
+
 struct Rule
 {
-	uuid_t dev_uuid;
+	dev_t dev; // 设备号
 	u64 inode;
 } rule;
 
@@ -35,7 +43,7 @@ static std::atomic<bool> exit_flag(false);
 
 static struct option lopts[] = {
 	{"path",	 required_argument, 0, 'p'},
-	{"uuid",	 required_argument, 0, 'u'},
+	{"dev",	 required_argument, 0, 'd'},
 	{"inode", required_argument, 0, 'i'},
 	{"help",	 no_argument,		  0, 'h'},
 	{0,		0,				 0, 0  }
@@ -49,9 +57,9 @@ struct HelpMsg
 
 static HelpMsg help_msg[] = {
 	{"[path]",  "path of the file to watch on\n"		   },
-	{"[uuid]",
-	 "the uuid of filesystem to which the inode belong.\n"
-	 "\tyou can get the uuid by running command 'blkid'\n"},
+	{"[dev]",
+	 "the device number of filesystem to which the inode belong.\n"
+	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"}, // 更新帮助信息
 	{"[inode]", "inode of the file to watch on\n"		 },
 	{"",		 "print this help message\n"				},
 };
@@ -97,7 +105,7 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 
-static void get_fs_uuid(const char *path, char *uuid, size_t uuid_size)
+static void get_fs_dev(const char *path, dev_t *dev)
 {
 	if (access(path, F_OK) == -1)
 	{
@@ -111,62 +119,8 @@ static void get_fs_uuid(const char *path, char *uuid, size_t uuid_size)
 		exit(EXIT_FAILURE);
 	}
 
-	char dev_path[PATH_MAX];
-	snprintf(
-		dev_path,
-		sizeof(dev_path),
-		"/dev/block/%u:%u",
-		(u32)(st.st_dev >> 8),
-		(u32)(st.st_dev & 0xff)
-	);
-
-	struct stat tstat = {};
-	if (stat(dev_path, &tstat) != 0)
-	{
-		pr_error("stat %s: %s\n", dev_path, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	DIR *dir = opendir("/dev/disk/by-uuid");
-	if (!dir)
-	{
-		pr_error("opendir /dev/disk/by-uuid: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	struct dirent *entry;
-	while ((entry = readdir(dir)) != NULL)
-	{
-		char link_path[PATH_MAX];
-		snprintf(
-			link_path,
-			sizeof(link_path),
-			"/dev/disk/by-uuid/%s",
-			entry->d_name
-		);
-
-		struct stat vstat = {};
-		if (stat(link_path, &vstat) != 0)
-		{
-			pr_error("stat %s: %s\n", link_path, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		if (memcmp(&tstat.st_rdev, &vstat.st_rdev, sizeof(dev_t)) != 0)
-		{
-			continue;
-		}
-
-		strncpy(uuid, entry->d_name, uuid_size);
-		uuid[uuid_size - 1] = 0;
-		printf("UUID of device %s is %s\n", dev_path, uuid);
-		closedir(dir);
-		return;
-	}
-
-	closedir(dir);
-	fprintf(stderr, "UUID not found for device %s\n", dev_path);
-	exit(EXIT_FAILURE);
+	*dev = st.st_dev;
+	printf("Device number of %s is %lu\n", path, (unsigned long)*dev);
 }
 
 void parse_args(int argc, char **argv)
@@ -180,17 +134,13 @@ void parse_args(int argc, char **argv)
 		{
 		case 'p':
 		{
-			char dev_uuid[UUID_STR_LEN] = {0};
-			get_fs_uuid(optarg, (char *)&dev_uuid, sizeof(dev_uuid));
-			optarg = dev_uuid;
-			fallthrough;
+			dev_t fs_dev;
+			get_fs_dev(optarg, &fs_dev);
+			rule.dev = fs_dev;
+			break;
 		}
-		case 'u':
-			if (uuid_parse(optarg, rule.dev_uuid) == -1)
-			{
-				printf("uuid format pr_error\n");
-				exit(-1);
-			}
+		case 'd':
+			rule.dev = strtoul(optarg, NULL, 10); // 直接解析设备号
 			break;
 		case 'i':
 			rule.inode = atoi(optarg);
