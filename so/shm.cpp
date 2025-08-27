@@ -291,7 +291,6 @@ MirrorMemory::~MirrorMemory()
 	size_t bsz = this->bsz;
 	void *addr = this->addr;
 	int shmid = this->shmid;
-	void *addr_mirror = (char *)((char *)addr + bsz);
 	void *addr_mmap = addr;
 	if (addr)
 	{

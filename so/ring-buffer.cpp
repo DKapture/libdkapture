@@ -18,8 +18,8 @@
 #define RING_BUF_TYPE_NORMAL 1
 
 RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx) :
-	page_size(0), epoll_fd(-1), map_fd(-1), ctx(ctx), rci(0),
-	comsumer_index(NULL), producer_index(NULL), cb(cb)
+	page_size(0), comsumer_index(NULL), producer_index(NULL), epoll_fd(-1),
+	map_fd(-1), ctx(ctx), rci(0), cb(cb)
 {
 	struct bpf_map_info info;
 	struct epoll_event ee;
@@ -247,7 +247,9 @@ static inline int roundup_len(int len)
 int RingBuffer::poll(int timeout)
 {
 	if (type != RING_BUF_TYPE_BPF)
+	{
 		return -EINVAL;
+	}
 
 	int err;
 	struct epoll_event events;
