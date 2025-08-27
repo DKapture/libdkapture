@@ -32,7 +32,7 @@
 #define ALIGN_UP(x, a) ((x) + (a) - (x) % (a))
 
 extern int
-frtp_init(int argc, char **argv, std::string &result, int64_t timeout = 50);
+frtp_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
 uintptr_t test_id;
 
 struct bpf_link
