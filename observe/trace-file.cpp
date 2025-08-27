@@ -946,7 +946,7 @@ union Rule
 		u64 inode;
 		dev_t dev; // 设备号
 	};
-} rule = {};
+} static rule = {};
 
 static int filter_fd;
 static int log_map_fd;
@@ -982,7 +982,7 @@ static HelpMsg help_msg[] = {
 };
 
 // Function to print usage information
-void Usage(const char *arg0)
+static void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
 	printf("  Trace all the events happening to a specified file, and print "
@@ -1001,7 +1001,7 @@ void Usage(const char *arg0)
 }
 
 // Convert long options to short options string
-std::string long_opt2short_opt(const option lopts[])
+static std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
 	for (int i = 0; lopts[i].name; i++)
@@ -1027,7 +1027,7 @@ std::string long_opt2short_opt(const option lopts[])
 
 static dev_t dev_num;
 // Parse command line arguments
-void parse_args(int argc, char **argv)
+static void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	char buf[PATH_MAX] = {0};
@@ -1125,7 +1125,7 @@ static void ringbuf_worker(void)
 	}
 }
 
-void register_signal()
+static void register_signal()
 {
 	struct sigaction sa;
 	sa.sa_handler = [](int)
