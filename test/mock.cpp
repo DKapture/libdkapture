@@ -31,8 +31,9 @@
 #define BPF_PIN_PATH "/sys/fs/bpf/dkapture"
 #define ALIGN_UP(x, a) ((x) + (a) - (x) % (a))
 
+extern int frtp_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
 extern int
-frtp_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
+elfverify_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
 uintptr_t test_id;
 
 struct bpf_link
@@ -474,7 +475,8 @@ int ring_buffer__poll(struct ring_buffer *rb, int timeout_ms)
 		};
 		char buffer[4096] = {0};
 		frtp_gen_logs(buffer, 4096, &usz);
-		for(size_t i = 0; i < 4096; i+= usz){
+		for (size_t i = 0; i < 4096; i += usz)
+		{
 			fn(nullptr, buffer + i, 0);
 		}
 		return 0;

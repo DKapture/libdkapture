@@ -55,12 +55,12 @@ struct BpfData
 	struct Target target;
 };
 
-char line[8192];
+static char line[8192];
 static int whitelist_fd;
 static int log_map_fd;
-struct ring_buffer *rb = NULL;
+static struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
-const char *policy_file = NULL;
+static const char *policy_file = NULL;
 
 static struct option lopts[] = {
 	{"policy-file", required_argument, 0, 'p'},
@@ -125,12 +125,21 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 
+#ifdef BUILTIN
+int parse_args(int argc, char **argv, FILE *output)
+#else
 void parse_args(int argc, char **argv)
+#endif
 {
 	int opt, opt_idx;
+#ifdef BUILTIN
+	optind = 0; // Reset getopt for multiple calls in test mode
+	opterr = 0; // Suppress getopt error messages in test mode
+#endif
 	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
 												   // short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) != -1
+	)
 	{
 		switch (opt)
 		{
@@ -139,11 +148,28 @@ void parse_args(int argc, char **argv)
 			break;
 		case 'h': // Help
 			Usage(argv[0]);
+#ifdef BUILTIN
+			if (output)
+			{
+				fprintf(output, "Help displayed\n");
+			}
+			return 0; // Success for help
+#else
 			exit(0);
+#endif
 			break;
-		default: // Invalid option
+		case '?': // Invalid option (handled by getopt)
+		default:  // Invalid option
 			Usage(argv[0]);
+#ifdef BUILTIN
+			if (output)
+			{
+				fprintf(output, "Invalid option\n");
+			}
+			return -1; // Error for invalid option
+#else
 			exit(-1);
+#endif
 			break;
 		}
 	}
@@ -151,8 +177,21 @@ void parse_args(int argc, char **argv)
 	if (!policy_file)
 	{
 		policy_file = "elfverify.pol";
+#ifdef BUILTIN
+		if (output)
+		{
+			fprintf(
+				output,
+				"\nNo policy file specified, use elfverify.pol as default\n\n"
+			);
+		}
+#else
 		printf("\nNo policy file specified, use elfverify.pol as default\n\n");
+#endif
 	}
+#ifdef BUILTIN
+	return 0; // Success
+#endif
 }
 
 void register_signal()
@@ -174,14 +213,28 @@ static void path2target(const char *path, struct Target *target)
 	if (access(path, F_OK) == -1)
 	{
 		pr_error("file %s: %s", path, strerror(errno));
+#ifdef BUILTIN
+		// In test mode, set dummy values and continue
+		target->ino = 0;
+		target->dev = 0;
+		return;
+#else
 		exit(EXIT_FAILURE);
+#endif
 	}
 
 	struct stat st;
 	if (stat(path, &st) != 0)
 	{
 		pr_error("stat %s: %s", path, strerror(errno));
+#ifdef BUILTIN
+		// In test mode, set dummy values and continue
+		target->ino = 0;
+		target->dev = 0;
+		return;
+#else
 		exit(EXIT_FAILURE);
+#endif
 	}
 
 	target->ino = st.st_ino;
@@ -253,7 +306,13 @@ static void user2uid(const char *user, uid_t *uid)
 	}
 	else
 	{
+#ifdef BUILTIN
+		// In test mode, set dummy uid and continue
+		*uid = 1000;
+		return;
+#else
 		exit(EXIT_FAILURE);
+#endif
 	}
 }
 
@@ -264,7 +323,12 @@ std::vector<struct Rule> parse_policy_file(const char *filename)
 	if (!file)
 	{
 		pr_error("fopen: %s: %s", strerror(errno), filename);
+#ifdef BUILTIN
+		// In test mode, return empty rules and continue
+		return rules;
+#else
 		exit(EXIT_FAILURE);
+#endif
 	}
 
 	while (fgets(line, sizeof(line), file))
@@ -323,7 +387,12 @@ void load_rules(const std::vector<struct Rule> &rules)
 		if (bpf_map_update_elem(whitelist_fd, &key, &rule, BPF_ANY) != 0)
 		{
 			perror("bpf_map_update_elem");
+#ifdef BUILTIN
+			// In test mode, continue on map update failure
+			continue;
+#else
 			exit(EXIT_FAILURE);
+#endif
 		}
 	}
 }
@@ -345,7 +414,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
-void ringbuf_worker(void)
+static void ringbuf_worker(void)
 {
 	while (!exit_flag)
 	{
@@ -359,18 +428,39 @@ void ringbuf_worker(void)
 	}
 }
 
+#ifdef BUILTIN
+int elfverify_init(int argc, char **argv, FILE *output, int64_t timeout)
+#else
 int main(int argc, char **argv)
+#endif
 {
 	std::vector<struct Rule> rules;
 	std::thread *rb_thread;
 
+#ifdef BUILTIN
+	int parse_result = parse_args(argc, argv, output);
+	if (parse_result != 0)
+	{
+		return parse_result; // Return error code from parse_args
+	}
+	if (output)
+	{
+		Log::set_file(output);
+	}
+	register_signal();
+#else
 	parse_args(argc, argv);
 	register_signal();
+#endif
 
 	obj = elfverify_bpf::open_and_load();
 	if (!obj)
 	{
+#ifdef BUILTIN
+		return -1;
+#else
 		exit(-1);
+#endif
 	}
 
 	whitelist_fd = bpf_get_map_fd(obj->obj, "whitelist", goto err_out);
@@ -386,14 +476,40 @@ int main(int argc, char **argv)
 	pr_info("Program start");
 	if (0 != elfverify_bpf::attach(obj))
 	{
+#ifdef BUILTIN
+		goto err_out;
+#else
 		exit(-1);
+#endif
 	}
 
 	rb_thread = new std::thread(ringbuf_worker);
+
+#ifdef BUILTIN
+	// In test mode, run for limited time
+	if (timeout > 0)
+	{
+		std::this_thread::sleep_for(std::chrono::microseconds(timeout));
+		exit_flag = true;
+	}
+	else
+	{
+		follow_trace_pipe();
+	}
+#else
 	follow_trace_pipe();
+#endif
 
 	rb_thread->join();
 	delete rb_thread;
+
+#ifdef BUILTIN
+	// In test mode, clean exit
+	elfverify_bpf::detach(obj);
+	elfverify_bpf::destroy(obj);
+	return 0;
+#endif
+
 err_out:
 	elfverify_bpf::detach(obj);
 	elfverify_bpf::destroy(obj);
