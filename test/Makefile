@@ -38,7 +38,8 @@ $(TARGET): $(OBJS) $(GTEST_LIBS) \
 	$(BUILD_DIR)/kmemleak.o \
 	$(BUILD_DIR)/irqsnoop.o \
 	$(BUILD_DIR)/mountsnoop.o \
-	$(BUILD_DIR)/frtp.o
+	$(BUILD_DIR)/frtp.o \
+	$(BUILD_DIR)/elfverify.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
 $(BUILD_DIR):
