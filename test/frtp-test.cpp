@@ -46,7 +46,7 @@ class FrtpBasicTest : public ::testing::Test
 		{
 			argv[i] = (char *)args[i - 1].c_str();
 		}
-		
+
 		FILE *temp_file = tmpfile();
 		last_exit_code = frtp_init(argc, argv, temp_file);
 		std::string result(ftell(temp_file), '\0');

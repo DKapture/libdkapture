@@ -199,7 +199,8 @@ bool SharedMemory::check_consistency(volatile SharedMemory *shm_ctl)
 		   SpinLock::check_consistency(&shm_ctl->bpf_lock);
 }
 
-MirrorMemory::MirrorMemory(size_t bsz, int key) : addr(nullptr), bsz(0), shmid(-1)
+MirrorMemory::MirrorMemory(size_t bsz, int key) :
+	addr(nullptr), bsz(0), shmid(-1)
 {
 	void *addr_mmap = nullptr;
 	void *addr = nullptr;
@@ -219,7 +220,14 @@ MirrorMemory::MirrorMemory(size_t bsz, int key) : addr(nullptr), bsz(0), shmid(-
 	 * 会返回页对齐的地址，这个地址空间后面会被shmat重新映射，
 	 * 所以不要munmap释放，由shmdt释放
 	 */
-	addr_mmap = mmap(nullptr, bsz * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	addr_mmap = mmap(
+		nullptr,
+		bsz * 2,
+		PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS,
+		-1,
+		0
+	);
 	if (addr_mmap == MAP_FAILED)
 	{
 		pr_error("addr space exhausted: %s", strerror(errno));
@@ -306,7 +314,9 @@ MirrorMemory::~MirrorMemory()
 		{
 			// 此处会有竞争问题，但不影响功能
 			if (shminfo.shm_nattch == 0)
+			{
 				shmctl(shmid, IPC_RMID, nullptr);
+			}
 		}
 	}
 }

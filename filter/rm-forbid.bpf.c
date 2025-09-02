@@ -60,8 +60,7 @@ static int unlink_check(struct path *dir, struct dentry *dentry)
 
 	if (0) // switch to 1 to enable debug
 	{
-		bpf_info("FS dev: major=%u, minor=%u", 
-			MAJOR(fs_dev), MINOR(fs_dev));
+		bpf_info("FS dev: major=%u, minor=%u", MAJOR(fs_dev), MINOR(fs_dev));
 	}
 
 	// 检查设备号是否匹配

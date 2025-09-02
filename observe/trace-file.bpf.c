@@ -136,9 +136,11 @@ int find_file_inode(struct bpf_iter__task_file *ctx)
 
 	if (0) // change to 1 when DEBUG dev
 	{
-		bpf_info("dev: major=%u, minor=%u", 
+		bpf_info(
+			"dev: major=%u, minor=%u",
 			MAJOR(file->f_path.mnt->mnt_sb->s_dev),
-			MINOR(file->f_path.mnt->mnt_sb->s_dev));
+			MINOR(file->f_path.mnt->mnt_sb->s_dev)
+		);
 	}
 
 	g_inode = file->f_inode;

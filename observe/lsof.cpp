@@ -64,7 +64,7 @@ static std::map<pid_t, std::vector<struct BpfData>> log_stat;
 
 static struct option lopts[] = {
 	{"path",	 required_argument, 0, 'p'},
-	{"dev",	 required_argument, 0, 'd'},
+	{"dev",	required_argument, 0, 'd'},
 	{"inode", required_argument, 0, 'i'},
 	{"help",	 no_argument,		  0, 'h'},
 	{0,		0,				 0, 0  }
@@ -77,12 +77,13 @@ struct HelpMsg
 };
 
 static HelpMsg help_msg[] = {
-	{"[path]",  "path of the file to watch on\n"		   },
+	{"[path]",  "path of the file to watch on\n"					   },
 	{"[dev]",
 	 "the device number of filesystem to which the inode belong.\n"
-	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"}, // 更新帮助信息
-	{"[inode]", "inode of the file to watch on\n"		 },
-	{"",		 "print this help message\n"				},
+	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"
+	}, // 更新帮助信息
+	{"[inode]", "inode of the file to watch on\n"					 },
+	{"",		 "print this help message\n"							},
 };
 
 void Usage(const char *arg0)

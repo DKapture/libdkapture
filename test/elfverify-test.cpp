@@ -11,7 +11,8 @@
 #include <sstream>
 #include <sys/stat.h>
 
-extern int elfverify_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
+extern int
+elfverify_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
 
 // 测试常量定义
 const std::string TEST_ROOT = "/tmp/elfverify_test_dir";
@@ -46,17 +47,18 @@ class ElfverifyBasicTest : public ::testing::Test
 		{
 			argv[i] = (char *)args[i - 1].c_str();
 		}
-		
+
 		FILE *temp_file = tmpfile();
 		last_exit_code = elfverify_init(argc, argv, temp_file);
-		
+
 		// 获取文件大小
 		long file_size = ftell(temp_file);
-		if (file_size <= 0) {
+		if (file_size <= 0)
+		{
 			fclose(temp_file);
 			return "";
 		}
-		
+
 		// 读取文件内容
 		rewind(temp_file);
 		std::string result(file_size, '\0');
@@ -111,13 +113,17 @@ class ElfverifyExtendedTest : public ElfverifyBasicTest
 	// 策略规则结构
 	struct PolicyRule
 	{
-		std::string type;      // "path" or "user"
-		std::string content;   // path or username
-		PolicyRule(const std::string &t, const std::string &c) : type(t), content(c) {}
+		std::string type;	 // "path" or "user"
+		std::string content; // path or username
+		PolicyRule(const std::string &t, const std::string &c) :
+			type(t), content(c)
+		{
+		}
 	};
 
 	// 生成策略规则字符串
-	std::string generatePolicyRule(const std::string &type, const std::string &content)
+	std::string
+	generatePolicyRule(const std::string &type, const std::string &content)
 	{
 		return type + " " + content + "\n";
 	}
@@ -159,7 +165,7 @@ class ElfverifyPolicyFormatTest : public ElfverifyExtendedTest
 {
 };
 
-// 专门用于路径处理测试的测试类  
+// 专门用于路径处理测试的测试类
 class ElfverifyPathHandlingTest : public ElfverifyExtendedTest
 {
 };
@@ -192,7 +198,8 @@ TEST_F(ElfverifyBasicTest, PolicyFileOption)
 	// 创建一个有效的测试策略文件
 	createTestPolicyFile("path /bin/sh\nuser root\n");
 
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 
 	// 应该能够成功加载策略文件
@@ -202,13 +209,8 @@ TEST_F(ElfverifyBasicTest, PolicyFileOption)
 // 测试无效的命令行选项
 TEST_F(ElfverifyBasicTest, InvalidOptions)
 {
-	std::vector<std::string> invalidOptions = {
-		"--invalid-option",
-		"--policy-file-typo",
-		"--help-typo",
-		"-x",
-		"-z"
-	};
+	std::vector<std::string> invalidOptions =
+		{"--invalid-option", "--policy-file-typo", "--help-typo", "-x", "-z"};
 
 	for (const auto &option : invalidOptions)
 	{
@@ -216,7 +218,8 @@ TEST_F(ElfverifyBasicTest, InvalidOptions)
 		int exit_code = getLastExitCode();
 
 		// 无效选项应该导致非零退出码
-		EXPECT_NE(exit_code, 0) << "Invalid option '" << option << "' should fail";
+		EXPECT_NE(exit_code, 0)
+			<< "Invalid option '" << option << "' should fail";
 	}
 }
 
@@ -235,10 +238,11 @@ TEST_F(ElfverifyBasicTest, ValidPolicyFile)
 	for (const auto &policy : validPolicies)
 	{
 		createTestPolicyFile(policy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0) 
+		EXPECT_EQ(exit_code, 0)
 			<< "Valid policy should be loaded successfully: " << policy;
 	}
 }
@@ -247,12 +251,15 @@ TEST_F(ElfverifyBasicTest, ValidPolicyFile)
 TEST_F(ElfverifyBasicTest, NonexistentPolicyFile)
 {
 	std::string nonexistent_file = TEST_ROOT + "/nonexistent.pol";
-	
-	std::string output = runElfverifyCommand({"--policy-file", nonexistent_file});
+
+	std::string output =
+		runElfverifyCommand({"--policy-file", nonexistent_file});
 	int exit_code = getLastExitCode();
 
-	// 对于不存在的文件，在BUILTIN模式下应该仍然返回0（因为我们在测试中做了graceful handling）
-	EXPECT_EQ(exit_code, 0) << "Nonexistent policy file should be handled gracefully in test mode";
+	// 对于不存在的文件，在BUILTIN模式下应该仍然返回0（因为我们在测试中做了graceful
+	// handling）
+	EXPECT_EQ(exit_code, 0) << "Nonexistent policy file should be handled "
+							   "gracefully in test mode";
 }
 
 // 测试无效格式的策略文件
@@ -271,12 +278,14 @@ TEST_F(ElfverifyBasicTest, InvalidPolicyFile)
 	for (const auto &policy : invalidPolicies)
 	{
 		createTestPolicyFile(policy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 在BUILTIN模式下，无效策略应该被优雅处理
-		EXPECT_EQ(exit_code, 0) 
-			<< "Invalid policy should be handled gracefully in test mode: " << policy;
+		EXPECT_EQ(exit_code, 0) << "Invalid policy should be handled "
+								   "gracefully in test mode: "
+								<< policy;
 	}
 }
 
@@ -288,9 +297,9 @@ TEST_F(ElfverifyBasicTest, HelpOption)
 
 	// 帮助选项应该成功执行并返回0
 	EXPECT_EQ(exit_code, 0) << "Help option should succeed";
-	
+
 	// 检查输出是否包含帮助信息
-	EXPECT_TRUE(output.find("Help displayed") != std::string::npos) 
+	EXPECT_TRUE(output.find("Help displayed") != std::string::npos)
 		<< "Help output should contain help message";
 }
 
@@ -344,7 +353,8 @@ TEST_F(ElfverifyPolicyFormatTest, ValidPathRules)
 		std::string policy = generatePolicyRule(rule.type, rule.content);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 应该能够解析路径规则
@@ -372,7 +382,8 @@ TEST_F(ElfverifyPolicyFormatTest, ValidUserRules)
 		std::string policy = generatePolicyRule(rule.type, rule.content);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -395,11 +406,13 @@ TEST_F(ElfverifyPolicyFormatTest, NotUserRules)
 		std::string policy = generatePolicyRule(rule.type, rule.content);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0)
-			<< "Valid 'not user' rule should be loaded successfully: " << policy;
+		EXPECT_EQ(exit_code, 0) << "Valid 'not user' rule should be loaded "
+								   "successfully: "
+								<< policy;
 	}
 }
 
@@ -410,7 +423,7 @@ TEST_F(ElfverifyPolicyFormatTest, InvalidTypeFormats)
 		"process",
 		"executable",
 		"binary",
-		"file", 
+		"file",
 		"directory",
 		"group",
 		"uid",
@@ -423,11 +436,13 @@ TEST_F(ElfverifyPolicyFormatTest, InvalidTypeFormats)
 		std::string policy = generatePolicyRule(type, "/some/path");
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 在BUILTIN模式下，无效类型应该被优雅处理
-		EXPECT_EQ(exit_code, 0) << "Invalid type '" << type << "' should be handled gracefully";
+		EXPECT_EQ(exit_code, 0)
+			<< "Invalid type '" << type << "' should be handled gracefully";
 	}
 }
 
@@ -446,10 +461,11 @@ TEST_F(ElfverifyPolicyFormatTest, WhitespaceHandling)
 	for (const auto &policy : whitespacePolicies)
 	{
 		createTestPolicyFile(policy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0) 
+		EXPECT_EQ(exit_code, 0)
 			<< "Whitespace variations should be handled: '" << policy << "'";
 	}
 }
@@ -468,10 +484,11 @@ TEST_F(ElfverifyPolicyFormatTest, CommentHandling)
 	for (const auto &policy : commentPolicies)
 	{
 		createTestPolicyFile(policy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0) 
+		EXPECT_EQ(exit_code, 0)
 			<< "Comments should be handled properly: " << policy;
 	}
 }
@@ -490,10 +507,11 @@ TEST_F(ElfverifyPolicyFormatTest, EmptyLineHandling)
 	for (const auto &policy : emptyLinePolicies)
 	{
 		createTestPolicyFile(policy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0) 
+		EXPECT_EQ(exit_code, 0)
 			<< "Empty lines should be handled properly: " << policy;
 	}
 }
@@ -512,12 +530,14 @@ TEST_F(ElfverifyPolicyFormatTest, MixedValidInvalidRules)
 	for (const auto &policy : mixedPolicies)
 	{
 		createTestPolicyFile(policy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 在BUILTIN模式下，混合规则应该被优雅处理
-		EXPECT_EQ(exit_code, 0) 
-			<< "Mixed valid/invalid rules should be handled gracefully: " << policy;
+		EXPECT_EQ(exit_code, 0) << "Mixed valid/invalid rules should be "
+								   "handled gracefully: "
+								<< policy;
 	}
 }
 
@@ -525,19 +545,25 @@ TEST_F(ElfverifyPolicyFormatTest, MixedValidInvalidRules)
 TEST_F(ElfverifyPolicyFormatTest, ComplexPolicyFormats)
 {
 	std::vector<std::string> complexPolicies = {
-		"# Elfverify Policy File\n# System binaries\npath /bin/sh\npath /usr/bin/vim\n\n# System users\nuser root\nuser daemon\n\n# Not allowed users\nnot nobody",
-		"path /usr/bin/sudo\npath /usr/bin/su\nuser root\nnot www-data\npath /bin/mount\npath /bin/umount",
-		"# Administrative tools\npath /usr/sbin/useradd\npath /usr/sbin/userdel\n# Root access only\nuser root\n# Deny service users\nnot mysql\nnot postgres"
+		"# Elfverify Policy File\n# System binaries\npath /bin/sh\npath "
+		"/usr/bin/vim\n\n# System users\nuser root\nuser daemon\n\n# Not "
+		"allowed users\nnot nobody",
+		"path /usr/bin/sudo\npath /usr/bin/su\nuser root\nnot www-data\npath "
+		"/bin/mount\npath /bin/umount",
+		"# Administrative tools\npath /usr/sbin/useradd\npath "
+		"/usr/sbin/userdel\n# Root access only\nuser root\n# Deny service "
+		"users\nnot mysql\nnot postgres"
 	};
 
 	for (const auto &policy : complexPolicies)
 	{
 		createTestPolicyFile(policy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0) 
-			<< "Complex policy format should be parsed successfully";
+		EXPECT_EQ(exit_code, 0) << "Complex policy format should be parsed "
+								   "successfully";
 	}
 }
 
@@ -548,7 +574,7 @@ TEST_F(ElfverifyPathHandlingTest, AbsolutePaths)
 {
 	std::vector<std::string> absolutePaths = {
 		"/bin/sh",
-		"/usr/bin/vim", 
+		"/usr/bin/vim",
 		"/usr/local/bin/app",
 		"/opt/software/bin/tool",
 		"/home/user/bin/script",
@@ -563,15 +589,15 @@ TEST_F(ElfverifyPathHandlingTest, AbsolutePaths)
 	{
 		// 创建对应的测试文件
 		createTestExecutable("test_exe");
-		
+
 		std::string policy = generatePolicyRule("path", path);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0)
-			<< "Absolute path should be handled: " << path;
+		EXPECT_EQ(exit_code, 0) << "Absolute path should be handled: " << path;
 	}
 }
 
@@ -592,7 +618,8 @@ TEST_F(ElfverifyPathHandlingTest, RelativePaths)
 		std::string policy = generatePolicyRule("path", path);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 在BUILTIN模式下，相对路径应该被优雅处理（即使文件不存在）
@@ -620,7 +647,8 @@ TEST_F(ElfverifyPathHandlingTest, SpecialCharacterPaths)
 		std::string policy = generatePolicyRule("path", path);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -648,11 +676,11 @@ TEST_F(ElfverifyPathHandlingTest, DirectoryPaths)
 		std::string policy = generatePolicyRule("path", path);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0)
-			<< "Directory path should be handled: " << path;
+		EXPECT_EQ(exit_code, 0) << "Directory path should be handled: " << path;
 	}
 }
 
@@ -672,7 +700,8 @@ TEST_F(ElfverifyPathHandlingTest, DeepNestedPaths)
 		std::string policy = generatePolicyRule("path", path);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -684,10 +713,10 @@ TEST_F(ElfverifyPathHandlingTest, DeepNestedPaths)
 TEST_F(ElfverifyPathHandlingTest, SymbolicLinks)
 {
 	std::vector<std::string> symlinkPaths = {
-		"/usr/bin/python3", // 通常是符号链接
-		"/bin/sh",          // 通常链接到dash或bash
-		"/usr/bin/vi",      // 通常链接到vim
-		"/usr/bin/java",    // 通常是符号链接
+		"/usr/bin/python3",	  // 通常是符号链接
+		"/bin/sh",			  // 通常链接到dash或bash
+		"/usr/bin/vi",		  // 通常链接到vim
+		"/usr/bin/java",	  // 通常是符号链接
 		"/usr/local/bin/node" // 通常是符号链接
 	};
 
@@ -696,7 +725,8 @@ TEST_F(ElfverifyPathHandlingTest, SymbolicLinks)
 		std::string policy = generatePolicyRule("path", path);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -721,7 +751,8 @@ TEST_F(ElfverifyPathHandlingTest, NonexistentPaths)
 		std::string policy = generatePolicyRule("path", path);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 在BUILTIN模式下，不存在的路径应该被优雅处理
@@ -737,8 +768,9 @@ TEST_F(ElfverifyPathHandlingTest, PathLengthLimits)
 	std::string normalPath = "/usr/bin/normal_length_executable_name";
 	std::string policy = generatePolicyRule("path", normalPath);
 	createTestPolicyFile(policy);
-	
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 	EXPECT_EQ(exit_code, 0) << "Normal length path should work";
 
@@ -746,7 +778,7 @@ TEST_F(ElfverifyPathHandlingTest, PathLengthLimits)
 	std::string longPath = "/usr/bin/" + std::string(200, 'a');
 	policy = generatePolicyRule("path", longPath);
 	createTestPolicyFile(policy);
-	
+
 	output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	exit_code = getLastExitCode();
 	EXPECT_EQ(exit_code, 0) << "Long path should be handled gracefully";
@@ -755,7 +787,7 @@ TEST_F(ElfverifyPathHandlingTest, PathLengthLimits)
 	std::string veryLongPath = "/usr/bin/" + std::string(4000, 'x');
 	policy = generatePolicyRule("path", veryLongPath);
 	createTestPolicyFile(policy);
-	
+
 	output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	exit_code = getLastExitCode();
 	EXPECT_EQ(exit_code, 0) << "Very long path should be handled gracefully";
@@ -773,10 +805,12 @@ TEST_F(ElfverifyPathHandlingTest, MultiplePathRules)
 	};
 
 	createMultiRulePolicyFile(multiplePathRules);
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 
-	EXPECT_EQ(exit_code, 0) << "Multiple path rules should be handled successfully";
+	EXPECT_EQ(exit_code, 0) << "Multiple path rules should be handled "
+							   "successfully";
 }
 
 // ========== 用户处理测试用例 ==========
@@ -787,7 +821,7 @@ TEST_F(ElfverifyUserHandlingTest, ValidUserNames)
 	std::vector<std::string> validUsers = {
 		"root",
 		"daemon",
-		"nobody", 
+		"nobody",
 		"www-data",
 		"mysql",
 		"postgres",
@@ -804,7 +838,8 @@ TEST_F(ElfverifyUserHandlingTest, ValidUserNames)
 		std::string policy = generatePolicyRule("user", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -817,7 +852,7 @@ TEST_F(ElfverifyUserHandlingTest, NotUserRules)
 {
 	std::vector<std::string> notUsers = {
 		"nobody",
-		"www-data", 
+		"www-data",
 		"mysql",
 		"postgres",
 		"games",
@@ -831,7 +866,8 @@ TEST_F(ElfverifyUserHandlingTest, NotUserRules)
 		std::string policy = generatePolicyRule("not", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -856,12 +892,14 @@ TEST_F(ElfverifyUserHandlingTest, NonexistentUserNames)
 		std::string policy = generatePolicyRule("user", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 在BUILTIN模式下，不存在的用户应该被优雅处理
-		EXPECT_EQ(exit_code, 0)
-			<< "Nonexistent username should be handled gracefully: " << username;
+		EXPECT_EQ(exit_code, 0) << "Nonexistent username should be handled "
+								   "gracefully: "
+								<< username;
 	}
 }
 
@@ -883,12 +921,14 @@ TEST_F(ElfverifyUserHandlingTest, SpecialCharacterUserNames)
 		std::string policy = generatePolicyRule("user", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		// 特殊字符用户名在BUILTIN模式下应该被优雅处理
-		EXPECT_EQ(exit_code, 0)
-			<< "Special character username should be handled gracefully: " << username;
+		EXPECT_EQ(exit_code, 0) << "Special character username should be "
+								   "handled gracefully: "
+								<< username;
 	}
 }
 
@@ -899,8 +939,9 @@ TEST_F(ElfverifyUserHandlingTest, UserNameLengthLimits)
 	std::string normalUser = "normal_user";
 	std::string policy = generatePolicyRule("user", normalUser);
 	createTestPolicyFile(policy);
-	
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 	EXPECT_EQ(exit_code, 0) << "Normal length username should work";
 
@@ -908,7 +949,7 @@ TEST_F(ElfverifyUserHandlingTest, UserNameLengthLimits)
 	std::string longUser = std::string(32, 'a');
 	policy = generatePolicyRule("user", longUser);
 	createTestPolicyFile(policy);
-	
+
 	output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	exit_code = getLastExitCode();
 	EXPECT_EQ(exit_code, 0) << "Long username should be handled gracefully";
@@ -917,23 +958,24 @@ TEST_F(ElfverifyUserHandlingTest, UserNameLengthLimits)
 	std::string veryLongUser = std::string(256, 'x');
 	policy = generatePolicyRule("user", veryLongUser);
 	createTestPolicyFile(policy);
-	
+
 	output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	exit_code = getLastExitCode();
-	EXPECT_EQ(exit_code, 0) << "Very long username should be handled gracefully";
+	EXPECT_EQ(exit_code, 0) << "Very long username should be handled "
+							   "gracefully";
 }
 
 // 测试空用户名和特殊情况
 TEST_F(ElfverifyUserHandlingTest, EmptyAndSpecialCases)
 {
 	std::vector<std::string> specialCases = {
-		"",           // 空用户名
-		" ",          // 空格用户名
-		"\t",         // Tab字符用户名
-		"root ",      // 带尾随空格
-		" root",      // 带前导空格
-		"root\t",     // 带尾随tab
-		"\troot"      // 带前导tab
+		"",		  // 空用户名
+		" ",	  // 空格用户名
+		"\t",	  // Tab字符用户名
+		"root ",  // 带尾随空格
+		" root",  // 带前导空格
+		"root\t", // 带尾随tab
+		"\troot"  // 带前导tab
 	};
 
 	for (const auto &username : specialCases)
@@ -941,11 +983,13 @@ TEST_F(ElfverifyUserHandlingTest, EmptyAndSpecialCases)
 		std::string policy = generatePolicyRule("user", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
-		EXPECT_EQ(exit_code, 0)
-			<< "Special case username should be handled gracefully: '" << username << "'";
+		EXPECT_EQ(exit_code, 0) << "Special case username should be handled "
+								   "gracefully: '"
+								<< username << "'";
 	}
 }
 
@@ -962,10 +1006,12 @@ TEST_F(ElfverifyUserHandlingTest, UserPathCombinations)
 	};
 
 	createMultiRulePolicyFile(combinedRules);
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 
-	EXPECT_EQ(exit_code, 0) << "Combined user and path rules should be handled successfully";
+	EXPECT_EQ(exit_code, 0) << "Combined user and path rules should be handled "
+							   "successfully";
 }
 
 // 测试多个用户规则
@@ -980,10 +1026,12 @@ TEST_F(ElfverifyUserHandlingTest, MultipleUserRules)
 	};
 
 	createMultiRulePolicyFile(multipleUserRules);
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 
-	EXPECT_EQ(exit_code, 0) << "Multiple user rules should be handled successfully";
+	EXPECT_EQ(exit_code, 0) << "Multiple user rules should be handled "
+							   "successfully";
 }
 
 // 测试用户名大小写敏感性
@@ -991,7 +1039,7 @@ TEST_F(ElfverifyUserHandlingTest, CaseSensitivity)
 {
 	std::vector<std::string> caseVariations = {
 		"root",
-		"Root", 
+		"Root",
 		"ROOT",
 		"daemon",
 		"Daemon",
@@ -1005,7 +1053,8 @@ TEST_F(ElfverifyUserHandlingTest, CaseSensitivity)
 		std::string policy = generatePolicyRule("user", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -1018,18 +1067,18 @@ TEST_F(ElfverifyUserHandlingTest, SystemVsRegularUsers)
 {
 	// 常见系统用户 (UID < 1000)
 	std::vector<std::string> systemUsers = {
-		"root",        // UID 0
-		"daemon",      // UID 1
-		"bin",         // UID 2
-		"sys",         // UID 3
-		"sync",        // UID 4
-		"games",       // UID 5
-		"man",         // UID 6
-		"lp",          // UID 7
-		"mail",        // UID 8
-		"news",        // UID 9
-		"www-data",    // UID 33
-		"nobody"       // UID 65534
+		"root",		// UID 0
+		"daemon",	// UID 1
+		"bin",		// UID 2
+		"sys",		// UID 3
+		"sync",		// UID 4
+		"games",	// UID 5
+		"man",		// UID 6
+		"lp",		// UID 7
+		"mail",		// UID 8
+		"news",		// UID 9
+		"www-data", // UID 33
+		"nobody"	// UID 65534
 	};
 
 	for (const auto &username : systemUsers)
@@ -1037,7 +1086,8 @@ TEST_F(ElfverifyUserHandlingTest, SystemVsRegularUsers)
 		std::string policy = generatePolicyRule("user", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -1045,20 +1095,16 @@ TEST_F(ElfverifyUserHandlingTest, SystemVsRegularUsers)
 	}
 
 	// 模拟普通用户 (UID >= 1000)
-	std::vector<std::string> regularUsers = {
-		"user1000",
-		"testuser",
-		"normaluser",
-		"regularuser",
-		"homeuser"
-	};
+	std::vector<std::string> regularUsers =
+		{"user1000", "testuser", "normaluser", "regularuser", "homeuser"};
 
 	for (const auto &username : regularUsers)
 	{
 		std::string policy = generatePolicyRule("user", username);
 		createTestPolicyFile(policy);
 
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 
 		EXPECT_EQ(exit_code, 0)
@@ -1071,7 +1117,7 @@ TEST_F(ElfverifyUserHandlingTest, SystemVsRegularUsers)
 // 高级策略文件格式测试
 class ElfverifyAdvancedPolicyTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testComplexPolicyFormats()
 	{
 		std::vector<std::string> complexPolicies = {
@@ -1085,12 +1131,14 @@ protected:
 			"path /sys/class/*/device user device_manager"
 		};
 
-		for (const auto& policy : complexPolicies)
+		for (const auto &policy : complexPolicies)
 		{
 			createTestPolicyFile(policy);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_EQ(exit_code, 0) << "Complex policy should be valid: " << policy;
+			EXPECT_EQ(exit_code, 0)
+				<< "Complex policy should be valid: " << policy;
 		}
 	}
 
@@ -1107,9 +1155,11 @@ protected:
 		for (size_t i = 0; i < variations.size(); ++i)
 		{
 			createTestPolicyFile(variations[i]);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_EQ(exit_code, 0) << "Policy variation " << i << " should be valid";
+			EXPECT_EQ(exit_code, 0)
+				<< "Policy variation " << i << " should be valid";
 		}
 	}
 };
@@ -1117,7 +1167,7 @@ protected:
 // 性能和压力测试
 class ElfverifyPerformanceTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testLargePolicyFile()
 	{
 		std::stringstream policy;
@@ -1125,11 +1175,13 @@ protected:
 		{
 			policy << "path /test/path" << i << " user test_user" << i << "\n";
 		}
-		
+
 		createTestPolicyFile(policy.str());
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_EQ(exit_code, 0) << "Large policy file should be processed successfully";
+		EXPECT_EQ(exit_code, 0) << "Large policy file should be processed "
+								   "successfully";
 	}
 
 	void testManyUsersPolicy()
@@ -1139,9 +1191,10 @@ protected:
 		{
 			policy << "path /usr/bin/app user user" << i << "\n";
 		}
-		
+
 		createTestPolicyFile(policy.str());
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 		EXPECT_EQ(exit_code, 0) << "Policy with many users should be handled";
 	}
@@ -1155,9 +1208,10 @@ protected:
 			basePath += "/deep/path/level" + std::to_string(i);
 			policy << "path " << basePath << " user deep_user\n";
 		}
-		
+
 		createTestPolicyFile(policy.str());
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 		EXPECT_EQ(exit_code, 0) << "Deep path hierarchy should be processed";
 	}
@@ -1166,7 +1220,7 @@ protected:
 // 安全测试类
 class ElfverifySecurityTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testMaliciousInputs()
 	{
 		std::vector<std::string> maliciousInputs = {
@@ -1180,13 +1234,16 @@ protected:
 			"path /dev/null user null_user"
 		};
 
-		for (const auto& malicious : maliciousInputs)
+		for (const auto &malicious : maliciousInputs)
 		{
 			createTestPolicyFile(malicious);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
 			// 对于恶意输入，我们期望程序能正常处理（不崩溃），但可能返回错误
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Malicious input should not crash program";
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Malicious input "
+															 "should not crash "
+															 "program";
 		}
 	}
 
@@ -1194,20 +1251,23 @@ protected:
 	{
 		std::string longPath(8192, 'A');
 		std::string longUser(1024, 'U');
-		
+
 		std::vector<std::string> overflowTests = {
 			"path " + longPath + " user test_user",
 			"path /usr/bin/test user " + longUser,
 			"path " + longPath + " user " + longUser
 		};
 
-		for (const auto& overflow : overflowTests)
+		for (const auto &overflow : overflowTests)
 		{
 			createTestPolicyFile(overflow);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
 			// 程序应该能处理长输入而不崩溃
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Buffer overflow attempt should not crash";
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Buffer overflow "
+															 "attempt should "
+															 "not crash";
 		}
 	}
 
@@ -1222,12 +1282,16 @@ protected:
 			"path /test/file\\t user test_user"
 		};
 
-		for (const auto& special : specialChars)
+		for (const auto &special : specialChars)
 		{
 			createTestPolicyFile(special);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Special characters should be handled safely";
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Special "
+															 "characters "
+															 "should be "
+															 "handled safely";
 		}
 	}
 };
@@ -1235,22 +1299,24 @@ protected:
 // 兼容性测试类
 class ElfverifyCompatibilityTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testDifferentFileFormats()
 	{
 		// 测试不同换行符格式
 		std::vector<std::string> lineEndings = {
-			"path /usr/bin/test user test_user\n",      // Unix LF
-			"path /usr/bin/test user test_user\r\n",    // Windows CRLF
-			"path /usr/bin/test user test_user\r"       // Mac CR
+			"path /usr/bin/test user test_user\n",	 // Unix LF
+			"path /usr/bin/test user test_user\r\n", // Windows CRLF
+			"path /usr/bin/test user test_user\r"	 // Mac CR
 		};
 
 		for (size_t i = 0; i < lineEndings.size(); ++i)
 		{
 			createTestPolicyFile(lineEndings[i]);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_EQ(exit_code, 0) << "Line ending format " << i << " should be supported";
+			EXPECT_EQ(exit_code, 0)
+				<< "Line ending format " << i << " should be supported";
 		}
 	}
 
@@ -1258,18 +1324,20 @@ protected:
 	{
 		std::vector<std::string> unicodePaths = {
 			"path /usr/bin/测试应用 user 测试用户",
-			"path /usr/bin/тест user тест_пользователь", 
+			"path /usr/bin/тест user тест_пользователь",
 			"path /usr/bin/テスト user テストユーザー",
 			"path /usr/bin/🚀app user 🔧user",
 			"path /usr/bin/café user café_user"
 		};
 
-		for (const auto& unicode : unicodePaths)
+		for (const auto &unicode : unicodePaths)
 		{
 			createTestPolicyFile(unicode);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Unicode path should be handled: " << unicode;
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+				<< "Unicode path should be handled: " << unicode;
 		}
 	}
 
@@ -1277,19 +1345,21 @@ protected:
 	{
 		std::vector<std::string> caseVariations = {
 			"PATH /usr/bin/test USER test_user",
-			"Path /usr/bin/test User test_user", 
+			"Path /usr/bin/test User test_user",
 			"pAtH /usr/bin/test uSeR test_user",
 			"path /usr/bin/TEST user TEST_USER",
 			"path /USR/BIN/test user test_USER"
 		};
 
-		for (const auto& variation : caseVariations)
+		for (const auto &variation : caseVariations)
 		{
 			createTestPolicyFile(variation);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
 			// 检查大小写敏感性处理
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Case variation: " << variation;
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+				<< "Case variation: " << variation;
 		}
 	}
 };
@@ -1297,20 +1367,23 @@ protected:
 // 文件系统交互测试
 class ElfverifyFilesystemTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testSymlinkHandling()
 	{
 		// 创建测试符号链接
 		std::string linkPath = "/tmp/elfverify_test_link";
 		std::string targetPath = "/usr/bin/test";
-		
+
 		// 创建符号链接的策略
 		std::string policy = "path " + linkPath + " user link_user";
 		createTestPolicyFile(policy);
-		
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Symlink should be handled appropriately";
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Symlink should be "
+														 "handled "
+														 "appropriately";
 	}
 
 	void testMountPointHandling()
@@ -1323,12 +1396,14 @@ protected:
 			"path /var/tmp/test user var_user"
 		};
 
-		for (const auto& mount : mountPoints)
+		for (const auto &mount : mountPoints)
 		{
 			createTestPolicyFile(mount);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_EQ(exit_code, 0) << "Mount point should be handled: " << mount;
+			EXPECT_EQ(exit_code, 0)
+				<< "Mount point should be handled: " << mount;
 		}
 	}
 
@@ -1342,12 +1417,14 @@ protected:
 			"path /proc/kcore user kernel_reader"
 		};
 
-		for (const auto& perm : permissionTests)
+		for (const auto &perm : permissionTests)
 		{
 			createTestPolicyFile(perm);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Permission scenario: " << perm;
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+				<< "Permission scenario: " << perm;
 		}
 	}
 };
@@ -1355,19 +1432,22 @@ protected:
 // 并发和多线程测试
 class ElfverifyConcurrencyTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testConcurrentPolicyAccess()
 	{
 		// 模拟并发访问策略文件的场景
-		std::string policy = "path /usr/bin/concurrent_test user concurrent_user";
+		std::string policy = "path /usr/bin/concurrent_test user "
+							 "concurrent_user";
 		createTestPolicyFile(policy);
 
 		// 连续多次执行来模拟并发场景
 		for (int i = 0; i < 10; ++i)
 		{
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_EQ(exit_code, 0) << "Concurrent access " << i << " should succeed";
+			EXPECT_EQ(exit_code, 0)
+				<< "Concurrent access " << i << " should succeed";
 		}
 	}
 
@@ -1375,18 +1455,20 @@ protected:
 	{
 		std::vector<std::string> policies = {
 			"path /usr/bin/app1 user user1",
-			"path /usr/bin/app2 user user2", 
+			"path /usr/bin/app2 user user2",
 			"path /usr/bin/app3 user user3",
 			"path /usr/bin/app4 user user4",
 			"path /usr/bin/app5 user user5"
 		};
 
-		for (const auto& policy : policies)
+		for (const auto &policy : policies)
 		{
 			createTestPolicyFile(policy);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_EQ(exit_code, 0) << "Rapid policy change should work: " << policy;
+			EXPECT_EQ(exit_code, 0)
+				<< "Rapid policy change should work: " << policy;
 		}
 	}
 };
@@ -1394,7 +1476,7 @@ protected:
 // 错误恢复测试
 class ElfverifyErrorRecoveryTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testCorruptedPolicyRecovery()
 	{
 		std::vector<std::string> corruptedPolicies = {
@@ -1405,36 +1487,42 @@ protected:
 			"incomplete policy line without proper"
 		};
 
-		for (const auto& corrupted : corruptedPolicies)
+		for (const auto &corrupted : corruptedPolicies)
 		{
 			createTestPolicyFile(corrupted);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
 			// 程序应该能从损坏的策略中恢复，而不是崩溃
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Should recover from corrupted policy";
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Should recover "
+															 "from corrupted "
+															 "policy";
 		}
 	}
 
 	void testPartiallyValidPolicies()
 	{
-		std::string mixedPolicy = 
-			"path /usr/bin/valid_app user valid_user\n"
-			"invalid line format here\n"
-			"path /usr/bin/another_valid user another_user\n"
-			"path incomplete\n"
-			"path /usr/bin/final_valid user final_user\n";
-			
+		std::string mixedPolicy = "path /usr/bin/valid_app user valid_user\n"
+								  "invalid line format here\n"
+								  "path /usr/bin/another_valid user "
+								  "another_user\n"
+								  "path incomplete\n"
+								  "path /usr/bin/final_valid user final_user\n";
+
 		createTestPolicyFile(mixedPolicy);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Mixed valid/invalid policy should be handled";
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Mixed valid/invalid "
+														 "policy should be "
+														 "handled";
 	}
 };
 
 // 国际化和本地化测试
-class ElfverifyLocalizationTest : public ElfverifyExtendedTest  
+class ElfverifyLocalizationTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testInternationalPaths()
 	{
 		std::vector<std::string> intlPaths = {
@@ -1445,12 +1533,14 @@ protected:
 			"path /تطبيقات/اختبار user مستخدم_عربي"
 		};
 
-		for (const auto& intlPath : intlPaths)
+		for (const auto &intlPath : intlPaths)
 		{
 			createTestPolicyFile(intlPath);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "International path: " << intlPath;
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+				<< "International path: " << intlPath;
 		}
 	}
 
@@ -1464,12 +1554,14 @@ protected:
 			"path /Москва/тест user тест_пользователь"
 		};
 
-		for (const auto& encoding : encodingTests)
+		for (const auto &encoding : encodingTests)
 		{
 			createTestPolicyFile(encoding);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Encoding test: " << encoding;
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+				<< "Encoding test: " << encoding;
 		}
 	}
 };
@@ -1489,42 +1581,44 @@ TEST_F(ElfverifyAdvancedPolicyTest, PolicyFileVariations)
 
 TEST_F(ElfverifyAdvancedPolicyTest, NestedPolicyRules)
 {
-	std::string nestedPolicy = 
+	std::string nestedPolicy =
 		"path /usr/bin/nested/level1/app user level1_user\n"
 		"path /usr/bin/nested/level1/level2/app user level2_user\n"
 		"path /usr/bin/nested/level1/level2/level3/app user level3_user\n";
-		
+
 	createTestPolicyFile(nestedPolicy);
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 	EXPECT_EQ(exit_code, 0) << "Nested policy rules should be valid";
 }
 
 TEST_F(ElfverifyAdvancedPolicyTest, WildcardPolicyRules)
 {
-	std::string wildcardPolicy = 
-		"path /usr/bin/* user wildcard_user\n"
-		"path /opt/*/bin/app user opt_user\n"
-		"path /home/*/Desktop/* user desktop_user\n";
-		
+	std::string wildcardPolicy = "path /usr/bin/* user wildcard_user\n"
+								 "path /opt/*/bin/app user opt_user\n"
+								 "path /home/*/Desktop/* user desktop_user\n";
+
 	createTestPolicyFile(wildcardPolicy);
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
 	EXPECT_EQ(exit_code, 0) << "Wildcard policy rules should be processed";
 }
 
 TEST_F(ElfverifyAdvancedPolicyTest, MixedPathTypes)
 {
-	std::string mixedPolicy = 
-		"path /usr/bin/absolute_app user abs_user\n"
-		"path ./relative_app user rel_user\n"
-		"path ~/home_app user home_user\n"
-		"path ../parent_app user parent_user\n";
-		
+	std::string mixedPolicy = "path /usr/bin/absolute_app user abs_user\n"
+							  "path ./relative_app user rel_user\n"
+							  "path ~/home_app user home_user\n"
+							  "path ../parent_app user parent_user\n";
+
 	createTestPolicyFile(mixedPolicy);
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
-	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Mixed path types should be handled";
+	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Mixed path types should "
+													 "be handled";
 }
 
 // 性能测试用例
@@ -1547,13 +1641,15 @@ TEST_F(ElfverifyPerformanceTest, RepeatedPolicyLoading)
 {
 	std::string policy = "path /usr/bin/repeat_test user repeat_user";
 	createTestPolicyFile(policy);
-	
+
 	// 重复加载策略文件多次
 	for (int i = 0; i < 100; ++i)
 	{
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_EQ(exit_code, 0) << "Repeated policy loading " << i << " should succeed";
+		EXPECT_EQ(exit_code, 0)
+			<< "Repeated policy loading " << i << " should succeed";
 	}
 }
 
@@ -1564,13 +1660,15 @@ TEST_F(ElfverifyPerformanceTest, LongLineParsing)
 	{
 		longPath += "/segment" + std::to_string(i);
 	}
-	
+
 	std::string policy = "path " + longPath + " user long_path_user";
 	createTestPolicyFile(policy);
-	
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
-	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Long line should be parsed without issue";
+	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Long line should be "
+													 "parsed without issue";
 }
 
 // 安全测试用例
@@ -1598,12 +1696,15 @@ TEST_F(ElfverifySecurityTest, SQLInjectionAttempts)
 		"path /usr/bin/test UNION SELECT * FROM passwords user test"
 	};
 
-	for (const auto& injection : sqlInjections)
+	for (const auto &injection : sqlInjections)
 	{
 		createTestPolicyFile(injection);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "SQL injection attempt should be safe";
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "SQL injection "
+														 "attempt should be "
+														 "safe";
 	}
 }
 
@@ -1616,12 +1717,15 @@ TEST_F(ElfverifySecurityTest, PathTraversalAttempts)
 		"path /proc/../../../boot/grub user grub_user"
 	};
 
-	for (const auto& traversal : traversals)
+	for (const auto &traversal : traversals)
 	{
 		createTestPolicyFile(traversal);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Path traversal should be handled safely";
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Path traversal "
+														 "should be handled "
+														 "safely";
 	}
 }
 
@@ -1651,12 +1755,14 @@ TEST_F(ElfverifyCompatibilityTest, TabSpaceMixing)
 		"path\t /usr/bin/test \tuser \ttest_user"
 	};
 
-	for (const auto& whitespace : mixedWhitespace)
+	for (const auto &whitespace : mixedWhitespace)
 	{
 		createTestPolicyFile(whitespace);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_EQ(exit_code, 0) << "Mixed whitespace should be handled: " << whitespace;
+		EXPECT_EQ(exit_code, 0)
+			<< "Mixed whitespace should be handled: " << whitespace;
 	}
 }
 
@@ -1686,10 +1792,11 @@ TEST_F(ElfverifyFilesystemTest, DeviceFileHandling)
 		"path /dev/tty user dev_tty_user"
 	};
 
-	for (const auto& device : deviceFiles)
+	for (const auto &device : deviceFiles)
 	{
 		createTestPolicyFile(device);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 		EXPECT_EQ(exit_code, 0) << "Device file should be handled: " << device;
 	}
@@ -1704,12 +1811,14 @@ TEST_F(ElfverifyFilesystemTest, NetworkFileSystemPaths)
 		"path /auto/mount/point user auto_user"
 	};
 
-	for (const auto& nfs : nfsPaths)
+	for (const auto &nfs : nfsPaths)
 	{
 		createTestPolicyFile(nfs);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_EQ(exit_code, 0) << "Network filesystem path should be handled: " << nfs;
+		EXPECT_EQ(exit_code, 0)
+			<< "Network filesystem path should be handled: " << nfs;
 	}
 }
 
@@ -1733,7 +1842,8 @@ TEST_F(ElfverifyConcurrencyTest, MultipleInstances)
 	std::vector<std::string> instances;
 	for (int i = 0; i < 5; ++i)
 	{
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 		EXPECT_EQ(exit_code, 0) << "Multiple instance " << i << " should work";
 		instances.push_back(output);
@@ -1755,9 +1865,11 @@ TEST_F(ElfverifyErrorRecoveryTest, EmptyPolicyFileRecovery)
 {
 	// 测试空策略文件的处理
 	createTestPolicyFile("");
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
-	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Empty policy file should be handled gracefully";
+	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Empty policy file should "
+													 "be handled gracefully";
 }
 
 TEST_F(ElfverifyErrorRecoveryTest, BinaryFileAsPolicy)
@@ -1770,9 +1882,11 @@ TEST_F(ElfverifyErrorRecoveryTest, BinaryFileAsPolicy)
 	}
 	binFile.close();
 
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
-	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Binary file as policy should not crash program";
+	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Binary file as policy "
+													 "should not crash program";
 }
 
 // 国际化测试用例
@@ -1788,16 +1902,18 @@ TEST_F(ElfverifyLocalizationTest, DifferentEncodings)
 
 TEST_F(ElfverifyLocalizationTest, MixedLanguagePolicies)
 {
-	std::string mixedPolicy = 
-		"path /English/app user english_user\n"
-		"path /中文/应用 user 中文用户\n"
-		"path /русский/приложение user русский_пользователь\n"
-		"path /日本語/アプリ user 日本語ユーザー\n";
-		
+	std::string mixedPolicy = "path /English/app user english_user\n"
+							  "path /中文/应用 user 中文用户\n"
+							  "path /русский/приложение user "
+							  "русский_пользователь\n"
+							  "path /日本語/アプリ user 日本語ユーザー\n";
+
 	createTestPolicyFile(mixedPolicy);
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
-	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Mixed language policy should be handled";
+	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Mixed language policy "
+													 "should be handled";
 }
 
 TEST_F(ElfverifyLocalizationTest, RightToLeftLanguages)
@@ -1808,12 +1924,14 @@ TEST_F(ElfverifyLocalizationTest, RightToLeftLanguages)
 		"path /فارسی/برنامه user کاربر_فارسی"
 	};
 
-	for (const auto& rtl : rtlTests)
+	for (const auto &rtl : rtlTests)
 	{
 		createTestPolicyFile(rtl);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "RTL language should be handled: " << rtl;
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+			<< "RTL language should be handled: " << rtl;
 	}
 }
 
@@ -1822,40 +1940,44 @@ TEST_F(ElfverifyLocalizationTest, RightToLeftLanguages)
 // 边界值测试类
 class ElfverifyBoundaryValueTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testPathLengthBoundaries()
 	{
 		// 测试各种路径长度边界
-		std::vector<size_t> pathLengths = {1, 2, 3, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
-		
+		std::vector<size_t> pathLengths =
+			{1, 2, 3, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
+
 		for (size_t length : pathLengths)
 		{
 			std::string testPath = "/";
 			testPath += std::string(length - 1, 'a');
-			
+
 			std::string policy = "path " + testPath + " user boundary_user";
 			createTestPolicyFile(policy);
-			
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) 
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
 				<< "Path length " << length << " should be handled";
 		}
 	}
 
 	void testUsernameLengthBoundaries()
 	{
-		std::vector<size_t> userLengths = {1, 2, 3, 8, 16, 32, 64, 128, 256, 512};
-		
+		std::vector<size_t> userLengths =
+			{1, 2, 3, 8, 16, 32, 64, 128, 256, 512};
+
 		for (size_t length : userLengths)
 		{
 			std::string testUser = std::string(length, 'u');
 			std::string policy = "path /usr/bin/test user " + testUser;
 			createTestPolicyFile(policy);
-			
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) 
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
 				<< "Username length " << length << " should be handled";
 		}
 	}
@@ -1864,7 +1986,7 @@ protected:
 // 数据验证测试类
 class ElfverifyDataValidationTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testNumericUsernames()
 	{
 		std::vector<std::string> numericUsers = {
@@ -1877,12 +1999,14 @@ protected:
 			"path /usr/bin/test user 0777"
 		};
 
-		for (const auto& numeric : numericUsers)
+		for (const auto &numeric : numericUsers)
 		{
 			createTestPolicyFile(numeric);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Numeric username: " << numeric;
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+				<< "Numeric username: " << numeric;
 		}
 	}
 
@@ -1897,12 +2021,14 @@ protected:
 			"path \\\\windows\\share\\test user windows_user"
 		};
 
-		for (const auto& special : specialPaths)
+		for (const auto &special : specialPaths)
 		{
 			createTestPolicyFile(special);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
-			EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Special path format: " << special;
+			EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+				<< "Special path format: " << special;
 		}
 	}
 };
@@ -1910,7 +2036,7 @@ protected:
 // 系统集成测试类
 class ElfverifySystemIntegrationTest : public ElfverifyExtendedTest
 {
-protected:
+  protected:
 	void testSystemDirectoryPolicies()
 	{
 		std::vector<std::string> systemDirs = {
@@ -1925,10 +2051,11 @@ protected:
 			"path /usr/share/* user share_user"
 		};
 
-		for (const auto& sysDir : systemDirs)
+		for (const auto &sysDir : systemDirs)
 		{
 			createTestPolicyFile(sysDir);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
 			EXPECT_EQ(exit_code, 0) << "System directory policy: " << sysDir;
 		}
@@ -1946,10 +2073,11 @@ protected:
 			"path /home/*/.cache/* user cache_user"
 		};
 
-		for (const auto& homeDir : homeDirs)
+		for (const auto &homeDir : homeDirs)
 		{
 			createTestPolicyFile(homeDir);
-			std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+			std::string output =
+				runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 			int exit_code = getLastExitCode();
 			EXPECT_EQ(exit_code, 0) << "Home directory policy: " << homeDir;
 		}
@@ -1977,11 +2105,13 @@ TEST_F(ElfverifyBoundaryValueTest, MaximumRulesPerFile)
 	{
 		policy << "path /test/max_rules" << i << " user max_user" << i << "\n";
 	}
-	
+
 	createTestPolicyFile(policy.str());
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
-	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Maximum rules test should not crash";
+	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Maximum rules test "
+													 "should not crash";
 }
 
 TEST_F(ElfverifyBoundaryValueTest, VeryLongSingleLine)
@@ -1990,33 +2120,38 @@ TEST_F(ElfverifyBoundaryValueTest, VeryLongSingleLine)
 	std::string longPath = "/very/long/path";
 	for (int i = 0; i < 100; ++i)
 	{
-		longPath += "/segment" + std::to_string(i) + "_with_very_long_name_to_test_boundary";
+		longPath += "/segment" + std::to_string(i) +
+					"_with_very_long_name_to_test_boundary";
 	}
-	
+
 	std::string policy = "path " + longPath + " user very_long_path_user";
 	createTestPolicyFile(policy);
-	
-	std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+
+	std::string output =
+		runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 	int exit_code = getLastExitCode();
-	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Very long single line should be handled";
+	EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Very long single line "
+													 "should be handled";
 }
 
 TEST_F(ElfverifyBoundaryValueTest, EmptyStringsHandling)
 {
 	std::vector<std::string> emptyTests = {
-		"path  user test_user",           // 空路径
-		"path /usr/bin/test user ",       // 空用户名
-		"path  user ",                    // 都空
+		"path  user test_user",					   // 空路径
+		"path /usr/bin/test user ",				   // 空用户名
+		"path  user ",							   // 都空
 		"   path /usr/bin/test user test_user   ", // 前后空白
 		"\tpath\t/usr/bin/test\tuser\ttest_user\t" // 制表符
 	};
 
-	for (const auto& emptyTest : emptyTests)
+	for (const auto &emptyTest : emptyTests)
 	{
 		createTestPolicyFile(emptyTest);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Empty string test: " << emptyTest;
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+			<< "Empty string test: " << emptyTest;
 	}
 }
 
@@ -2041,12 +2176,14 @@ TEST_F(ElfverifyDataValidationTest, IPv4AddressPaths)
 		"path 255.255.255.255/broadcast user broadcast_user"
 	};
 
-	for (const auto& ipPath : ipPaths)
+	for (const auto &ipPath : ipPaths)
 	{
 		createTestPolicyFile(ipPath);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "IPv4 address path: " << ipPath;
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+			<< "IPv4 address path: " << ipPath;
 	}
 }
 
@@ -2059,12 +2196,14 @@ TEST_F(ElfverifyDataValidationTest, IPv6AddressPaths)
 		"path ::/any user ipv6_any_user"
 	};
 
-	for (const auto& ipv6Path : ipv6Paths)
+	for (const auto &ipv6Path : ipv6Paths)
 	{
 		createTestPolicyFile(ipv6Path);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "IPv6 address path: " << ipv6Path;
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+			<< "IPv6 address path: " << ipv6Path;
 	}
 }
 
@@ -2079,12 +2218,14 @@ TEST_F(ElfverifyDataValidationTest, EnvironmentVariablePaths)
 		"path ${SHELL}/test user shell_user"
 	};
 
-	for (const auto& envPath : envPaths)
+	for (const auto &envPath : envPaths)
 	{
 		createTestPolicyFile(envPath);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_TRUE(exit_code == 0 || exit_code != 0) << "Environment variable path: " << envPath;
+		EXPECT_TRUE(exit_code == 0 || exit_code != 0)
+			<< "Environment variable path: " << envPath;
 	}
 }
 
@@ -2107,10 +2248,11 @@ TEST_F(ElfverifySystemIntegrationTest, KernelModulePaths)
 		"path /run/modules/* user run_module_user"
 	};
 
-	for (const auto& modulePath : modulePaths)
+	for (const auto &modulePath : modulePaths)
 	{
 		createTestPolicyFile(modulePath);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 		EXPECT_EQ(exit_code, 0) << "Kernel module path: " << modulePath;
 	}
@@ -2126,10 +2268,11 @@ TEST_F(ElfverifySystemIntegrationTest, ContainerPaths)
 		"path /snap/* user snap_user"
 	};
 
-	for (const auto& containerPath : containerPaths)
+	for (const auto &containerPath : containerPaths)
 	{
 		createTestPolicyFile(containerPath);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
 		EXPECT_EQ(exit_code, 0) << "Container path: " << containerPath;
 	}
@@ -2144,11 +2287,13 @@ TEST_F(ElfverifySystemIntegrationTest, NetworkFileSystemPaths)
 		"path /auto/mount/point user auto_user"
 	};
 
-	for (const auto& nfs : nfsPaths)
+	for (const auto &nfs : nfsPaths)
 	{
 		createTestPolicyFile(nfs);
-		std::string output = runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
+		std::string output =
+			runElfverifyCommand({"--policy-file", TEST_POLICY_FILE});
 		int exit_code = getLastExitCode();
-		EXPECT_EQ(exit_code, 0) << "Network filesystem path should be handled: " << nfs;
+		EXPECT_EQ(exit_code, 0)
+			<< "Network filesystem path should be handled: " << nfs;
 	}
 }

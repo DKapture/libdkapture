@@ -956,7 +956,7 @@ static std::atomic<bool> exit_flag(false);
 
 static struct option lopts[] = {
 	{"path",	 required_argument, 0, 'p'},
-	{"dev",	 required_argument, 0, 'd'},
+	{"dev",	required_argument, 0, 'd'},
 	{"inode", no_argument,	   0, 'i'},
 	{"help",	 no_argument,		  0, 'h'},
 	{0,		0,				 0, 0  }
@@ -971,14 +971,15 @@ struct HelpMsg
 
 // Help messages
 static HelpMsg help_msg[] = {
-	{"<path>", "file path to trace\n"					 },
+	{"<path>", "file path to trace\n"								 },
 	{"[dev]",
 	 "when using the inode number of <path> as the filter,\n"
 	 "\tthis option specify the device number of filesystem to which\n"
 	 "\tthe inode belong.\n"
-	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"}, // 更新帮助信息
-	{"<ino>",  "use file inode as filter\n"				  },
-	{"",		 "print this help message\n"				},
+	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"
+	}, // 更新帮助信息
+	{"<ino>",  "use file inode as filter\n"						  },
+	{"",		 "print this help message\n"							},
 };
 
 // Function to print usage information
@@ -1061,7 +1062,10 @@ static void parse_args(int argc, char **argv)
 			unsigned int major_num, minor_num;
 			if (sscanf(optarg, "%u:%u", &major_num, &minor_num) != 2)
 			{
-				printf("dev format error: %s (should be major:minor)\n", optarg);
+				printf(
+					"dev format error: %s (should be major:minor)\n",
+					optarg
+				);
 				exit(-1);
 			}
 			dev_num = makedev(major_num, minor_num);
@@ -1092,7 +1096,8 @@ static void parse_args(int argc, char **argv)
 	{ // the memory data of dev_num must not be all zero
 		if (dev_num == 0)
 		{
-			printf("error: -i option requires -d option to set device number of "
+			printf("error: -i option requires -d option to set device number "
+				   "of "
 				   "filesystem\n"); // 更新错误信息
 			Usage(argv[0]);
 			exit(-1);
@@ -1100,7 +1105,8 @@ static void parse_args(int argc, char **argv)
 	}
 	else if (dev_num)
 	{
-		printf("error: -d option must be applied with -i option\n"); // 更新错误信息
+		printf("error: -d option must be applied with -i option\n"
+		); // 更新错误信息
 		Usage(argv[0]);
 		exit(-1);
 	}
