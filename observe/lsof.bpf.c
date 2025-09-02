@@ -108,9 +108,11 @@ static bool file_filter(struct file *file)
 
 	if (0) // change to 1 when DEBUG dev
 	{
-		bpf_info("dev: major=%u, minor=%u", 
+		bpf_info(
+			"dev: major=%u, minor=%u",
 			MAJOR(file->f_path.mnt->mnt_sb->s_dev),
-			MINOR(file->f_path.mnt->mnt_sb->s_dev));
+			MINOR(file->f_path.mnt->mnt_sb->s_dev)
+		);
 	}
 	ret = true;
 

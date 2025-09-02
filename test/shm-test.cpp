@@ -424,7 +424,7 @@ TEST_F(MirrorMemoryTest, BasicConstruction)
 // 测试共享内存模式
 TEST_F(MirrorMemoryTest, SharedMemoryMode)
 {
-	int status;	
+	int status;
 	key_t key = 0x12345678;
 	size_t valid_size = getpagesize() * 4;
 	pid_t pid = fork();

@@ -769,7 +769,14 @@ class CircleBuf
 			pr_error("buf size must be multiple of page size\n");
 			goto err;
 		}
-		addr_map = mmap(nullptr, bsz * 2, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+		addr_map = mmap(
+			nullptr,
+			bsz * 2,
+			PROT_READ | PROT_WRITE,
+			MAP_SHARED | MAP_ANONYMOUS,
+			-1,
+			0
+		);
 		if (addr1 == MAP_FAILED)
 		{
 			pr_error("mmap: %s\n", strerror(errno));
