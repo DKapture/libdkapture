@@ -6,7 +6,7 @@
 #include "spinlock.h"
 #include "Ucom.h"
 #include "dkapture.h"
-#include "bpf.h"
+#include "bpf-manager.h"
 
 #define MK_KEY(pid, dt) (((ulong)pid << 32) + dt)
 #define KEY_PID(key) (key >> 32)
@@ -29,7 +29,7 @@ class DataMap
 #endif
 	AddrEntry *m_entrys = nullptr;
 	RingBuffer *m_rb = nullptr;
-	BPF *m_bpf = nullptr;
+	BPFManager *m_bpf = nullptr;
 	RingBuffer *m_bpf_rb = nullptr;
 	SharedMemory *m_shm = nullptr;
 	SpinLock *m_lock = nullptr;

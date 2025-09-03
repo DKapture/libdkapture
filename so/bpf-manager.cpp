@@ -2,7 +2,7 @@
 #include <dirent.h>
 #include <system_error>
 
-#include "bpf.h"
+#include "bpf-manager.h"
 #include "Ulog.h"
 #include "types.h"
 
@@ -17,7 +17,7 @@
 #define link_idx(links, link)                                                  \
 	(((long)&links.dump_task - (long)&links) / sizeof(bpf_link *))
 
-int BPF::retreat_bpf_map(const char *name)
+int BPFManager::bpf_find_map(const char *name)
 {
 	int err;
 	u32 id = 0;
@@ -75,7 +75,7 @@ int BPF::retreat_bpf_map(const char *name)
 	return -errno;
 }
 
-std::string BPF::retreat_bpf_iter(const char *name)
+std::string BPFManager::bpf_find_iter(const char *name)
 {
 	char buf[PATH_MAX];
 	snprintf(buf, sizeof(buf), PIN_PATH "/link-%s", name);
@@ -86,7 +86,7 @@ std::string BPF::retreat_bpf_iter(const char *name)
 	return buf;
 }
 
-int BPF::bpf_pin_links(const char *pin_dir)
+int BPFManager::bpf_pin_links(const char *pin_dir)
 {
 	int err = 0;
 	char buf[PATH_MAX];
@@ -120,7 +120,7 @@ err_out:
 /**
  * 重写libbpf.so库中bpf_object__pin_programs的实现，原实现无法完成本文件需求。
  */
-int BPF::bpf_pin_programs(const char *path)
+int BPFManager::bpf_pin_programs(const char *path)
 {
 	struct bpf_program *prog;
 	char buf[PATH_MAX];
@@ -156,7 +156,7 @@ err_out:
 	return err;
 }
 
-BPF::BPF()
+BPFManager::BPFManager()
 {
 	int err = 0;
 	try
@@ -167,7 +167,7 @@ BPF::BPF()
 	}
 	catch (...)
 	{
-		this->~BPF();
+		this->~BPFManager();
 		throw;
 	}
 	/**
@@ -176,11 +176,11 @@ BPF::BPF()
 	 */
 	m_bpf_lock->lock();
 	// Implementation for opening the capture
-	m_map_fd = retreat_bpf_map("dk_shared_mem");
+	m_map_fd = bpf_find_map("dk_shared_mem");
 	if (m_map_fd >= 0)
 	{ // look like there is already a bpf program loaded
 		pr_debug("use existing bpf mirror");
-		m_proc_iter_link_path = retreat_bpf_iter("dump_task");
+		m_proc_iter_link_path = bpf_find_iter("dump_task");
 		if (m_proc_iter_link_path.empty())
 		{
 			err = -errno;
@@ -226,7 +226,7 @@ err_out:
 	throw std::system_error(-err, std::generic_category(), "shmget failed");
 }
 
-BPF::~BPF()
+BPFManager::~BPFManager()
 {
 	if (m_obj)
 	{
@@ -287,7 +287,7 @@ BPF::~BPF()
 	SAFE_DELETE(m_shm);
 }
 
-int BPF::dump_task_file(void)
+int BPFManager::dump_task_file(void)
 {
 	int fd;
 	ssize_t rd_sz;

@@ -44,7 +44,7 @@ DataMap::DataMap()
 	try
 	{
 		m_shm = new SharedMemory();
-		m_bpf = new BPF();
+		m_bpf = new BPFManager();
 		m_rb = new RingBuffer(ent_sz);
 		m_lock = new SpinLock(&m_shm->data_map_lock);
 		m_entrys = (typeof(m_entrys))m_rb->buf();
