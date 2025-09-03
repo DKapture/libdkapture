@@ -8,7 +8,7 @@ ifeq ($(BPF_TARGET_ARCH), loongarch64)
 	BPF_TARGET_ARCH := loongarch
 endif
 
-LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread -luuid
+LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
 CLANG_FLAGS = -g -MMD -Wall -O2 -I$(PROJ_ROOT)/include \
 			-I/usr/include/$(shell uname -m)-linux-gnu/ \
 			-I/lib/modules/$(shell uname -r)/build/include \

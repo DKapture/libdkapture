@@ -61,7 +61,7 @@ DKapture（Deepin Kernel Capture）是一个用户空间工具集和动态库，
   CONFIG_BPF_EVENTS=y
   ```
 - 架构：x86_64、ARM64、Loong64、sw64。
-- 编译工具：`sudo apt install build-essential clang llvm libbpf-dev bpftool uuid-dev`
+- 编译工具：`sudo apt install build-essential clang llvm libbpf-dev bpftool`
 
 ## 构建流程
 

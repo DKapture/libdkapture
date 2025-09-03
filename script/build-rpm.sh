@@ -254,7 +254,6 @@ BuildRequires:  llvm
 BuildRequires:  libbpf-devel
 BuildRequires:  bpftool
 Requires:       libbpf
-Requires:       libuuid
 
 %description
 DKapture is a user-space toolset and dynamic library for observing

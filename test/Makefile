@@ -18,7 +18,7 @@ CXXFLAGS = -g -D__GTEST__ -DBUILTIN -MMD \
 		   -I$(PROJ_ROOT)/build/observe \
 		   -I$(PROJ_ROOT)/build/policy
 
-LDFLAGS = -Wl,-rpath=$(PROJ_ROOT)/googletest/build/lib/ -luuid
+LDFLAGS = -Wl,-rpath=$(PROJ_ROOT)/googletest/build/lib/
 
 GTEST_LIBS = $(PROJ_ROOT)/googletest/build/lib/libgtest_main.so	\
 			 $(PROJ_ROOT)/googletest/build/lib/libgtest.so
