@@ -740,7 +740,7 @@ void print_usage(const char *program_name)
 		program_name
 	);
 	printf(
-		"  %s -m 1234 -t 60         # Monitor memory leaks for process 1234 "
+		"  %s -m1234 -t 60         # Monitor memory leaks for process 1234 "
 		"for 60 seconds\n",
 		program_name
 	);
