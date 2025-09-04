@@ -10,9 +10,8 @@ endif
 
 LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
 CLANG_FLAGS = -g -MMD -Wall -O2 -I$(PROJ_ROOT)/include \
-			-I/usr/include/$(shell uname -m)-linux-gnu/ \
-			-I/lib/modules/$(shell uname -r)/build/include \
-			-I$(PROJ_ROOT)/build/include
+			-I$(PROJ_ROOT)/build/include \
+			-I/lib/modules/$(shell uname -r)/build/include
 CFLAGS := -MMD -g -Wall -I$(PROJ_ROOT)/include -I$(BUILD_DIR)
 
 ifneq ($(SHARED_LIB), )

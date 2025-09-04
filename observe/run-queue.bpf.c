@@ -2,7 +2,6 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include "jhash.h"
-#include <asm/unistd.h>
 #include "Kstr-utils.h"
 #include "Kmem.h"
 
