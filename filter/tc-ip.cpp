@@ -44,38 +44,50 @@
 #define RULE_TYPE_DROP 1
 #define RULE_TYPE_LOG 2
 
+/**
+ * @brief IP级别的流量事件结构体
+ * 用于传递基于IP地址和端口的网络流量控制事件信息
+ */
 struct event_t
 {
-	uint32_t sip;			  // Source IP address
-	uint32_t dip;			  // Destination IP address
-	uint32_t sport;			  // Source port
-	uint32_t dport;			  // Destination port
-	uint32_t protocol;		  // Protocol type
-	uint32_t action;		  // Action taken (pass/drop)
-	uint32_t bytes_sent;	  // Bytes sent
-	uint32_t bytes_dropped;	  // Bytes dropped
-	uint32_t packets_sent;	  // Packets sent
-	uint32_t packets_dropped; // Packets dropped
-	uint64_t timestamp;		  // Timestamp
-	uint8_t event_type;		  // Event type for different operations
+	uint32_t sip;             ///< 源IP地址
+	uint32_t dip;             ///< 目标IP地址
+	uint32_t sport;           ///< 源端口
+	uint32_t dport;           ///< 目标端口
+	uint32_t protocol;        ///< 协议类型
+	uint32_t action;          ///< 执行的动作（通过/丢弃）
+	uint32_t bytes_sent;      ///< 发送的字节数
+	uint32_t bytes_dropped;   ///< 丢弃的字节数
+	uint32_t packets_sent;    ///< 发送的数据包数
+	uint32_t packets_dropped; ///< 丢弃的数据包数
+	uint64_t timestamp;       ///< 时间戳
+	uint8_t event_type;       ///< 不同操作的事件类型
 };
 
+/**
+ * @brief 流量控制规则结构体
+ * 定义基于IP地址、端口和协议的流量控制规则
+ */
 struct traffic_rule
 {
-	uint32_t target_ip;
-	uint16_t target_port;
-	uint8_t target_protocol;
-	uint64_t rate_bps;
-	uint8_t gress;
-	uint32_t time_scale;
-	uint32_t match_mask;
-	uint8_t rule_type; // 0=rate_limit, 1=drop, 2=log
+	uint32_t target_ip;       ///< 目标IP地址
+	uint16_t target_port;     ///< 目标端口
+	uint8_t target_protocol;  ///< 目标协议
+	uint64_t rate_bps;        ///< 速率限制（字节/秒）
+	uint8_t gress;            ///< 流量方向
+	uint32_t time_scale;      ///< 时间刻度
+	uint32_t match_mask;      ///< 匹配掩码
+	uint8_t rule_type;        ///< 规则类型：0=速率限制，1=丢弃，2=记录
 };
 
+/**
+ * @brief 安全字符串结构体
+ * 包含字符串内容和上下文信息，用于安全的字符串处理
+ */
 struct SafeString
 {
-	const char *str_;
-	const char *context_;
+	const char *str_;     ///< 字符串内容指针
+	const char *context_; ///< 字符串上下文描述
 };
 
 enum class ErrorCode
@@ -930,6 +942,14 @@ void safe_deallocate(T *ptr, const std::string &context = "")
 	}
 }
 
+/**
+ * @brief 处理流量事件
+ * 处理来自BPF程序的IP级别流量控制事件
+ * @param ctx 上下文指针（未使用）
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 总是返回0
+ */
 static int handle_traffic_event(void *ctx, void *data, size_t data_sz)
 {
 	if (data_sz != sizeof(event_t))
@@ -1104,6 +1124,12 @@ static bool setup_traffic_rules()
 	return true;
 }
 
+/**
+ * @brief 主函数 - 基于IP的Netfilter流量控制程序入口点
+ * @param argc 命令行参数个数
+ * @param argv 命令行参数数组
+ * @return 程序退出状态，0表示成功，其他值表示失败
+ */
 int main(int argc, char **argv)
 {
 	int err;

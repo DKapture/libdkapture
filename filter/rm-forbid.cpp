@@ -23,7 +23,12 @@
 #include "Ucom.h"
 #include "jhash.h"
 
-// 添加设备号转换函数，参考frtp
+/**
+ * @brief 设备号转换函数，参考frtp
+ * 将旧的设备号格式转换为新格式
+ * @param old 旧格式的设备号
+ * @return 新格式的设备号
+ */
 static inline uint32_t dev_old2new(dev_t old)
 {
 	uint32_t major = gnu_dev_major(old);
@@ -31,10 +36,14 @@ static inline uint32_t dev_old2new(dev_t old)
 	return ((major & 0xfff) << 20) | (minor & 0xfffff);
 }
 
+/**
+ * @brief 禁止删除规则结构体
+ * 定义要保护的文件的设备号和inode
+ */
 struct Rule
 {
-	dev_t dev; // 设备号
-	u64 inode;
+	dev_t dev; ///< 设备号
+	u64 inode; ///< inode编号
 } rule;
 
 static rm_forbid_bpf *obj;
@@ -49,10 +58,14 @@ static struct option lopts[] = {
 	{0,		0,				 0, 0  }
 };
 
+/**
+ * @brief 帮助信息结构体
+ * 存储命令行选项的参数和说明信息
+ */
 struct HelpMsg
 {
-	const char *argparam;
-	const char *msg;
+	const char *argparam; ///< 参数描述
+	const char *msg;      ///< 帮助信息
 };
 
 static HelpMsg help_msg[] = {
@@ -65,6 +78,10 @@ static HelpMsg help_msg[] = {
 	{"",		 "print this help message\n"							},
 };
 
+/**
+ * @brief 打印程序使用说明
+ * @param arg0 程序名称
+ */
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
@@ -82,6 +99,11 @@ void Usage(const char *arg0)
 	}
 }
 
+/**
+ * @brief 将长选项转换为短选项字符串
+ * @param lopts 长选项数组
+ * @return 短选项字符串
+ */
 std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
@@ -106,6 +128,11 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 
+/**
+ * @brief 获取文件系统设备号
+ * @param path 文件路径
+ * @param dev 输出参数，存储设备号
+ */
 static void get_fs_dev(const char *path, dev_t *dev)
 {
 	if (access(path, F_OK) == -1)
@@ -124,6 +151,11 @@ static void get_fs_dev(const char *path, dev_t *dev)
 	printf("Device number of %s is %lu\n", path, (unsigned long)*dev);
 }
 
+/**
+ * @brief 解析命令行参数
+ * @param argc 参数个数
+ * @param argv 参数数组
+ */
 void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
@@ -158,6 +190,10 @@ void parse_args(int argc, char **argv)
 	}
 }
 
+/**
+ * @brief 注册信号处理函数
+ * 注册SIGINT信号的处理函数，用于优雅退出程序
+ */
 void register_signal()
 {
 	struct sigaction sa;
@@ -176,6 +212,12 @@ void register_signal()
 	}
 }
 
+/**
+ * @brief 主函数 - 禁止删除文件监控程序入口点
+ * @param argc 命令行参数个数
+ * @param args 命令行参数数组
+ * @return 程序退出状态，0表示成功，-1表示失败
+ */
 int main(int argc, char *args[])
 {
 	int key = 0;

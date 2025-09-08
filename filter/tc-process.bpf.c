@@ -1,3 +1,11 @@
+/**
+ * @file tc-process.bpf.c
+ * @brief 进程级别的流量控制 eBPF 程序
+ * 
+ * 该文件实现了基于进程ID的网络流量控制功能，
+ * 用于监控和限制特定进程的网络活动。
+ */
+
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>

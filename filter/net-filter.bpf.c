@@ -1,5 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0
 
+/**
+ * @file net-filter.bpf.c
+ * @brief 网络过滤器 eBPF 程序
+ * 
+ * 该文件实现了基于 eBPF 的网络数据包过滤和监控功能，主要用于：
+ * - Netfilter 钩子点的数据包过滤
+ * - LSM (Linux Security Module) 钩子的进程监控
+ * - 网络数据包的深度分析和统计
+ * - 实时的网络事件日志记录
+ */
+
 #include "vmlinux.h"
 
 #if defined(__sw_64__)
@@ -51,11 +62,20 @@
 	"net-monitor support only x86 arm loongarch and __sw_64__ four architecture now"
 #endif
 
-// read kernel memory to bpf memory
+/**
+ * @brief 从内核内存读取数据到BPF内存
+ * @param kaddr 内核地址指针
+ * @param bpf_addr BPF内存地址
+ */
 #define bpf_read_mem(kaddr, bpf_addr)                                          \
 	bpf_probe_read_kernel(kaddr, sizeof(*(kaddr)), bpf_addr)
 
-// read kernel memory to bpf memory, return 'ret' while error
+/**
+ * @brief 从内核内存读取数据到BPF内存，出错时返回指定值
+ * @param kaddr 内核地址指针
+ * @param bpf_addr BPF内存地址
+ * @param ret 出错时的返回值
+ */
 #define bpf_read_mem_ret(kaddr, bpf_addr, ret)                                 \
 	{                                                                          \
 		int err = 0;                                                           \
@@ -90,6 +110,10 @@ void *bpf_dynptr_slice(
 static void
 debug_tuple(const struct ip_tuple *tuple, const char *title, int type);
 
+/**
+ * @brief 过滤规则映射
+ * 存储网络过滤规则，键为规则ID，值为Rule结构体
+ */
 struct
 {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -98,12 +122,20 @@ struct
 	__uint(max_entries, MAX_RULES_LEN);
 } rules SEC(".maps"); // TODO lock guarded
 
+/**
+ * @brief 日志环形缓冲区
+ * 用于向用户空间传递网络事件日志
+ */
 struct
 {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024 /* 256 KB */);
 } logs SEC(".maps");
 
+/**
+ * @brief 配置映射
+ * 存储网络过滤器的全局配置参数
+ */
 struct
 {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
@@ -112,6 +144,10 @@ struct
 	__type(value, struct Configs);
 } configs SEC(".maps"); // TODO lock guarded
 
+/**
+ * @brief Socket映射
+ * 存储进程ID到网络数据的映射关系
+ */
 struct
 {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -120,6 +156,11 @@ struct
 	__uint(max_entries, 10000);
 } sk_map SEC(".maps");
 
+/**
+ * @brief 获取配置结构体指针
+ * 从BPF映射中获取全局配置，如果映射为空则返回默认配置
+ * @return 配置结构体指针
+ */
 static inline struct Configs *conf(void)
 {
 	static struct Configs _configs = {
@@ -138,6 +179,12 @@ static inline struct Configs *conf(void)
 	return &_configs;
 }
 
+/**
+ * @brief 比较两个IPv6地址
+ * @param ipa 第一个IPv6地址指针
+ * @param ipb 第二个IPv6地址指针
+ * @return 0表示相等，1表示ipa>ipb，-1表示ipa<ipb
+ */
 static int ipv6_cmp(const struct in6_addr *ipa, const struct in6_addr *ipb)
 {
 	u32 *a = (u32 *)ipa;
@@ -154,6 +201,11 @@ static int ipv6_cmp(const struct in6_addr *ipa, const struct in6_addr *ipb)
 	return 0;
 }
 
+/**
+ * @brief 检查IPv6地址是否为零
+ * @param ip IPv6地址指针
+ * @return true表示为零地址，false表示非零地址
+ */
 static bool ipv6_zero(const struct in6_addr *ip)
 {
 	u32 *a = (u32 *)ip;
@@ -170,6 +222,11 @@ static bool ipv6_zero(const struct in6_addr *ip)
 }
 
 #if !defined(__sw_64__)
+/**
+ * @brief 从socket缓冲区解析IPv4头部
+ * @param skb socket缓冲区指针
+ * @return IPv4头部指针，失败返回NULL
+ */
 static struct iphdr *ip_hdr(struct sk_buff *skb)
 {
 	struct bpf_dynptr ptr;
@@ -189,6 +246,11 @@ static struct iphdr *ip_hdr(struct sk_buff *skb)
 	return p;
 }
 
+/**
+ * @brief 从socket缓冲区解析IPv6头部
+ * @param skb socket缓冲区指针
+ * @return IPv6头部指针，失败返回NULL
+ */
 static struct ipv6hdr *ipv6_hdr(struct sk_buff *skb)
 {
 	struct bpf_dynptr ptr;
@@ -208,6 +270,12 @@ static struct ipv6hdr *ipv6_hdr(struct sk_buff *skb)
 	return p;
 }
 
+/**
+ * @brief 从socket缓冲区解析TCP头部
+ * @param skb socket缓冲区指针
+ * @param offset 偏移量
+ * @return TCP头部指针，失败返回NULL
+ */
 static struct tcphdr *tcp_hdr(struct sk_buff *skb, u32 offset)
 {
 	struct bpf_dynptr ptr;
@@ -227,6 +295,12 @@ static struct tcphdr *tcp_hdr(struct sk_buff *skb, u32 offset)
 	return p;
 }
 
+/**
+ * @brief 从socket缓冲区解析UDP头部
+ * @param skb socket缓冲区指针
+ * @param offset 偏移量
+ * @return UDP头部指针，失败返回NULL
+ */
 static struct udphdr *udp_hdr(struct sk_buff *skb, u32 offset)
 {
 	struct bpf_dynptr ptr;
@@ -246,6 +320,12 @@ static struct udphdr *udp_hdr(struct sk_buff *skb, u32 offset)
 	return p;
 }
 
+/**
+ * @brief 从socket缓冲区解析ICMP头部
+ * @param skb socket缓冲区指针
+ * @param offset 偏移量
+ * @return ICMP头部指针，失败返回NULL
+ */
 static struct icmphdr *icmp_hdr(struct sk_buff *skb, u32 offset)
 {
 	struct bpf_dynptr ptr;
@@ -265,6 +345,12 @@ static struct icmphdr *icmp_hdr(struct sk_buff *skb, u32 offset)
 	return p;
 }
 
+/**
+ * @brief 从socket缓冲区解析ICMPv6头部
+ * @param skb socket缓冲区指针
+ * @param offset 偏移量
+ * @return ICMPv6头部指针，失败返回NULL
+ */
 static struct icmp6hdr *icmp6_hdr(struct sk_buff *skb, u32 offset)
 {
 	struct bpf_dynptr ptr;
@@ -284,6 +370,13 @@ static struct icmp6hdr *icmp6_hdr(struct sk_buff *skb, u32 offset)
 	return p;
 }
 
+/**
+ * @brief 解析socket缓冲区数据包
+ * 从数据包中提取网络层和传输层信息，填充到BpfData结构体中
+ * @param skb socket缓冲区指针
+ * @param log 输出的BPF数据结构指针
+ * @return true表示解析成功，false表示解析失败
+ */
 static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 {
 	struct iphdr *iph;
@@ -401,12 +494,23 @@ static bool parse_sk_buff(struct sk_buff *skb, struct BpfData *log)
 }
 #endif
 
+/**
+ * @brief 回调上下文结构体
+ * 用于在BPF映射回调中传递数据
+ */
 struct CbCtx
 {
-	const struct ip_tuple *tuple;
-	int action;
+	const struct ip_tuple *tuple; ///< IP元组指针
+	int action;                   ///< 动作类型
 };
 
+/**
+ * @brief 字符串比较函数
+ * @param s1 第一个字符串
+ * @param s2 第二个字符串
+ * @param n 比较的字符数
+ * @return 0表示相等，非0表示不等
+ */
 static int strncmp(const char *s1, const char *s2, int n)
 {
 	for (int i = 0; i < n; i++)
@@ -423,6 +527,12 @@ static int strncmp(const char *s1, const char *s2, int n)
 	return 0;
 }
 
+/**
+ * @brief 检查IP元组是否匹配规则
+ * @param t1 待检查的IP元组
+ * @param rule 过滤规则
+ * @return true表示匹配，false表示不匹配
+ */
 static bool rule_match(const struct ip_tuple *t1, const struct Rule *rule)
 {
 	bool ret = false;
@@ -444,7 +554,7 @@ static bool rule_match(const struct ip_tuple *t1, const struct Rule *rule)
 		return false;
 	}
 
-	// if process comm exists, it means pkg comes from process layer
+	/// 如果进程信息存在，说明数据包来自进程层
 	if (t1->comm[0])
 	{
 		if (!rule->comm[0])
@@ -538,6 +648,15 @@ debug_tuple(const struct ip_tuple *tuple, const char *title, int type)
 	}
 }
 
+/**
+ * @brief 规则匹配回调函数
+ * 在遍历规则映射时被调用，检查每个规则是否匹配
+ * @param map BPF映射指针
+ * @param key 映射键指针
+ * @param value 映射值指针（规则）
+ * @param ctx 回调上下文指针
+ * @return 0继续遍历，1停止遍历
+ */
 static long
 match_callback(struct bpf_map *map, const void *key, void *value, void *ctx)
 {
@@ -559,6 +678,11 @@ match_callback(struct bpf_map *map, const void *key, void *value, void *ctx)
 	return 1;
 }
 
+/**
+ * @brief 检查IP元组是否匹配任何规则
+ * @param tuple 待检查的IP元组
+ * @return 匹配规则的动作类型
+ */
 static int rules_match(const struct ip_tuple *tuple)
 {
 	struct CbCtx ctx = {.tuple = tuple, .action = NM_ACCEPT};
@@ -572,6 +696,12 @@ static bool parse_sock(struct socket *sock, struct BpfData *log);
 #define comtainer_of(ptr, type, member)                                        \
 	(type *)((char *)ptr - offsetof(type, member))
 
+/**
+ * @brief Netfilter钩子函数
+ * 在网络数据包经过netfilter框架时被调用，用于分析和过滤数据包
+ * @param ctx Netfilter BPF上下文，包含数据包信息和钩子状态
+ * @return NF_ACCEPT允许数据包通过，NF_DROP丢弃数据包
+ */
 SEC("netfilter")
 int netfilter_hook(struct bpf_nf_ctx *ctx)
 {
@@ -634,7 +764,7 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 	u16 pf;
 
 #if defined(__loongarch__) || defined(__sw_64__)
-	// kprobe can't access kernel memory directly
+	/// kprobe无法直接访问内核内存
 	bpf_read_mem_ret(&sk, &sock->sk, false);
 	if (!sk)
 	{
@@ -748,6 +878,15 @@ static bool parse_sock(struct socket *sock, struct BpfData *log)
 }
 
 #if !defined(__loongarch__) && !defined(__sw_64__)
+/**
+ * @brief LSM socket发送消息钩子
+ * 在socket发送消息时被调用，用于监控出站网络流量
+ * @param sock socket结构体指针
+ * @param msg 消息头结构体指针
+ * @param size 消息大小
+ * @param ret 返回值
+ * @return LSM钩子返回值
+ */
 SEC("lsm/socket_sendmsg")
 int BPF_PROG(
 	lsm_socket_sendmsg,
@@ -862,7 +1001,7 @@ int BPF_KPROBE(
 		return 0;
 	}
 
-	// for receiving, addrs are reversed in sock
+	/// 对于接收，socket中的地址是反向的
 	swap(log.tuple.sport, log.tuple.dport);
 	if (log.tuple.ip_proto == 4)
 	{
@@ -896,6 +1035,11 @@ int BPF_KPROBE(
 	return 0;
 }
 
+/**
+ * @brief 统计数据包大小并输出日志
+ * @param sz 数据包大小
+ * @return 0表示成功，非0表示失败
+ */
 static int stat_pkg_sz(int sz)
 {
 	if (!conf()->enable)

@@ -1,3 +1,11 @@
+/**
+ * @file tc-ip.bpf.c
+ * @brief IP级别的流量控制 eBPF 程序
+ * 
+ * 该文件实现了基于IP地址和端口的网络流量控制功能，
+ * 支持细粒度的流量限制和监控。
+ */
+
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>

@@ -16,41 +16,51 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include "Ulog.h"
 #include "tc-process.skel.h"
-#include "../include/Ulog.h"
 
 #define EGRESS 1
 #define INGRESS 0
 #define DEFAULT_RATE_BPS 5 * 1024 * 1024 // Default 5MB/s
 
+/**
+ * @brief 进程信息结构体
+ * 存储进程的基本标识信息
+ */
 struct ProcInfo
 {
-	__u32 pid;
-	char comm[16];
+	__u32 pid;     ///< 进程ID
+	char comm[16]; ///< 进程名称
 };
 
-// Event structure (must match BPF side layout expectations when used)
+/**
+ * @brief 事件结构体（必须与BPF端布局期望匹配）
+ * 用于在内核和用户空间之间传递进程级别的网络事件信息
+ */
 struct event_t
 {
-	struct ProcInfo proc; // Process info (PID, comm)
-	__u32 bytes_sent;
-	__u32 bytes_dropped;
-	__u32 packets_sent;
-	__u32 packets_dropped;
-	__u64 timestamp;
-	__u8 flag; // Event type
-	__u32 ip;
-	__u16 port;	   // Port
-	__u8 protocol; // Protocol (IPPROTO_*)
+	struct ProcInfo proc; ///< 进程信息（PID，进程名）
+	__u32 bytes_sent;     ///< 发送的字节数
+	__u32 bytes_dropped;  ///< 丢弃的字节数
+	__u32 packets_sent;   ///< 发送的数据包数
+	__u32 packets_dropped;///< 丢弃的数据包数
+	__u64 timestamp;      ///< 时间戳
+	__u8 flag;            ///< 事件类型
+	__u32 ip;             ///< IP地址
+	__u16 port;           ///< 端口号
+	__u8 protocol;        ///< 协议（IPPROTO_*）
 };
 
-// progress rules structure
+/**
+ * @brief 进程规则结构体
+ * 定义针对特定进程的流量控制规则
+ */
 struct ProcessRule
 {
-	uint32_t target_pid;
-	uint64_t rate_bps;
-	uint8_t gress;
-	uint32_t time_scale;
+	uint32_t target_pid;  ///< 目标进程ID
+	uint64_t rate_bps;    ///< 速率限制（字节/秒）
+	uint8_t gress;        ///< 方向（EGRESS=1，INGRESS=0）
+	uint32_t time_scale;  ///< 时间刻度（秒）
 };
 
 // Global state
@@ -78,7 +88,11 @@ static struct option lopts[] = {
 	{0,		   0,				 0, 0  }
 };
 
-// Parse bandwidth string (supports K/M/G suffix)
+/**
+ * @brief 解析带宽字符串（支持K/M/G后缀）
+ * @param str 带宽字符串
+ * @return 解析后的带宽值（字节/秒）
+ */
 static uint64_t parse_bandwidth(const char *str)
 {
 	if (!str)
@@ -202,7 +216,13 @@ void handle_network_tuple_event(const struct event_t *e)
 	);
 }
 
-// Ring buffer event handler - dispatch by event type
+/**
+ * @brief 环形缓冲区事件处理器 - 按事件类型分发
+ * @param ctx 上下文指针（未使用）
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 处理结果，0表示成功
+ */
 static int handle_traffic_event(void *ctx, void *data, size_t data_sz)
 {
 	if (data_sz != sizeof(event_t))
@@ -568,7 +588,12 @@ static bool setup_local_ip_map()
 	return true;
 }
 
-// Entry point
+/**
+ * @brief 主函数 - 进程级别的流量控制程序入口点
+ * @param argc 命令行参数个数
+ * @param argv 命令行参数数组
+ * @return 程序退出状态，负值表示失败
+ */
 int main(int argc, char **argv)
 {
 

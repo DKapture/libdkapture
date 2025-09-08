@@ -27,6 +27,11 @@
 #include "Ucom.h"
 #include "Ulog.h"
 
+/**
+ * @brief 读取内核调试跟踪管道
+ * 该函数读取 /sys/kernel/debug/tracing/trace_pipe 的内容并输出到指定文件
+ * @param fp 输出文件指针，为nullptr时输出到标准输出
+ */
 void NetFilter::read_trace_pipe(FILE *fp)
 {
 	trace_fd = open("/sys/kernel/debug/tracing/trace_pipe", O_RDONLY, 0);
@@ -65,6 +70,14 @@ void NetFilter::read_trace_pipe(FILE *fp)
 	close(trace_fd);
 }
 
+/**
+ * @brief 处理来自BPF的事件数据
+ * 该函数处理从BPF程序接收到的网络事件数据，并调用注册的回调函数
+ * @param ctx 上下文指针，指向NetFilter实例
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 总是返回0
+ */
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	if (data_sz < sizeof(struct BpfData))
@@ -84,6 +97,11 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
+/**
+ * @brief 检查BPF运行环境
+ * 检查系统是否支持BPF LSM功能
+ * @return 支持返回true，不支持返回false
+ */
 static bool check_bpf_env(void)
 {
 	char *buf = (char *)calloc(4096, 1);
@@ -142,6 +160,12 @@ static bool check_bpf_env(void)
 	return result;
 }
 
+/**
+ * @brief 初始化网络过滤器
+ * 初始化BPF程序，设置网络过滤和监控功能
+ * @param cb 日志回调函数，用于接收BPF程序产生的日志信息
+ * @return 成功返回0，失败返回-1
+ */
 int NetFilter::init(LogCallback cb)
 {
 	union bpf_attr attr = {};
@@ -250,6 +274,10 @@ err_out:
 	return -1;
 }
 
+/**
+ * @brief 反初始化网络过滤器
+ * 清理所有资源，包括BPF链接、文件描述符和对象
+ */
 void NetFilter::deinit(void)
 {
 	for (auto fd : link_fds)
@@ -274,6 +302,12 @@ void NetFilter::deinit(void)
 	conf.enable = false;
 }
 
+/**
+ * @brief 添加网络过滤规则
+ * 向BPF映射中添加新的过滤规则
+ * @param rule 要添加的规则
+ * @return 成功返回规则的唯一ID，失败返回-1
+ */
 int NetFilter::add_rule(const Rule &rule)
 {
 	int err = bpf_map_update_elem(rules_map_fd, &key_cnt, &rule, BPF_NOEXIST);
@@ -286,6 +320,12 @@ int NetFilter::add_rule(const Rule &rule)
 	return -1;
 }
 
+/**
+ * @brief 从文件加载过滤规则
+ * 从指定的配置文件中读取并解析过滤规则
+ * @param rule_file 规则文件路径
+ * @return 成功返回true，失败返回false
+ */
 bool NetFilter::load_rules(const char *rule_file)
 {
 	FILE *fp = fopen(rule_file, "r");
@@ -386,6 +426,10 @@ void NetFilter::enable(bool state)
 	}
 }
 
+/**
+ * @brief 开始网络监控主循环
+ * 持续轮询环形缓冲区，处理来自BPF程序的事件
+ */
 void NetFilter::loop(void)
 {
 	loop_flag = true;
@@ -403,6 +447,10 @@ void NetFilter::loop(void)
 	}
 }
 
+/**
+ * @brief 退出网络监控循环
+ * 设置退出标志并关闭跟踪文件描述符
+ */
 void NetFilter::exit(void)
 {
 	loop_flag = false;
@@ -413,6 +461,14 @@ void NetFilter::exit(void)
 	}
 }
 
+/**
+ * @brief 解析地址范围字符串
+ * 将形如"start--end"的字符串分割为起始和结束地址
+ * @param str 输入字符串
+ * @param out1 输出起始地址
+ * @param out2 输出结束地址
+ * @param sz 输出缓冲区大小
+ */
 static void parse_area(char *str, char *out1, char *out2, size_t sz)
 {
 	char *token;
@@ -424,6 +480,15 @@ static void parse_area(char *str, char *out1, char *out2, size_t sz)
 	out2[sz - 1] = 0;
 }
 
+/**
+ * @brief 解析IP地址字符串
+ * 支持单个IP地址或IP地址范围的解析，支持IPv4和IPv6
+ * @param ip_str IP地址字符串
+ * @param ips 输出起始IP地址
+ * @param ipe 输出结束IP地址
+ * @param is_ipv6 是否为IPv6地址
+ * @return 成功返回0，失败返回-1
+ */
 static int parse_ip(char *ip_str, void *ips, void *ipe, bool is_ipv6)
 {
 	char begin[40] = {0}, end[40] = {0};
@@ -636,6 +701,13 @@ static int parse_pkg_dir(const char *dir_str)
 	return PKG_DIR_ANY;
 }
 
+/**
+ * @brief 解析规则字符串
+ * 将规则字符串解析为Rule结构体
+ * @param line 规则字符串
+ * @param rule 输出的规则结构体
+ * @return 成功返回true，失败返回false
+ */
 bool NetFilter::parse_rule(const char *line, Rule &rule)
 {
 	while (*line == ' ') // skip prefix spaces
@@ -1008,6 +1080,12 @@ void log_printer(const struct BpfData &log)
 	}
 }
 
+/**
+ * @brief 主函数 - 网络监控程序入口点
+ * @param argc 命令行参数个数
+ * @param argv 命令行参数数组
+ * @return 程序退出状态，0表示成功，-1表示失败
+ */
 int main(int argc, char **argv)
 {
 	parse_args(argc, argv);
