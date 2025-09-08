@@ -1,3 +1,11 @@
+/**
+ * @file rm-forbid.bpf.c
+ * @brief 文件删除保护 eBPF 程序
+ * 
+ * 该文件实现了基于 eBPF 的文件删除保护功能，通过监控
+ * 文件系统操作来防止指定文件被删除。
+ */
+
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -11,7 +19,7 @@
 
 char _license[] SEC("license") = "GPL";
 
-// 添加设备号转换宏定义，参考frtp
+/// 添加设备号转换宏定义，参考frtp
 #define MAJOR(dev) (u32)((dev & 0xfff00000) >> 20)
 #define MINOR(dev) (u32)(dev & 0xfffff)
 
@@ -55,7 +63,7 @@ static int unlink_check(struct path *dir, struct dentry *dentry)
 		return -EBUSY;
 	}
 
-	// 获取文件系统的设备号
+	/// 获取文件系统的设备号
 	dev_t fs_dev = dir->mnt->mnt_sb->s_dev;
 
 	if (0) // switch to 1 to enable debug
@@ -63,7 +71,7 @@ static int unlink_check(struct path *dir, struct dentry *dentry)
 		bpf_info("FS dev: major=%u, minor=%u", MAJOR(fs_dev), MINOR(fs_dev));
 	}
 
-	// 检查设备号是否匹配
+	/// 检查设备号是否匹配
 	if (rule->dev && rule->dev != fs_dev)
 	{
 		return 0;
@@ -77,6 +85,14 @@ static int unlink_check(struct path *dir, struct dentry *dentry)
 	return -EBUSY;
 }
 
+/**
+ * @brief LSM路径删除钩子函数
+ * 在文件删除时被调用，检查是否允许删除操作
+ * @param dir 目录路径
+ * @param dentry 目录项
+ * @param ret 前一个钩子的返回值
+ * @return 0允许删除，非0拒绝删除
+ */
 SEC("lsm/path_unlink")
 int BPF_PROG(path_unlink, struct path *dir, struct dentry *dentry, int ret)
 {
@@ -93,6 +109,14 @@ int BPF_PROG(path_unlink, struct path *dir, struct dentry *dentry, int ret)
 	return unlink_check(dir, dentry);
 }
 
+/**
+ * @brief LSM路径删除目录钩子函数
+ * 在目录删除时被调用，检查是否允许删除操作
+ * @param dir 目录路径
+ * @param dentry 目录项
+ * @param ret 前一个钩子的返回值
+ * @return 0允许删除，非0拒绝删除
+ */
 SEC("lsm/path_rmdir")
 int BPF_PROG(path_rmdir, struct path *dir, struct dentry *dentry, int ret)
 {

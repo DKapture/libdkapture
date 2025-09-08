@@ -15,23 +15,29 @@
 #define INGRESS 0
 #define DEFAULT_RATE_BPS 5 * 1024 * 1024 // Default 5MB/s
 
-// Event structure, matching BPF program
+/**
+ * @brief 事件结构体，与BPF程序匹配
+ * 用于传递网络流量控制的统计信息
+ */
 struct event_t
 {
-	__u32 pid;
-	__u32 bytes_sent;
-	__u32 bytes_dropped;
-	__u32 packets_sent;
-	__u32 packets_dropped;
-	__u64 timestamp;
+	__u32 pid;             ///< 进程ID
+	__u32 bytes_sent;      ///< 发送的字节数
+	__u32 bytes_dropped;   ///< 丢弃的字节数
+	__u32 packets_sent;    ///< 发送的数据包数
+	__u32 packets_dropped; ///< 丢弃的数据包数
+	__u64 timestamp;       ///< 时间戳
 };
 
-// Rate limiting rule structure
+/**
+ * @brief 速率限制规则结构体
+ * 定义cgroup级别的网络流量控制规则
+ */
 struct CgroupRule
 {
-	uint64_t rate_bps;	 // Rate limit (bytes/second)
-	uint8_t gress;		 // Direction: EGRESS=1, INGRESS=0
-	uint32_t time_scale; // Time scale (seconds)
+	uint64_t rate_bps;   ///< 速率限制（字节/秒）
+	uint8_t gress;       ///< 方向：EGRESS=1（出口），INGRESS=0（入口）
+	uint32_t time_scale; ///< 时间刻度（秒）
 };
 
 // Global state variables
@@ -51,7 +57,11 @@ static struct option lopts[] = {
 	{0,		   0,				 0, 0  }
 };
 
-// Parse bandwidth string (supports K/M/G suffixes)
+/**
+ * @brief 解析带宽字符串（支持K/M/G后缀）
+ * @param str 带宽字符串
+ * @return 解析后的带宽值（字节/秒）
+ */
 static uint64_t parse_bandwidth(const char *str)
 {
 	if (!str)
@@ -89,7 +99,13 @@ static uint64_t parse_bandwidth(const char *str)
 	return DEFAULT_RATE_BPS;
 }
 
-// Ring buffer event handling callback
+/**
+ * @brief 环形缓冲区事件处理回调函数
+ * @param ctx 上下文指针（未使用）
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 处理结果，0表示成功
+ */
 static int handle_traffic_event(void *ctx, void *data, size_t data_sz)
 {
 	if (data_sz != sizeof(event_t))
@@ -131,7 +147,10 @@ libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 	return vfprintf(stderr, format, args);
 }
 
-// Print usage information
+/**
+ * @brief 打印程序使用说明
+ * @param arg0 程序名称
+ */
 void Usage(const char *arg0)
 {
 	std::cout << "Usage: " << arg0 << " [options]" << std::endl;
@@ -205,7 +224,11 @@ static bool safe_str_to_int(const char *str, T *result, T min_val, T max_val)
 	return true;
 }
 
-// Parse command line arguments
+/**
+ * @brief 解析命令行参数
+ * @param argc 参数个数
+ * @param argv 参数数组
+ */
 void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
@@ -311,7 +334,10 @@ void parse_args(int argc, char **argv)
 			  << std::endl;
 }
 
-// Configure rate limiting rules to BPF map
+/**
+ * @brief 配置速率限制规则到BPF映射
+ * @return 成功返回true，失败返回false
+ */
 static bool setup_cgroup_rules()
 {
 	struct bpf_map *map =
@@ -352,7 +378,12 @@ static bool setup_cgroup_rules()
 	return true;
 }
 
-// Main function
+/**
+ * @brief 主函数 - Cgroup级别的流量控制程序入口点
+ * @param argc 命令行参数个数
+ * @param argv 命令行参数数组
+ * @return 程序退出状态，0表示成功，其他值表示失败
+ */
 int main(int argc, char **argv)
 {
 	int cgroup_fd = -1;

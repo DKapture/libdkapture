@@ -26,21 +26,25 @@
 #define DEFAULT_RATE_BPS 1000000
 #define MAX_STRING_LENGTH 256
 
+/**
+ * @brief 网络接口流量事件结构体
+ * 用于传递网络接口级别的流量统计和控制信息
+ */
 struct event_t
 {
-	uint32_t action;
-	uint32_t bytes_sent;
-	uint32_t bytes_dropped;
-	uint32_t packets_sent;
-	uint32_t packets_dropped;
-	uint64_t timestamp;
-	uint8_t eth_src[6];
-	uint8_t eth_dst[6];
-	uint16_t eth_type;
-	uint32_t packet_size;
-	uint32_t packet_type;
-	uint64_t type_rate_bps;
-	uint64_t type_smooth_rate_bps;
+	uint32_t action;                ///< 执行的动作
+	uint32_t bytes_sent;            ///< 发送的字节数
+	uint32_t bytes_dropped;         ///< 丢弃的字节数
+	uint32_t packets_sent;          ///< 发送的数据包数
+	uint32_t packets_dropped;       ///< 丢弃的数据包数
+	uint64_t timestamp;             ///< 时间戳
+	uint8_t eth_src[6];             ///< 源MAC地址
+	uint8_t eth_dst[6];             ///< 目标MAC地址
+	uint16_t eth_type;              ///< 以太网类型
+	uint32_t packet_size;           ///< 数据包大小
+	uint32_t packet_type;           ///< 数据包类型
+	uint64_t type_rate_bps;         ///< 类型流量速率（字节/秒）
+	uint64_t type_smooth_rate_bps;  ///< 平滑流量速率（字节/秒）
 };
 
 static volatile bool running = true;
@@ -48,11 +52,15 @@ static unsigned int ifindex = 0;
 static struct ring_buffer *rb = nullptr;
 static struct tc_if_bpf *skel = nullptr;
 
+/**
+ * @brief 流量控制规则结构体
+ * 定义网络接口的流量控制参数
+ */
 struct traffic_rule
 {
-	uint64_t rate_bps;
-	uint8_t gress;
-	uint32_t time_scale;
+	uint64_t rate_bps;   ///< 速率限制（字节/秒）
+	uint8_t gress;       ///< 流量方向（EGRESS=1，INGRESS=0）
+	uint32_t time_scale; ///< 时间刻度（秒）
 };
 
 static struct traffic_rule rule = {0};
@@ -620,7 +628,14 @@ static std::string format_flow_rate(uint64_t rate_bps)
 	}
 }
 
-// Handle traffic events from BPF ring buffer
+/**
+ * @brief 处理来自BPF环形缓冲区的流量事件
+ * 接收并处理网络接口的流量统计和控制事件
+ * @param ctx 上下文指针（未使用）
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 总是返回0
+ */
 static int handle_traffic_event(void *ctx, void *data, size_t data_sz)
 {
 	if (data_sz != sizeof(event_t))
@@ -694,7 +709,10 @@ libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 	return vfprintf(stderr, format, args);
 }
 
-// Display program usage information
+/**
+ * @brief 显示程序使用说明
+ * @param arg0 程序名称
+ */
 void Usage(const char *arg0)
 {
 	pr_info("Usage: %s [options]", arg0);
@@ -719,7 +737,11 @@ void Usage(const char *arg0)
 	pr_info("");
 }
 
-// Parse command line arguments and validate parameters
+/**
+ * @brief 解析命令行参数并验证参数
+ * @param argc 参数个数
+ * @param argv 参数数组
+ */
 void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
@@ -1097,7 +1119,12 @@ static void display_smooth_flow_info()
 	pr_info("=========================================");
 }
 
-// Main program entry point - TC traffic control with BPF
+/**
+ * @brief 主程序入口点 - 基于BPF的TC流量控制
+ * @param argc 命令行参数个数
+ * @param argv 命令行参数数组
+ * @return 程序退出状态，0表示成功，其他值表示失败
+ */
 int main(int argc, char **argv)
 {
 	bool hook_created_egress = false;

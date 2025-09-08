@@ -17,27 +17,32 @@
 #include "signal-filter.h"
 #include "signal-filter.skel.h"
 
-// Event structure for ring buffer communication with BPF
+/**
+ * @brief 事件结构体，用于与BPF程序进行环形缓冲区通信
+ */
 struct event_t
 {
-	uint32_t sender_pid;
-	char sender_comm[16];
-	uint32_t target_pid;
-	char target_comm[16];
-	uint32_t sig;
-	int32_t result;
-	uint64_t generate_time;
-	uint64_t deliver_time;
-	uint32_t action;
-	uint64_t timestamp;
-	char filter_flag;
+	uint32_t sender_pid;    ///< 发送者进程ID
+	char sender_comm[16];   ///< 发送者进程名称
+	uint32_t target_pid;    ///< 目标进程ID
+	char target_comm[16];   ///< 目标进程名称
+	uint32_t sig;           ///< 信号编号
+	int32_t result;         ///< 操作结果
+	uint64_t generate_time; ///< 信号生成时间
+	uint64_t deliver_time;  ///< 信号传递时间
+	uint32_t action;        ///< 执行的动作
+	uint64_t timestamp;     ///< 时间戳
+	char filter_flag;       ///< 过滤标志
 };
 
-// Unified signal mapping structure
+/**
+ * @brief 统一的信号映射结构体
+ * 将信号名称与信号编号进行映射
+ */
 struct SignalMapping
 {
-	const char *name;
-	int number;
+	const char *name; ///< 信号名称
+	int number;       ///< 信号编号
 };
 
 // Signal name to number mapping table
@@ -95,11 +100,14 @@ static struct option lopts[] = {
 	{0,			0,				 0, 0  }
 };
 
-// Help message structure
+/**
+ * @brief 帮助信息结构体
+ * 存储命令行选项的参数和说明信息
+ */
 struct HelpMsg
 {
-	const char *argparam;
-	const char *msg;
+	const char *argparam; ///< 参数描述
+	const char *msg;      ///< 帮助信息
 };
 
 // Help messages for command line options
@@ -111,7 +119,11 @@ static HelpMsg help_msg[] = {
 	{"",			 "Show this help message\n"	   },
 };
 
-// Convert signal number to signal name
+/**
+ * @brief 将信号编号转换为信号名称
+ * @param sig 信号编号
+ * @return 信号名称字符串，如果未知则返回"UNKNOWN"
+ */
 static const char *get_signal_name(int sig)
 {
 	if (sig >= 0 && sig < (int)signal_map_size && signal_map[sig].name)
@@ -121,7 +133,10 @@ static const char *get_signal_name(int sig)
 	return "UNKNOWN";
 }
 
-// Format current time as HH:MM:SS
+/**
+ * @brief 格式化当前时间为 HH:MM:SS 格式
+ * @return 格式化的时间字符串
+ */
 static std::string format_time()
 {
 	auto now = std::chrono::system_clock::now();
@@ -133,7 +148,11 @@ static std::string format_time()
 	return time_ss.str();
 }
 
-// Convert signal name to signal number
+/**
+ * @brief 将信号名称转换为信号编号
+ * @param signal_name 信号名称字符串
+ * @return 信号编号，如果未找到则返回-1
+ */
 static int signal_name_to_number(const char *signal_name)
 {
 	if (!signal_name)
@@ -151,7 +170,13 @@ static int signal_name_to_number(const char *signal_name)
 	return -1;
 }
 
-// Handle signal trace events from BPF
+/**
+ * @brief 处理来自BPF的信号跟踪事件
+ * @param ctx 上下文指针（未使用）
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 处理结果，0表示成功，-1表示失败
+ */
 static int handle_trace_event(void *ctx, void *data, size_t data_sz)
 {
 	// Validate data size
@@ -191,7 +216,13 @@ static int handle_trace_event(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
-// Handle signal interception events from BPF
+/**
+ * @brief 处理来自BPF的信号拦截事件
+ * @param ctx 上下文指针（未使用）
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 处理结果，0表示成功，-1表示失败
+ */
 static int handle_intercept_event(void *ctx, void *data, size_t data_sz)
 {
 	// Validate data size
@@ -231,7 +262,13 @@ int (*handle_array[EVENTNUMBER])(void *ctx, void *data, size_t data_sz) = {
 	handle_intercept_event
 };
 
-// Main event dispatcher - routes events to appropriate handlers
+/**
+ * @brief 主事件调度器 - 将事件路由到适当的处理器
+ * @param ctx 上下文指针
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 处理结果，0表示成功，-1表示失败
+ */
 static int handle_all_event(void *ctx, void *data, size_t data_sz)
 {
 	// Validate data size
@@ -674,7 +711,12 @@ static void run_event_loop()
 	}
 }
 
-// Main function
+/**
+ * @brief 主函数 - 信号过滤器程序入口点
+ * @param argc 命令行参数个数
+ * @param args 命令行参数数组
+ * @return 程序退出状态，0表示成功，1表示失败
+ */
 int main(int argc, char *args[])
 {
 	// Check root privileges

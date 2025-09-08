@@ -1,3 +1,11 @@
+/**
+ * @file tc-if.bpf.c
+ * @brief 网络接口级别的流量控制 eBPF 程序
+ * 
+ * 该文件实现了基于网络接口的流量控制功能，
+ * 用于监控和控制特定网络接口的数据流量。
+ */
+
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -5,7 +13,7 @@
 
 char __license[] SEC("license") = "GPL";
 
-// Add missing constant definitions
+/// 添加缺失的常量定义
 #define EGRESS 1
 #define INGRESS 0
 
@@ -121,7 +129,7 @@ struct
 
 #define NSEC_PER_SEC 1000000000ull
 
-// TC action constants
+/// TC动作常量
 #define TC_ACT_OK 0
 #define TC_ACT_SHOT 2
 
@@ -637,13 +645,22 @@ static int tc_handle(struct __sk_buff *ctx, int gress)
 }
 
 // Main TC egress program entry point
+/**
+ * @brief TC出站流量处理程序
+ * @param ctx socket缓冲区上下文
+ * @return TC返回值
+ */
 SEC("tc")
 int tc_egress(struct __sk_buff *ctx)
 {
 	return tc_handle(ctx, EGRESS);
 }
 
-// Main TC ingress program entry point
+/**
+ * @brief TC入站流量处理程序
+ * @param ctx socket缓冲区上下文
+ * @return TC返回值
+ */
 SEC("tc")
 int tc_ingress(struct __sk_buff *ctx)
 {
