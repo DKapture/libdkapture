@@ -1,3 +1,20 @@
+/**
+ * @file frtp.cpp
+ * @brief 文件系统实时保护(File Real-Time Protection)用户空间程序
+ *
+ * 该程序实现了基于eBPF的文件系统访问控制系统的用户空间部分。
+ * 它通过加载和配置eBPF程序来监控和控制进程对特定文件的访问权限，
+ * 支持基于进程路径或PID的细粒度访问控制策略。
+ *
+ * 主要功能:
+ * - 解析策略配置文件
+ * - 加载eBPF程序到内核
+ * - 配置访问控制规则
+ * - 实时监控和日志记录违规访问
+ *
+ * @version 1.0
+ */
+
 #include "Ulog.h"
 #include <cstdint>
 #include <stdio.h>
@@ -20,14 +37,28 @@
 
 #include "frtp.skel.h"
 
+/** @brief BPF程序对象指针 */
 static frtp_bpf *obj;
 
+/** @brief 操作类型定义，用于表示文件访问模式 */
 typedef uint32_t Action;
 
+/** @brief 文件读取模式标志 */
 #define FMODE_READ (0x1)
+/** @brief 文件写入模式标志 */
 #define FMODE_WRITE (0x2)
+/** @brief 文件执行模式标志 */
 #define FMODE_EXEC (0x20)
 
+/**
+ * @brief 将旧格式设备号转换为新格式
+ *
+ * 将传统的dev_t设备号转换为eBPF程序中使用的32位格式。
+ * 新格式将主设备号放在高12位，次设备号放在低20位。
+ *
+ * @param old 旧格式的设备号
+ * @return 新格式的32位设备号
+ */
 static inline uint32_t dev_old2new(dev_t old)
 {
 	uint32_t major = gnu_dev_major(old);
@@ -35,32 +66,48 @@ static inline uint32_t dev_old2new(dev_t old)
 	return ((major & 0xfff) << 20) | (minor & 0xfffff);
 }
 
+/**
+ * @brief 目标文件标识结构
+ *
+ * 用于唯一标识一个文件系统中的文件，通过设备号和inode号组合。
+ */
 struct Target
 {
-	uint32_t dev;
-	ino_t ino;
+	uint32_t dev; /**< 设备号 */
+	ino_t ino;	  /**< inode号 */
 };
 
+/**
+ * @brief 访问控制规则结构
+ *
+ * 定义了一条访问控制规则，包含进程标识、操作类型和目标文件。
+ * 支持两种进程标识方式：进程路径匹配或具体PID。
+ */
 struct Rule
 {
 	union
 	{
 		struct
 		{
-			uint32_t not_pid;
-			pid_t pid;
+			uint32_t not_pid; /**< 标志位，0表示使用PID，1表示使用进程路径 */
+			pid_t pid; /**< 进程ID */
 		};
-		char process[4096];
+		char process[4096]; /**< 进程路径字符串 */
 	};
-	Action act;
-	struct Target target;
+	Action act;			  /**< 禁止的操作类型 */
+	struct Target target; /**< 目标文件标识 */
 };
 
+/**
+ * @brief BPF程序日志数据结构
+ *
+ * 用于从eBPF程序向用户空间传递违规访问的日志信息。
+ */
 struct BpfData
 {
-	Action act;
-	pid_t pid;
-	char process[];
+	Action act;		/**< 违规的操作类型 */
+	pid_t pid;		/**< 违规进程的PID */
+	char process[]; /**< 变长字段，包含进程路径和目标文件信息 */
 };
 
 char line[8192];
@@ -76,11 +123,15 @@ static struct option lopts[] = {
 	{0,			 0,				 0, 0  }
 };
 
-// Structure for help messages
+/**
+ * @brief 帮助信息结构
+ *
+ * 用于存储命令行选项的帮助信息。
+ */
 struct HelpMsg
 {
-	const char *argparam; // Argument parameter
-	const char *msg;	  // Help message
+	const char *argparam; /**< 参数说明 */
+	const char *msg;	  /**< 帮助信息 */
 };
 
 // Help messages
@@ -89,7 +140,13 @@ static HelpMsg help_msg[] = {
 	{"",			  "print this help message\n"				},
 };
 
-// Function to print usage information
+/**
+ * @brief 打印程序使用帮助信息
+ *
+ * 显示程序的用法、选项和参数说明。
+ *
+ * @param arg0 程序名称(argv[0])
+ */
 static void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
@@ -108,7 +165,14 @@ static void Usage(const char *arg0)
 	}
 }
 
-// Convert long options to short options string
+/**
+ * @brief 将长选项数组转换为短选项字符串
+ *
+ * 根据getopt_long使用的选项结构数组，生成getopt使用的短选项字符串格式。
+ *
+ * @param lopts 长选项数组
+ * @return 短选项字符串，格式如"p:h"
+ */
 static std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
@@ -133,7 +197,15 @@ static std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 
-// Parse command line arguments
+/**
+ * @brief 解析命令行参数
+ *
+ * 处理程序的命令行选项，包括策略文件路径和帮助信息。
+ *
+ * @param argc 参数个数
+ * @param argv 参数数组
+ * @return 0表示成功，1表示显示帮助后退出，-1表示参数错误
+ */
 static int parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
@@ -171,6 +243,14 @@ static int parse_args(int argc, char **argv)
 	return 0;
 }
 
+/**
+ * @brief 将操作标志转换为可读字符串
+ *
+ * 将Action类型的位标志转换为便于显示的字符串格式。
+ *
+ * @param act 操作标志，可以是FMODE_READ、FMODE_WRITE、FMODE_EXEC的组合
+ * @return 操作描述字符串，如"read/write"或"exec"
+ */
 static std::string act2str(Action act)
 {
 	std::string str;
@@ -194,6 +274,15 @@ static std::string act2str(Action act)
 	return str;
 }
 
+/**
+ * @brief 将文件路径转换为Target结构
+ *
+ * 获取指定路径文件的设备号和inode号，填充到Target结构中。
+ *
+ * @param path 文件路径
+ * @param target 输出的Target结构指针
+ * @return 0表示成功，-1表示失败
+ */
 static int path2target(const char *path, struct Target *target)
 {
 	if (access(path, F_OK) == -1)
@@ -214,6 +303,16 @@ static int path2target(const char *path, struct Target *target)
 	return 0;
 }
 
+/**
+ * @brief 递归添加目录及其子目录的保护规则
+ *
+ * 遍历指定目录下的所有子目录，为每个目录创建对应的保护规则。
+ * 这用于实现目录级别的访问控制。
+ *
+ * @param dir_path 目录路径
+ * @param base_rule 基础规则模板
+ * @param rules 规则列表，新规则将添加到此列表中
+ */
 static void add_directories_recursively(
 	const char *dir_path,
 	const struct Rule *base_rule,
@@ -264,6 +363,16 @@ static void add_directories_recursively(
 	closedir(dir);
 }
 
+/**
+ * @brief 解析策略配置文件
+ *
+ * 读取并解析策略文件，将其中的规则转换为Rule结构并添加到规则列表中。
+ * 策略文件格式: forbid type=identifier action target_path
+ *
+ * @param filename 策略文件路径
+ * @param rules 规则列表，解析的规则将添加到此列表中
+ * @return 0表示成功，-1表示失败
+ */
 static int
 parse_policy_file(const char *filename, std::vector<struct Rule> &rules)
 {
@@ -422,6 +531,14 @@ parse_policy_file(const char *filename, std::vector<struct Rule> &rules)
 	return 0;
 }
 
+/**
+ * @brief 将规则加载到BPF映射中
+ *
+ * 将解析好的规则列表写入到eBPF程序的filter映射中，供内核态程序使用。
+ *
+ * @param rules 要加载的规则列表
+ * @return 0表示成功，-1表示失败
+ */
 static int load_rules(const std::vector<struct Rule> &rules)
 {
 	uint32_t key = 0;
@@ -437,6 +554,17 @@ static int load_rules(const std::vector<struct Rule> &rules)
 	return 0;
 }
 
+/**
+ * @brief 处理来自eBPF程序的事件
+ *
+ * 处理通过ring buffer从eBPF程序传递上来的违规访问事件，
+ * 解析事件数据并记录日志。
+ *
+ * @param ctx 上下文指针(未使用)
+ * @param data 事件数据指针
+ * @param data_sz 数据大小
+ * @return 0表示成功处理
+ */
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
@@ -455,6 +583,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
+/**
+ * @brief Ring buffer工作线程函数
+ *
+ * 持续轮询ring buffer，处理来自eBPF程序的事件。
+ * 该函数在独立线程中运行，直到接收到退出信号。
+ */
 void ringbuf_worker(void)
 {
 	while (!exit_flag)
@@ -469,6 +603,14 @@ void ringbuf_worker(void)
 	}
 }
 
+/**
+ * @brief 注册信号处理函数
+ *
+ * 注册SIGINT信号处理函数，用于优雅地退出程序。
+ * 当接收到Ctrl+C信号时，设置退出标志。
+ *
+ * @return 0表示成功，-1表示失败
+ */
 static int register_signal()
 {
 	struct sigaction sa;
@@ -484,6 +626,22 @@ static int register_signal()
 	return 0;
 }
 
+/**
+ * @brief 主函数 - 程序入口点
+ *
+ * 初始化并运行文件系统实时保护系统。完成以下工作：
+ * 1. 解析命令行参数
+ * 2. 注册信号处理
+ * 3. 加载并附加eBPF程序
+ * 4. 解析策略文件并加载规则
+ * 5. 启动事件监控循环
+ *
+ * @param argc 命令行参数个数
+ * @param argv 命令行参数数组
+ * @param output 输出文件指针(仅BUILTIN模式)
+ * @param timeout 超时时间(仅BUILTIN模式)
+ * @return 0表示成功，非0表示失败
+ */
 #ifdef BUILTIN
 int frtp_init(int argc, char **argv, FILE *output, int64_t timeout)
 #else
