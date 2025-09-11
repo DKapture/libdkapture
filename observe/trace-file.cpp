@@ -1131,6 +1131,7 @@ static void ringbuf_worker(void)
 	}
 }
 
+#ifndef BUILTIN
 static void register_signal()
 {
 	struct sigaction sa;
@@ -1148,6 +1149,7 @@ static void register_signal()
 		exit(EXIT_FAILURE);
 	}
 }
+#endif
 
 static int update_filter(int filter_fd)
 {
@@ -1259,8 +1261,7 @@ int main(int argc, char **argv)
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
 	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
 	{
-		pr_error("error: bpf_map_update_elem\n");
-		goto err_out; // Handle error
+		goto err_out;
 	}
 
 	if (update_filter(filter_fd) != 0)
