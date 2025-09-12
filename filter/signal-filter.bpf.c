@@ -123,6 +123,7 @@ static inline void create_trace_event(
 	bpf_ringbuf_submit(evt, 0);
 }
 
+#ifndef __loongarch__
 /**
  * @brief 创建信号拦截事件
  * 创建拦截事件并发送到环形缓冲区
@@ -256,6 +257,7 @@ static inline bool should_intercept_signal_by_rule(
 	}
 	return false;
 }
+#endif
 
 // BPF programs
 SEC("tracepoint/signal/signal_generate")
@@ -297,6 +299,7 @@ int on_signal_deliver(struct trace_event_raw_signal_deliver *ctx)
 	return 0;
 }
 
+#ifndef __loongarch__
 SEC("lsm/task_kill")
 int BPF_PROG(
 	task_kill,
@@ -332,3 +335,4 @@ int BPF_PROG(
 	create_intercept_event(target_pid, sig, 0);
 	return 0;
 }
+#endif
