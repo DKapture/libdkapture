@@ -7,6 +7,9 @@ BPF_TARGET_ARCH := $(shell uname -m)
 ifeq ($(BPF_TARGET_ARCH), loongarch64)
 	BPF_TARGET_ARCH := loongarch
 endif
+ifeq ($(BPF_TARGET_ARCH), loongarch)
+	TARGETs :=
+endif
 
 LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
 CLANG_FLAGS = -g -MMD -Wall -O2 -I$(PROJ_ROOT)/include \
