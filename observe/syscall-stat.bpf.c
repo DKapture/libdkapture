@@ -179,6 +179,7 @@ int BPF_PROG(exit_sys_call, const struct pt_regs *regs, long ret)
 	return 0;
 }
 
+#ifndef __loongarch__
 SEC("fexit/bprm_execve")
 int BPF_PROG(
 	bprm_execve,
@@ -187,6 +188,16 @@ int BPF_PROG(
 	struct filename *filename,
 	int flags
 )
+#else
+SEC("kprobe/bprm_execve")
+int BPF_KPROBE(
+	bprm_execve,
+	struct linux_binprm *bprm,
+	int fd,
+	struct filename *filename,
+	int flags
+)
+#endif
 { // used for creating map from pid to pathhash
 	long ret = 0;
 	pid_t pid;
@@ -266,8 +277,13 @@ exit:
 	return 0;
 }
 
+#ifndef __loongarch__
 SEC("fentry/exit_thread")
 int BPF_PROG(exit_thread, struct task_struct *tsk)
+#else
+SEC("kprobe/exit_thread")
+int BPF_KPROBE(exit_thread, struct task_struct *tsk)
+#endif
 {
 	long ret;
 	pid_t pid;
