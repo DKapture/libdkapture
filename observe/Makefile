@@ -15,7 +15,7 @@ ifeq ($(BPF_TARGET_ARCH), loongarch)
 			) \
 		) \
 	)
-	BLACKLIST := spinlock_ob
+	BLACKLIST := spinlock_ob pagefault
 	TARGETs := $(call filter-out-multi, $(TARGETs), $(BLACKLIST))
 endif
 
