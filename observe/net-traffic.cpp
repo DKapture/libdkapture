@@ -253,6 +253,9 @@ static void fix_attach_point(net_traffic_bpf *obj)
 {
 	if (!bpf_attachable("__sock_sendmsg"))
 	{
+		#ifdef __loongarch__
+		bpf_program__set_autoload(obj->progs.__sock_sendmsg_entry, false);
+		#endif
 		bpf_program__set_autoload(obj->progs.__sock_sendmsg, false);
 	}
 	else

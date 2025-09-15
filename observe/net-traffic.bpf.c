@@ -56,6 +56,51 @@ struct
 	__uint(max_entries, 1000);
 } filter SEC(".maps");
 
+struct
+{
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, pid_t);
+	__type(value, void *);
+	__uint(max_entries, 1000); // 40 MB
+} sock_cache SEC(".maps");
+
+static void save_sock(struct socket *sock)
+{
+	long ret;
+	pid_t pid;
+	pid = bpf_get_current_pid_tgid();
+	ret = bpf_map_update_elem(&sock_cache, &pid, &sock, BPF_ANY);
+	if (ret)
+	{
+		bpf_err("map update");
+	}
+}
+
+static void *get_sock(void)
+{
+	void *ret;
+	pid_t pid;
+	pid = bpf_get_current_pid_tgid();
+	ret = bpf_map_lookup_elem(&sock_cache, &pid);
+	if (!ret)
+	{
+		DEBUG(0, "map update");
+	}
+	return ret;
+}
+
+static void clean_sock(void)
+{
+	long ret;
+	pid_t pid;
+	pid = bpf_get_current_pid_tgid();
+	ret = bpf_map_delete_elem(&sock_cache, &pid);
+	if (ret)
+	{
+		bpf_err("map delete");
+	}
+}
+
 struct CbCtx
 {
 	struct BpfData *log;
@@ -231,58 +276,37 @@ exit:
 	return 0;
 }
 
+#ifndef __loongarch__
 SEC("fexit/__sock_sendmsg")
 int BPF_PROG(__sock_sendmsg, struct socket *sock, struct msghdr *msg, int ret)
 {
 	return traffic_stat(sock, ret, TRAFFIC_OUT);
 }
+#else
+SEC("kprobe/__sock_sendmsg")
+int BPF_KPROBE(__sock_sendmsg_entry, struct socket *sock, struct msghdr *msg)
+{
+	save_sock(sock);
+	return 0;
+}
+SEC("kretprobe/__sock_sendmsg")
+int BPF_KRETPROBE(__sock_sendmsg, int ret)
+{
+	struct socket *sock;
+	struct socket **psock;
+	psock = get_sock();
+	if (!psock)
+	{
+		return 0;
+	}
+	sock = *psock;
+	clean_sock();
+	return traffic_stat(sock, ret, TRAFFIC_OUT);
+	return 0;
+}
+#endif
 
 // Alternatives for __sock_sendmsg START
-struct
-{
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, pid_t);
-	__type(value, void *);
-	__uint(max_entries, 1000); // 40 MB
-} sock_cache SEC(".maps");
-
-static void save_sock(struct socket *sock)
-{
-	long ret;
-	pid_t pid;
-	pid = bpf_get_current_pid_tgid();
-	ret = bpf_map_update_elem(&sock_cache, &pid, &sock, BPF_ANY);
-	if (ret)
-	{
-		bpf_err("map update");
-	}
-}
-
-static void *get_sock(void)
-{
-	void *ret;
-	pid_t pid;
-	pid = bpf_get_current_pid_tgid();
-	ret = bpf_map_lookup_elem(&sock_cache, &pid);
-	if (!ret)
-	{
-		DEBUG(0, "map update");
-	}
-	return ret;
-}
-
-static void clean_sock(void)
-{
-	long ret;
-	pid_t pid;
-	pid = bpf_get_current_pid_tgid();
-	ret = bpf_map_delete_elem(&sock_cache, &pid);
-	if (ret)
-	{
-		bpf_err("map delete");
-	}
-}
-
 SEC("fexit/sock_sendmsg")
 int BPF_PROG(sock_sendmsg, struct socket *sock, struct msghdr *msg, int ret)
 {
@@ -314,6 +338,8 @@ int BPF_PROG(__sys_sendto_entry)
 	save_sock(NULL);
 	return 0;
 }
+
+#ifndef __loongarch__
 SEC("lsm/socket_sendmsg")
 int BPF_PROG(
 	socket_sendmsg,
@@ -332,6 +358,26 @@ int BPF_PROG(
 	*psock = sock;
 	return 0;
 }
+#else
+SEC("kprobe/security_socket_sendmsg")
+int BPF_KPROBE(
+	socket_sendmsg,
+	struct socket *sock,
+	struct msghdr *msg,
+	int size
+)
+{
+	struct socket **psock;
+	psock = get_sock();
+	if (!psock)
+	{
+		return 0;
+	}
+	*psock = sock;
+	return 0;
+}
+#endif
+
 SEC("fexit/__sys_sendto")
 int BPF_PROG(
 	__sys_sendto_exit,
@@ -370,6 +416,7 @@ int BPF_PROG(
 }
 // Alternatives for __sock_sendmsg END
 
+#ifndef __loongarch__
 SEC("fexit/sock_recvmsg")
 int BPF_PROG(
 	sock_recvmsg,
@@ -381,3 +428,30 @@ int BPF_PROG(
 {
 	return traffic_stat(sock, ret, TRAFFIC_IN);
 }
+#else
+SEC("kprobe/sock_recvmsg")
+int BPF_KPROBE(
+	sock_recvmsg_entry,
+	struct socket *sock,
+	struct msghdr *msg,
+	int flags
+)
+{
+	save_sock(sock);
+	return 0;
+}
+SEC("kretprobe/sock_recvmsg")
+int BPF_KRETPROBE(sock_recvmsg, int ret)
+{
+	struct socket *sock;
+	struct socket **psock;
+	psock = get_sock();
+	if (!psock)
+	{
+		return 0;
+	}
+	sock = *psock;
+	clean_sock();
+	return traffic_stat(sock, ret, TRAFFIC_IN);
+}
+#endif
