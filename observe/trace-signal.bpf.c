@@ -8,6 +8,8 @@
 
 char _license[] SEC("license") = "GPL";
 
+#define PATH_MAX 4096
+
 struct Rule
 {
 	pid_t sender_pid; // Process ID
@@ -169,6 +171,7 @@ exit:
 	return 0;
 }
 
+#ifndef __loongarch__
 SEC("lsm/task_kill")
 int BPF_PROG(
 	task_kill,
@@ -198,6 +201,31 @@ int BPF_PROG(
 	}
 	return 0;
 }
+#else
+SEC("kprobe/security_task_kill")
+int BPF_KPROBE(
+	task_kill,
+	struct task_struct *p,
+	struct kernel_siginfo *info,
+	int sig,
+	const struct cred *cred
+)
+{
+	struct BpfData *log = (typeof(log))lookup_page(lkey);
+	if (!log)
+	{
+		return 0;
+	}
+
+	int ret =
+		bpf_probe_read_kernel(&log->recv_comm, sizeof(log->recv_comm), p->comm);
+	if (ret)
+	{
+		bpf_err("fail to read comm: %d", ret);
+	}
+	return 0;
+}
+#endif
 
 SEC("tracepoint/syscalls/sys_exit_kill")
 int sys_exit_kill(struct TpExitKill *ctx)
@@ -232,6 +260,7 @@ exit:
 	return 0;
 }
 
+#ifndef __loongarch__
 SEC("fexit/bprm_execve")
 int BPF_PROG(
 	bprm_execve,
@@ -264,14 +293,14 @@ int BPF_PROG(
 		return 0;
 	}
 
-	ret = bpf_probe_read_kernel_str(path, 4096, &filename->iname);
+	ret = bpf_probe_read_kernel_str(path, PATH_MAX, &filename->iname);
 	if (ret <= 0)
 	{
 		bpf_err("fail to read kernel space string: %ld", ret);
 		goto exit;
 	}
 
-	u32 pathhash = jhash2((u32 *)path, 1024, 0);
+	u32 pathhash = jhash2((u32 *)path, PATH_MAX / 4, 0);
 
 	if (pathhash != rule->sender_phash && pathhash != rule->recv_phash)
 	{
@@ -294,7 +323,70 @@ exit:
 
 	return 0;
 }
+#else
+SEC("kprobe/bprm_execve")
+int BPF_KPROBE(
+	bprm_execve_entry,
+	struct linux_binprm *bprm,
+	int fd,
+	struct filename *filename,
+	int flags
+)
+{ // used for creating map from pid to pathhash
+	long ret = 0;
+	pid_t pid = bpf_get_current_pid_tgid();
+	struct Rule *rule = get_rule();
 
+	if (!rule)
+	{
+		return 0;
+	}
+
+	if (rule->sender_phash == 0 && rule->recv_phash == 0)
+	{
+		return 0;
+	}
+
+	u32 pkey = __LINE__;
+	char *path = malloc_page(pkey);
+	if (!path)
+	{
+		bpf_err("path buffer full");
+		return 0;
+	}
+
+	ret = bpf_probe_read_kernel_str(path, PATH_MAX, &filename->iname);
+	if (ret <= 0)
+	{
+		bpf_err("fail to read kernel space string: %ld", ret);
+		goto exit;
+	}
+
+	u32 pathhash = jhash2((u32 *)path, PATH_MAX / 4, 0);
+
+	if (pathhash != rule->sender_phash && pathhash != rule->recv_phash)
+	{
+		goto exit;
+	}
+
+	ret = bpf_map_update_elem(&pid2pathhash, &pid, &pathhash, BPF_ANY);
+	if (ret)
+	{
+		bpf_err("fail to update map pid2pathhash: %ld", ret);
+		goto exit;
+	}
+
+exit:
+	if (path)
+	{
+		free_page(pkey);
+	}
+
+	return 0;
+}
+#endif
+
+#ifndef __loongarch__
 SEC("fentry/exit_thread")
 int BPF_PROG(exit_thread, struct task_struct *tsk)
 {
@@ -341,6 +433,54 @@ int BPF_PROG(exit_thread, struct task_struct *tsk)
 
 	return 0;
 }
+#else
+SEC("kprobe/exit_thread")
+int BPF_KPROBE(exit_thread, struct task_struct *tsk)
+{
+	long ret;
+	pid_t pid;
+	struct Rule *rule;
+	u32 *pathhash;
+
+	rule = get_rule();
+	if (!rule)
+	{
+		return 0;
+	}
+
+	if (rule->sender_phash == 0 && rule->recv_phash == 0)
+	{
+		return 0;
+	}
+
+	pid = bpf_get_current_pid_tgid();
+	pathhash = bpf_map_lookup_elem(&pid2pathhash, &pid);
+	if (!pathhash)
+	{
+		return 0;
+	}
+
+	if (*pathhash != rule->sender_phash && *pathhash != rule->recv_phash)
+	{
+		return 0;
+	}
+
+	ret = bpf_probe_read_kernel(&pid, sizeof(pid), &tsk->pid);
+	if (ret)
+	{
+		bpf_err("fail to read pid: %d", ret);
+		return 0;
+	}
+
+	ret = bpf_map_delete_elem(&pid2pathhash, &pid);
+	if (ret)
+	{
+		bpf_err("fail to delete pid2pathhash: %d", ret);
+	}
+
+	return 0;
+}
+#endif
 
 SEC("iter/task")
 int dump_task(struct bpf_iter__task *ctx)
@@ -392,22 +532,22 @@ int dump_task(struct bpf_iter__task *ctx)
 		return 0;
 	}
 
-	ret = bpf_d_path(&file->f_path, path, PAGE_SIZE);
+	ret = bpf_d_path(&file->f_path, path, PATH_MAX);
 	if (ret < 0)
 	{
 		bpf_err("fail to read kernel space string: %ld", ret);
 		goto exit;
 	}
 
-	if (ret >= PAGE_SIZE)
+	if (ret >= PATH_MAX)
 	{
 		bpf_err("path too long: %ld", ret);
 		goto exit;
 	}
 
-	zero_str_tail(path, PAGE_SIZE);
+	zero_str_tail(path, PATH_MAX);
 
-	u32 pathhash = jhash2((u32 *)path, PAGE_SIZE / 4, 0);
+	u32 pathhash = jhash2((u32 *)path, PATH_MAX / 4, 0);
 	DEBUG(0, "path: %s PHASH: %u", path, pathhash);
 
 	if (pathhash != rule->sender_phash && pathhash != rule->recv_phash)
