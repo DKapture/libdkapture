@@ -8,6 +8,8 @@
 #define MAX_ENTRIES 1000
 #define MAX_EVENT_SIZE 10240
 #define RINGBUF_SIZE (1024 * 256)
+#define STACK_MAP_SIZE 10240
+#define PERF_MAX_STACK_DEPTH 127
 
 const volatile __u64 skip_frame = 0;
 
@@ -28,7 +30,9 @@ struct
 struct
 {
 	__uint(type, BPF_MAP_TYPE_STACK_TRACE);
-	__type(key, u32);
+	__uint(max_entries, STACK_MAP_SIZE);
+	__uint(key_size, sizeof(u32));
+	__uint(value_size, PERF_MAX_STACK_DEPTH * sizeof(u64));
 } stack_traces SEC(".maps");
 
 struct tp_page_fault_t
@@ -183,3 +187,5 @@ int page_fault_user(struct tp_page_fault_t *ctx)
 
 	return 0;
 }
+
+char _license[] SEC("license") = "GPL";
