@@ -223,7 +223,8 @@ int tp_alloc_extent_state(struct tp_alloc_extent_state_t *ctx)
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
 
-	event.state = ctx->state->state;
+	const struct extent_state *state = ctx->state;
+	event.state = BPF_CORE_READ(state, state);
 	event.mask = ctx->mask;
 	event.ip = (unsigned long)ctx->ip;
 
@@ -2820,7 +2821,7 @@ struct tp_btrfs_trigger_flush_t
 	u64 flags;
 	u64 bytes;
 	int flush;
-	char *reason;
+	char reason[];
 };
 
 SEC("tracepoint/btrfs/btrfs_trigger_flush")
@@ -3094,7 +3095,7 @@ struct tp_btrfs_workqueue_alloc_t
 	int common_pid;
 	u8 fsid[16];
 	const void *wq;
-	char *name;
+	char name[];
 };
 
 SEC("tracepoint/btrfs/btrfs_workqueue_alloc")
@@ -3317,7 +3318,8 @@ int tp_free_extent_state(struct tp_free_extent_state_t *ctx)
 	event.base.tid = (pid_t)bpf_get_current_pid_tgid();
 	bpf_get_current_comm(&event.base.comm, sizeof(event.base.comm));
 
-	event.state = ctx->state->state;
+	const struct extent_state *state = ctx->state;
+	event.state = BPF_CORE_READ(state, state);
 	event.ip = (unsigned long)ctx->ip;
 
 	bpf_ringbuf_output(&events, &event, sizeof(event), 0);
@@ -3827,3 +3829,5 @@ int tp_update_bytes_zone_unusable(struct tp_update_bytes_zone_unusable_t *ctx)
 	bpf_ringbuf_output(&events, &event, sizeof(event), 0);
 	return 0;
 }
+
+char _license[] SEC("license") = "GPL";
