@@ -3,8 +3,10 @@
 #include <stdio.h>
 #include <time.h>
 #include <errno.h>
+#include <dirent.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
+#include <bpf/btf.h>
 #include <cstring>
 #include <iomanip>
 #include <sstream>
@@ -30,7 +32,6 @@ static struct env
 };
 
 const char *argp_program_version = "btrfs-snoop 1.0";
-const char *argp_program_bug_address = "<your-email>";
 const char argp_program_doc[] = "Trace Btrfs filesystem operations.\n"
 								"\n"
 								"USAGE: btrfs-snoop [-h] [-v] [-t] [-p PID] "
@@ -606,18 +607,33 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
+bool check_btrfs_probed()
+{
+	DIR *dir = opendir("/sys/kernel/debug/tracing/events/btrfs");
+	if (dir)
+	{
+		closedir(dir);
+		return true;
+	}
+	return false;
+}
+
 int main(int argc, char **argv)
 {
 	time_t start_time;
 	struct ring_buffer *rb = nullptr;
 	struct btrfs_snoop_bpf *skel = nullptr;
 	int err;
-
 	// 解析参数
 	err = argp_parse(&argp, argc, argv, 0, nullptr, nullptr);
 	if (err)
 	{
 		return err;
+	}
+	if (!check_btrfs_probed())
+	{
+		printf("btrfs not probed, trying execute \"sudo modprobe btrfs\".\n");
+		return 0;
 	}
 
 	// 设置libbpf日志
