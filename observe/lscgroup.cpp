@@ -21,6 +21,7 @@
 #include <map>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <limits.h>
 
 #include "types.h"
 #include "lscgroup.skel.h"
@@ -28,7 +29,6 @@
 #include "jhash.h"
 #include "Ukallsyms.h"
 
-#define PAGE_SIZE 4096
 #define ITER_PASS_STRING 0
 
 struct Rule
@@ -43,7 +43,7 @@ struct Rule
 	u64 parent_id;
 	int level;
 	// Note: clear the name buf before resigning
-	char name[PAGE_SIZE];
+	char name[PATH_MAX];
 };
 
 struct BpfData
@@ -187,15 +187,15 @@ void parse_args(int argc, char **argv)
 			rule.level = strtol(optarg, NULL, 10);
 			break;
 		case 'n':
-			if (strlen(optarg) >= PAGE_SIZE)
+			if (strlen(optarg) >= PATH_MAX)
 			{
 				pr_error(
 					"the name string is too long, must be less than %d\n",
-					PAGE_SIZE
+					PATH_MAX
 				);
 				exit(-1);
 			}
-			strncpy(rule.name, optarg, PAGE_SIZE);
+			strncpy(rule.name, optarg, PATH_MAX);
 			break;
 		case 'h':
 			Usage(argv[0]);
@@ -419,8 +419,8 @@ int main(int argc, char *args[])
 	ssize_t rd_sz = 0;
 	bpf_link *iter_link;
 	char *buf;
-	size_t bsz = PAGE_SIZE * 2;
-	assert(sizeof(BpfData) < PAGE_SIZE);
+	size_t bsz = PATH_MAX * 2;
+	assert(sizeof(BpfData) < PATH_MAX);
 
 	parse_args(argc, args);
 	register_signal();
