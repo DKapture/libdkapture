@@ -9,6 +9,7 @@
 #define ITER_PASS_STRING 0
 #define _Map
 #define _Unsafe
+#define PATH_MAX 4096
 
 #ifdef ___bpf_nth
 #undef ___bpf_nth
@@ -111,7 +112,7 @@ struct Rule
 	u64 parent_id;
 	int level;
 	// Note: clear the name buf before resigning
-	char name[PAGE_SIZE];
+	char name[PATH_MAX];
 };
 
 struct CssId
@@ -166,7 +167,7 @@ static char mem[8192] = {};
 static u64 filter_id;
 static u64 filter_parent_id;
 static int filter_level;
-static char filter_name[PAGE_SIZE] = {};
+__attribute__((aligned(8))) static char filter_name[PAGE_SIZE] = {};
 
 static inline struct cgroup *_Unsafe cgroup_parent(struct cgroup *cgrp)
 {
