@@ -14,7 +14,8 @@ NC='\033[0m' # No Color
 
 # Project information
 PROJECT_NAME="dkapture"
-VERSION="1.0.0"
+: ${VERSION:=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' )}
+: ${VERSION:=1.0.0}
 ARCH=$(dpkg --print-architecture)
 PACKAGE_NAME="${PROJECT_NAME}_${VERSION}_${ARCH}"
 
@@ -256,14 +257,6 @@ EOF
 cat > "${CONTROL_DIR}/postinst" << 'EOF'
 #!/bin/bash
 set -e
-
-# Set dynamic library permissions
-if [ -f /usr/lib/libdkapture.so ]; then
-    chmod 755 /usr/lib/libdkapture.so
-fi
-
-# Set executable file permissions
-find /usr/bin -name "dk-*" -type f -exec chmod 755 {} \;
 
 # Update dynamic library cache
 ldconfig
