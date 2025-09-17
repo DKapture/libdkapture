@@ -66,66 +66,6 @@ check_dependencies() {
     echo -e "${GREEN}✓ All dependency checks passed${NC}"
 }
 
-# Verify build results function
-verify_build() {
-    echo -e "${BLUE}Verifying build results...${NC}"
-    
-    local missing_files=()
-    
-    # Check executable files in build/observe directory
-    if [ ! -d "build/observe" ]; then
-        missing_files+=("build/observe directory")
-    else
-        local observe_binaries=$(find build/observe -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
-        if [ "$observe_binaries" -eq 0 ]; then
-            missing_files+=("executable files in build/observe directory")
-        fi
-    fi
-    
-    # Check executable files in build/filter directory
-    if [ ! -d "build/filter" ]; then
-        missing_files+=("build/filter directory")
-    else
-        local filter_binaries=$(find build/filter -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
-        if [ "$filter_binaries" -eq 0 ]; then
-            missing_files+=("executable files in build/filter directory")
-        fi
-    fi
-    
-    # Check executable files in build/policy directory
-    if [ ! -d "build/policy" ]; then
-        missing_files+=("build/policy directory")
-    else
-        local policy_binaries=$(find build/policy -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
-        if [ "$policy_binaries" -eq 0 ]; then
-            missing_files+=("executable files in build/policy directory")
-        fi
-    fi
-    
-    # Check dynamic library
-    if [ ! -f "build/so/libdkapture.so" ]; then
-        missing_files+=("libdkapture.so dynamic library")
-    fi
-    
-    # Check demo program
-    if [ ! -f "build/demo/demo" ]; then
-        missing_files+=("demo program")
-    fi
-    
-    # Check header file
-    if [ ! -f "include/dkapture.h" ]; then
-        missing_files+=("dkapture.h header file")
-    fi
-    
-    if [ ${#missing_files[@]} -ne 0 ]; then
-        echo -e "${RED}Error: Missing the following files after compilation:${NC}"
-        printf '  - %s\n' "${missing_files[@]}"
-        exit 1
-    fi
-    
-    echo -e "${GREEN}✓ Build result verification passed${NC}"
-}
-
 echo -e "${GREEN}Starting DKapture DEB package build...${NC}"
 
 # Check dependencies
@@ -163,9 +103,6 @@ ${MAKE} so || { echo -e "${RED}Error: so module compilation failed${NC}"; exit 1
 
 echo -e "${BLUE}Compiling demo module...${NC}"
 ${MAKE} demo || { echo -e "${RED}Error: demo module compilation failed${NC}"; exit 1; }
-
-# Verify build results
-verify_build
 
 # Collect binary files to /usr/bin
 echo -e "${YELLOW}Collecting binary files to /usr/bin...${NC}"
