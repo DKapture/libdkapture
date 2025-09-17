@@ -13,10 +13,11 @@ char _license[] SEC("license") = "GPL";
 // 添加设备号转换宏定义，参考frtp
 #define MAJOR(dev) (u32)((dev & 0xfff00000) >> 20)
 #define MINOR(dev) (u32)(dev & 0xfffff)
+#define PATH_MAX 4096
 
 union Rule
 {
-	char path[PAGE_SIZE];
+	char path[PATH_MAX];
 	struct
 	{
 		u64 not_inode; // used for judging whether it's inode filter
@@ -73,7 +74,7 @@ static bool file_filter(struct file *file)
 		return false;
 	}
 
-	bpf_ret = bpf_d_path(&file->f_path, path, PAGE_SIZE);
+	bpf_ret = bpf_d_path(&file->f_path, path, PATH_MAX);
 	if (bpf_ret < 0)
 	{
 		bpf_err("fail to parse path: %ld", bpf_ret);
@@ -86,9 +87,13 @@ static bool file_filter(struct file *file)
 		goto exit;
 	}
 	DEBUG(0, "%s %s", rule->path, path);
+	if(rule->path[0] == 0 && rule->inode == 0){
+		ret = true;
+		goto exit;
+	}
 	if (rule->not_inode)
 	{
-		if (strncmp(path, rule->path, PAGE_SIZE))
+		if (strncmp(path, rule->path, PATH_MAX))
 		{
 			goto exit;
 		}

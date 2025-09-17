@@ -24,7 +24,7 @@
 #include "Ucom.h"
 #include "jhash.h"
 
-#define PAGE_SIZE 4096
+#define PATH_MAX 4096
 
 // 添加设备号转换函数，参考frtp
 static inline uint32_t dev_old2new(dev_t old)
@@ -36,7 +36,7 @@ static inline uint32_t dev_old2new(dev_t old)
 
 union Rule
 {
-	char path[PAGE_SIZE];
+	char path[PATH_MAX];
 	struct
 	{
 		u64 not_inode; // used for judging whether it's inode filter
@@ -172,13 +172,6 @@ void parse_args(int argc, char *args[])
 	if (!!(optbits & 2) ^ !!(optbits & 4))
 	{
 		printf("error: -d and -i must be used together\n"); // 更新错误信息
-		exit(-1);
-	}
-
-	if (rule.path[0] == 0 && rule.inode == 0)
-	{
-		printf("\nYou need to specify a file path or file inode number to\n"
-			   "watch on by the options -p(--path) or -i(--inode)\n\n");
 		exit(-1);
 	}
 }
@@ -324,6 +317,7 @@ int main(int argc, char *args[])
 	iter_fd = -1;
 
 	printf("Scanning for file %s...\n", rule.path);
+	//! TODO ringbuffer消耗不及时, 后续修复
 	pthread_create(&t1, NULL, ringbuf_worker, NULL);
 	follow_trace_pipe();
 	pthread_join(t1, NULL);
