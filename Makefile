@@ -1,5 +1,5 @@
 BUILD_DIR = build
-TARGETs = include observe filter policy so tools kmodules demo
+TARGETs = include observe filter policy so tools demo
 SUBTARGETs = $(foreach i,$(TARGETs),$(i)/%)
 MAKE = make PROJ_ROOT=$(shell pwd)
 
