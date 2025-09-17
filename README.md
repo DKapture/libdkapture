@@ -67,8 +67,9 @@ DKapture（Deepin Kernel Capture）是一个用户空间工具集和动态库，
 
 ```bash
 # 克隆项目
-git clone <repository-url>
+git clone https://github.com/DKapture/libdkapture
 cd dkapture
+git submodule update --init --recursive --depth 1
 
 # 完整构建所有模块
 make all
@@ -77,8 +78,8 @@ make all
 ### 分模块构建
 
 ```bash
-# 构建内核头文件（必需的第一步）
-make include
+# 构建bpf字节码（必需的第一步）
+make bpf
 
 # 构建观察工具模块
 make observe
@@ -292,3 +293,6 @@ strace: Process 1542886 attached
 - 事件采集率：实际收集的事件数/预期事件数
 - 每秒处理事件数：实际收集的事件数/总耗时
 - 每秒文件操作数：完成的文件操作次数/总耗时
+
+
+# eBPF平台下的动态链接技术

@@ -1,5 +1,5 @@
 BUILD_DIR = build
-TARGETs = observe filter policy so tools demo
+TARGETs = bpf observe filter policy so tools demo
 SUBTARGETs = $(foreach i,$(TARGETs),$(i)/%)
 MAKE = make PROJ_ROOT=$(shell pwd)
 
@@ -9,6 +9,8 @@ MAKE = make PROJ_ROOT=$(shell pwd)
 all: $(TARGETs)
 
 demo: so
+bpf: bpf.gitsubmodule
+observe filter policy: bpf
 
 $(TARGETs):
 	$(MAKE) -C $@
@@ -17,9 +19,14 @@ $(SUBTARGETs): pseudo
 	$(MAKE)  $* -C $(shell dirname $@)
 
 test: pseudo
+	# 如果网络有问题，请参考.gitmodules文件，手动拉取子仓库放到对应目录 
+	git submodule update --init --depth 1 googletest
 	$(MAKE) -C $@
 
 pseudo:
+
+%.gitsubmodule:
+	git submodule update --init $*
 
 clean:
 	@for i in $(TARGETs); do $(MAKE) -C $$i clean; done
