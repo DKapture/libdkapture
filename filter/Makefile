@@ -2,10 +2,21 @@ PROJ_ROOT ?= ..
 MODULE := $(notdir $(CURDIR))
 BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
 BPF_SRC = $(shell ls *.bpf.c)
-TARGETs = $(BPF_SRC:%.bpf.c=$(BUILD_DIR)/%)
+TARGETs := $(BPF_SRC:%.bpf.c=$(BUILD_DIR)/%)
 BPF_TARGET_ARCH := $(shell uname -m)
 ifeq ($(BPF_TARGET_ARCH), loongarch64)
 	BPF_TARGET_ARCH := loongarch
+endif
+ifeq ($(BPF_TARGET_ARCH), loongarch)
+	filter-out-multi = $(strip \
+		$(foreach word,$(1), \
+			$(if $(strip $(foreach substr,$(2),$(findstring $(substr),$(word)))),, \
+				$(word) \
+			) \
+		) \
+	)
+	BLACKLIST := rm-forbid signal-filter
+	TARGETs := $(call filter-out-multi, $(TARGETs), $(BLACKLIST))
 endif
 
 LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
