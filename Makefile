@@ -1,5 +1,5 @@
 BUILD_DIR = build
-TARGETs = include observe filter policy so tools demo
+TARGETs = observe filter policy so tools demo
 SUBTARGETs = $(foreach i,$(TARGETs),$(i)/%)
 MAKE = make PROJ_ROOT=$(shell pwd)
 
@@ -9,8 +9,6 @@ MAKE = make PROJ_ROOT=$(shell pwd)
 all: $(TARGETs)
 
 demo: so
-so: observe filter policy
-observe filter policy: include
 
 $(TARGETs):
 	$(MAKE) -C $@

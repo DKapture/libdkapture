@@ -24,7 +24,6 @@ DKapture（Deepin Kernel Capture）是一个用户空间工具集和动态库，
 
 - build: 动态生成，存放项目构建过程中生成的文件。
 - docs: 存放文档。
-- kmodules：内核模块代码，只用于少数只有模块能实现的功能。
 - include: 存放编译时使用的源代码头文件。
 - filter: 存放作为过滤器的 eBPF 源代码。
 - observe: 存放作为观察器的 eBPF 源代码。
@@ -37,9 +36,8 @@ DKapture（Deepin Kernel Capture）是一个用户空间工具集和动态库，
 
 # 命名规则
 
-- 内核 bpf 代码：[名称].bpf.c
+- 内核 bpf 代码：[名称].bpf.c，BPF程序统一放在单独的[子仓库](https://github.com/DKapture/dkapture-bpf)当中.
 - 用户空间代码：[名称].cpp
-- 头文件：文件名前加大写字符，后跟全小写的文件名。大写字符必须是 'K' 或 'U'，以 'K' 开头的头文件只能在 bpf 程序中包含，以 'U' 开头的头文件只能在用户程序中包含。没有前置大写字符的头文件可以在 bpf 和用户程序中都包含。
 
 只需将这两个源文件放在同一目录中（filter、observe 或 policy）
 
