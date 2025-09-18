@@ -25,12 +25,13 @@ DEB_DIR="${BUILD_DIR}/deb"
 INSTALL_DIR="${DEB_DIR}/usr"
 BIN_DIR="${INSTALL_DIR}/bin"
 LIB_DIR="${INSTALL_DIR}/lib"
+DKAPTURE_LIB_DIR="${INSTALL_DIR}/lib/dkapture"
 INCLUDE_DIR="${INSTALL_DIR}/include"
 CONTROL_DIR="${DEB_DIR}/DEBIAN"
 if [ $(nproc) -gt 1 ]; then
-    MAKE="make -j$(($(nproc)-1))"
+    MAKE="make -j$(($(nproc)-1)) Release=1"
 else
-    MAKE="make"
+    MAKE="make Release=1"
 fi
 
 # Cleanup function
@@ -78,6 +79,7 @@ cleanup
 echo -e "${YELLOW}Creating directory structure...${NC}"
 mkdir -p "${BIN_DIR}"
 mkdir -p "${LIB_DIR}"
+mkdir -p "${DKAPTURE_LIB_DIR}"
 mkdir -p "${INCLUDE_DIR}/${PROJECT_NAME}"
 mkdir -p "${CONTROL_DIR}"
 
@@ -152,6 +154,45 @@ echo -e "${YELLOW}Collecting dynamic libraries to /usr/lib...${NC}"
 if [[ -f "build/so/libdkapture.so" ]]; then
     echo "  Copying: libdkapture.so -> ${LIB_DIR}/libdkapture.so"
     cp "build/so/libdkapture.so" "${LIB_DIR}/libdkapture.so"
+fi
+
+# Collect BPF object files to /usr/lib/dkapture
+echo -e "${YELLOW}Collecting BPF object files to /usr/lib/dkapture...${NC}"
+
+# Copy .bpf.o files from bpf/build/filter directory
+echo -e "${BLUE}Copying BPF object files from filter directory...${NC}"
+if [[ -d "bpf/build/filter" ]]; then
+    for bpf_file in bpf/build/filter/*.bpf.o; do
+        if [[ -f "$bpf_file" ]]; then
+            basename_bpf=$(basename "$bpf_file")
+            echo "  Copying: ${basename_bpf} -> ${DKAPTURE_LIB_DIR}/${basename_bpf}"
+            cp "$bpf_file" "${DKAPTURE_LIB_DIR}/${basename_bpf}"
+        fi
+    done
+fi
+
+# Copy .bpf.o files from bpf/build/observe directory
+echo -e "${BLUE}Copying BPF object files from observe directory...${NC}"
+if [[ -d "bpf/build/observe" ]]; then
+    for bpf_file in bpf/build/observe/*.bpf.o; do
+        if [[ -f "$bpf_file" ]]; then
+            basename_bpf=$(basename "$bpf_file")
+            echo "  Copying: ${basename_bpf} -> ${DKAPTURE_LIB_DIR}/${basename_bpf}"
+            cp "$bpf_file" "${DKAPTURE_LIB_DIR}/${basename_bpf}"
+        fi
+    done
+fi
+
+# Copy .bpf.o files from bpf/build/policy directory
+echo -e "${BLUE}Copying BPF object files from policy directory...${NC}"
+if [[ -d "bpf/build/policy" ]]; then
+    for bpf_file in bpf/build/policy/*.bpf.o; do
+        if [[ -f "$bpf_file" ]]; then
+            basename_bpf=$(basename "$bpf_file")
+            echo "  Copying: ${basename_bpf} -> ${DKAPTURE_LIB_DIR}/${basename_bpf}"
+            cp "$bpf_file" "${DKAPTURE_LIB_DIR}/${basename_bpf}"
+        fi
+    done
 fi
 
 # Collect header files to /usr/include/${PROJECT_NAME}
@@ -238,11 +279,12 @@ dpkg-deb --contents "${PACKAGE_NAME}.deb"
 # Count files
 BIN_COUNT=$(find "${BIN_DIR}" -type f | wc -l)
 LIB_COUNT=$(find "${LIB_DIR}" -type f | wc -l)
+BPF_COUNT=$(find "${DKAPTURE_LIB_DIR}" -type f | wc -l)
 INCLUDE_COUNT=$(find "${INCLUDE_DIR}" -type f | wc -l)
 
 echo -e "${GREEN}DEB package build completed: ${PACKAGE_NAME}.deb${NC}"
 echo -e "${GREEN}Package size: $(du -h "${PACKAGE_NAME}.deb" | cut -f1)${NC}"
-echo -e "${GREEN}Contains: ${BIN_COUNT} executable files, ${LIB_COUNT} library files, ${INCLUDE_COUNT} header files${NC}"
+echo -e "${GREEN}Contains: ${BIN_COUNT} executable files, ${LIB_COUNT} library files, ${BPF_COUNT} BPF object files, ${INCLUDE_COUNT} header files${NC}"
 
 # Display installation instructions
 echo -e "${YELLOW}Installation instructions:${NC}"

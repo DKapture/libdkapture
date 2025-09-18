@@ -1,15 +1,21 @@
 PROJ_ROOT ?= ..
 MODULE := $(notdir $(CURDIR))
 BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
-BPF_DIR := $(PROJ_ROOT)/bpf/build/$(MODULE)
 C_SRC = $(shell ls *.c 2>/dev/null)
 CXX_SRC = $(shell ls *.cpp 2>/dev/null)
 TARGETs = $(C_SRC:%.c=$(BUILD_DIR)/%) $(CXX_SRC:%.cpp=$(BUILD_DIR)/%)
 
 LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
-CFLAGS = -MMD -g -Wall -I$(PROJ_ROOT)/include \
+CFLAGS := -Wall -I$(PROJ_ROOT)/include \
 			-I$(PROJ_ROOT)/build/include \
 			-I$(BUILD_DIR)
+ifeq ($(Release),1)
+	CFLAGS := -DNDEBUG -O2 $(CFLAGS)
+	BPF_DIR := /usr/lib/dkapture
+else
+	CFLAGS := -MMD -g -Og $(CFLAGS)
+	BPF_DIR := $(PROJ_ROOT)/bpf/build/$(MODULE)
+endif
 CXXFLAGS = $(CFLAGS)
 CC = gcc
 CXX = g++
@@ -34,7 +40,7 @@ $(BUILD_DIR)/%.o: %.c $(BUILD_DIR)/%.skel.h | $(BUILD_DIR)
 
 $(BUILD_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o | $(BUILD_DIR)
 	bpftool gen skeleton $< > $@
-	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BUILD_DIR) $@
+	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BPF_DIR) $@
 
 $(BUILD_DIR)/log.o: $(PROJ_ROOT)/so/log.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@

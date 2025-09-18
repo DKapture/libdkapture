@@ -32,6 +32,7 @@ clean:
 	@for i in $(TARGETs); do $(MAKE) -C $$i clean; done
 
 distclean:
+	@for i in $(TARGETs); do $(MAKE) -C $$i distclean; done
 	rm -rf $(BUILD_DIR)
 
 help:

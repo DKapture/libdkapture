@@ -27,6 +27,8 @@ INCLUDES_TO_ENSURE = [
     "#include <sys/mman.h>",
     "#include <fcntl.h>",
     "#include <unistd.h>",
+    "#include <errno.h>",
+    "#include <stdio.h>",
 ]
 
 
@@ -130,10 +132,12 @@ def make_replacement_body(func_name: str, abs_obj_path: str) -> str:
         f"\t\tconst char *path = \"{abs_obj_path}\";\n"
         "\t\tint fd = open(path, O_RDONLY);\n"
         "\t\tif (fd < 0) {\n"
+        "\t\t\tfprintf(stderr, \"Error: Failed to open BPF object file '%s': %s\\n\", path, strerror(errno));\n"
         "\t\t\treturn NULL;\n"
         "\t\t}\n"
         "\t\tstruct stat st;\n"
         "\t\tif (fstat(fd, &st) != 0) {\n"
+        "\t\t\tfprintf(stderr, \"Error: Failed to stat BPF object file '%s': %s\\n\", path, strerror(errno));\n"
         "\t\t\tclose(fd);\n"
         "\t\t\treturn NULL;\n"
         "\t\t}\n"
@@ -141,6 +145,7 @@ def make_replacement_body(func_name: str, abs_obj_path: str) -> str:
         f"\t\tvoid *addr = mmap(NULL, {mapped_size}, PROT_READ, MAP_PRIVATE, fd, 0);\n"
         "\t\tclose(fd);\n"
         "\t\tif (addr == MAP_FAILED) {\n"
+        "\t\t\tfprintf(stderr, \"Error: Failed to mmap BPF object file '%s': %s\\n\", path, strerror(errno));\n"
         f"\t\t\t{mapped_addr} = NULL;\n"
         f"\t\t\t{mapped_size} = 0;\n"
         "\t\t\treturn NULL;\n"
@@ -218,6 +223,42 @@ def find_destroy_span(src: str, struct_name: str) -> Tuple[int, int, int]:
     raise ValueError("Matching closing brace for __destroy not found")
 
 
+def find_and_patch_elf_bytes_call(src: str, struct_name: str) -> str:
+    """Find and patch the s->data = (void *)xxx__elf_bytes(&s->data_sz); line
+    to add error handling when s->data is NULL.
+    """
+    # Check if error handling already exists
+    if "if (!s->data)" in src and "err = -errno" in src:
+        return src
+    
+    # Pattern to match the assignment line
+    pattern = re.compile(
+        rf"s->data\s*=\s*\(void\s*\*\)\s*{re.escape(struct_name)}__elf_bytes\s*\(\s*&s->data_sz\s*\)\s*;",
+        re.MULTILINE
+    )
+    
+    def replace_assignment(match):
+        # Get the full line with proper indentation
+        line = match.group(0)
+        # Extract indentation from the original line - use tabs for consistency
+        leading_whitespace = line[:len(line) - len(line.lstrip())]
+        
+        # Create the replacement with error handling using tabs
+        # The leading_whitespace should be a tab character for proper indentation
+        replacement = (
+            f"{line}\n"
+            f"{leading_whitespace}\tif (!s->data) {{\n"
+            f"{leading_whitespace}\t\terr = -errno;\n"
+            f"{leading_whitespace}\t\tgoto err;\n"
+            f"{leading_whitespace}\t}}"
+        )
+        return replacement
+    
+    # Apply the replacement
+    new_src = pattern.sub(replace_assignment, src)
+    return new_src
+
+
 def patch_header(header_path: str, dry_run: bool = False, obj_dir: str | None = None) -> None:
     if not header_path.endswith('.skel.h'):
         raise ValueError("Input file must end with .skel.h")
@@ -280,6 +321,9 @@ def patch_header(header_path: str, dry_run: bool = False, obj_dir: str | None = 
 
     # Ensure required includes are present
     new_src = ensure_includes(new_src)
+
+    # Add error handling for s->data assignment
+    new_src = find_and_patch_elf_bytes_call(new_src, struct_name)
 
     if dry_run:
         sys.stdout.write(new_src)
