@@ -248,7 +248,7 @@ void parse_args(int argc, char **argv)
 
 	if (!policy_file)
 	{
-		policy_file = "elfverify.pol";
+		policy_file = "/etc/dkapture/policy/elfverify.pol";
 #ifdef BUILTIN
 		if (output)
 		{
