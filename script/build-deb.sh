@@ -80,6 +80,34 @@ mkdir -p "${DKAPTURE_LIB_DIR}"
 mkdir -p "${INCLUDE_DIR}/${PROJECT_NAME}"
 mkdir -p "${CONTROL_DIR}"
 
+# Create policy directory if not exists
+mkdir -p "${DEB_DIR}/etc/dkapture/policy"
+
+# Copy policy files
+if [[ -f "policy/elfverify.pol" ]]; then
+    echo -e "${BLUE}Copying elfverify.pol to /etc/dkapture/policy...${NC}"
+    cp "policy/elfverify.pol" "${DEB_DIR}/etc/dkapture/policy/elfverify.pol"
+fi
+
+if [[ -f "policy/frtp.pol" ]]; then
+    echo -e "${BLUE}Copying frtp.pol to /etc/dkapture/policy...${NC}"
+    cp "policy/frtp.pol" "${DEB_DIR}/etc/dkapture/policy/frtp.pol"
+fi
+
+# Create policy directory if not exists
+mkdir -p "${DEB_DIR}/etc/dkapture/policy"
+
+# Copy policy files
+if [[ -f "elfverify.pol" ]]; then
+    echo -e "${BLUE}Copying elfverify.pol to /etc/dkapture/policy...${NC}"
+    cp "elfverify.pol" "${DEB_DIR}/etc/dkapture/policy/elfverify.pol"
+fi
+
+if [[ -f "frtp.pol" ]]; then
+    echo -e "${BLUE}Copying frtp.pol to /etc/dkapture/policy...${NC}"
+    cp "frtp.pol" "${DEB_DIR}/etc/dkapture/policy/frtp.pol"
+fi
+
 # Compile project (excluding googletest, test and tools)
 echo -e "${YELLOW}Compiling project...${NC}"
 echo -e "${BLUE}Cleaning previous compilation...${NC}"

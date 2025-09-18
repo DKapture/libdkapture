@@ -233,7 +233,7 @@ static int parse_args(int argc, char **argv)
 	if (!policy_file)
 	{
 #ifndef BUILTIN
-		policy_file = "frtp.pol";
+		policy_file = "/etc/dkapture/policy/frtp.pol";
 		pr_info("No policy file specified, use frtp.pol as default");
 #else
 		pr_error("No policy file specified.");
