@@ -17,11 +17,10 @@ ifneq ($(GTEST), )
 endif
 ifeq ($(Release),1)
 	CFLAGS := -DNDEBUG -O2 $(CFLAGS)
-	BPF_DIR := /usr/lib/dkapture
 else
 	CFLAGS := -MMD -g -Og $(CFLAGS)
-	BPF_DIR := $(PROJ_ROOT)/bpf/build/$(MODULE)
 endif
+BPF_DIR := $(PROJ_ROOT)/bpf/build/$(MODULE)
 CXXFLAGS = $(CFLAGS)
 CC = gcc
 CXX = g++

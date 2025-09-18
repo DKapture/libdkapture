@@ -10,7 +10,7 @@ all: $(TARGETs)
 
 demo: so
 bpf: bpf.gitsubmodule
-observe filter policy: bpf
+observe filter policy so: bpf
 
 $(TARGETs):
 	$(MAKE) -C $@
