@@ -1,4 +1,2 @@
-forbid proc=/usr/bin/cat rw /root/file
-forbid proc=/usr/bin/* w /root/file
+forbid proc=/usr/bin/cat rw /root/*
 forbid pid=31693 w /root/*
-forbid proc=/usr/local/bin/* rw /root/*
