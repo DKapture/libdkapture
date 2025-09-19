@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "bpf.h"
+#include "bpf-manager.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -16,13 +16,13 @@
 class BPFTest : public ::testing::Test
 {
   protected:
-	BPF *bpf_instance;
+	BPFManager *bpf_instance;
 
 	void SetUp() override
 	{
 		// Ensure the test environment is clean
 		mkdir(TEST_PIN_PATH, 0755);
-		bpf_instance = new BPF();
+		bpf_instance = new BPFManager();
 	}
 
 	void TearDown() override
@@ -70,7 +70,7 @@ class BPFTest : public ::testing::Test
 
 TEST_F(BPFTest, ConstructorAndDestructor)
 {
-	// Verify that the BPF instance is created and destroyed without errors
+	// Verify that the BPFManager instance is created and destroyed without errors
 	ASSERT_NE(bpf_instance, nullptr);
 }
 
@@ -81,12 +81,12 @@ TEST_F(BPFTest, PinLinks)
 	if (bpf_instance->m_obj)
 	{
 		int ret = bpf_instance->bpf_pin_links(TEST_PIN_PATH);
-		ASSERT_EQ(ret, 0) << "Failed to pin BPF links";
+		ASSERT_EQ(ret, 0) << "Failed to pin BPFManager links";
 	}
 	else
 	{
 		// 如果使用已存在的BPF对象，跳过此测试
-		GTEST_SKIP() << "Skipping pin links test for existing BPF object";
+		GTEST_SKIP() << "Skipping pin links test for existing BPFManager object";
 	}
 }
 
@@ -97,38 +97,38 @@ TEST_F(BPFTest, PinPrograms)
 	if (bpf_instance->m_obj)
 	{
 		int ret = bpf_instance->bpf_pin_programs(TEST_PIN_PATH);
-		ASSERT_EQ(ret, 0) << "Failed to pin BPF programs";
+		ASSERT_EQ(ret, 0) << "Failed to pin BPFManager programs";
 	}
 	else
 	{
 		// 如果使用已存在的BPF对象，跳过此测试
-		GTEST_SKIP() << "Skipping pin programs test for existing BPF object";
+		GTEST_SKIP() << "Skipping pin programs test for existing BPFManager object";
 	}
 }
 
 TEST_F(BPFTest, RetreatBpfMap)
 {
-	// Test the retreat_bpf_map method
+	// Test the bpf_find_map method
 	const char *map_name = "test_map";
-	int ret = bpf_instance->retreat_bpf_map("dk_shared_mem");
-	ASSERT_GT(ret, 0) << "Failed to retreat BPF map";
+	int ret = bpf_instance->bpf_find_map("dk_shared_mem");
+	ASSERT_GT(ret, 0) << "Failed to retreat BPFManager map";
 
 	// 测试获取不存在的map应该返回错误
-	int ret_invalid = bpf_instance->retreat_bpf_map("non_existent_map");
+	int ret_invalid = bpf_instance->bpf_find_map("non_existent_map");
 	EXPECT_LE(ret_invalid, 0) << "Should fail for non-existent map";
 }
 
 TEST_F(BPFTest, RetreatBpfIter)
 {
-	// Test the retreat_bpf_iter method
-	std::string result = bpf_instance->retreat_bpf_iter("dump_task");
-	ASSERT_FALSE(result.empty()) << "Failed to retreat BPF iterator";
+	// Test the bpf_find_iter method
+	std::string result = bpf_instance->bpf_find_iter("dump_task");
+	ASSERT_FALSE(result.empty()) << "Failed to retreat BPFManager iterator";
 
 	// 验证返回的路径格式正确
 	EXPECT_TRUE(result.find("/link-dump_task") != std::string::npos);
 
 	// 测试获取不存在的iterator应该返回空字符串
-	std::string result_invalid = bpf_instance->retreat_bpf_iter("non_existent_"
+	std::string result_invalid = bpf_instance->bpf_find_iter("non_existent_"
 																"iter");
 	EXPECT_TRUE(result_invalid.empty()) << "Should return empty string for "
 										   "non-existent iterator";
@@ -153,13 +153,13 @@ TEST_F(BPFTest, StressTest)
 {
 	// 创建多个BPF实例来测试资源管理
 	const int num_instances = 10;
-	std::vector<BPF *> instances;
+	std::vector<BPFManager *> instances;
 
 	try
 	{
 		for (int i = 0; i < num_instances; ++i)
 		{
-			BPF *instance = new BPF();
+			BPFManager *instance = new BPFManager();
 			ASSERT_NE(instance, nullptr);
 			instances.push_back(instance);
 		}
@@ -211,7 +211,7 @@ TEST_F(BPFTest, MemoryLeakTest)
 	// 创建和销毁多个实例
 	for (int i = 0; i < 100; ++i)
 	{
-		BPF *temp_instance = new BPF();
+		BPFManager *temp_instance = new BPFManager();
 		ASSERT_NE(temp_instance, nullptr);
 		delete temp_instance;
 	}
@@ -238,7 +238,7 @@ TEST_F(BPFTest, ConcurrentCreationAndDestruction)
 				{
 					try
 					{
-						BPF *temp_instance = new BPF();
+						BPFManager *temp_instance = new BPFManager();
 						if (temp_instance)
 						{
 							delete temp_instance;
@@ -275,13 +275,13 @@ TEST_F(BPFTest, BoundaryValues)
 	// 测试各种边界值情况
 
 	// 测试空字符串参数
-	std::string empty_result = bpf_instance->retreat_bpf_iter("");
+	std::string empty_result = bpf_instance->bpf_find_iter("");
 	EXPECT_TRUE(empty_result.empty()) << "Empty iterator name should return "
 										 "empty string";
 
 	// 测试非常长的路径名
 	std::string long_path(1024, 'a');
-	int ret = bpf_instance->retreat_bpf_map(long_path.c_str());
+	int ret = bpf_instance->bpf_find_map(long_path.c_str());
 	EXPECT_LE(ret, 0) << "Very long map name should fail";
 
 	// 测试特殊字符路径
@@ -298,14 +298,14 @@ TEST_F(BPFTest, PerformanceBenchmark)
 	// 预热
 	for (int i = 0; i < warmup_iterations; ++i)
 	{
-		bpf_instance->retreat_bpf_map("dk_shared_mem");
+		bpf_instance->bpf_find_map("dk_shared_mem");
 	}
 
 	// 基准测试
 	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < benchmark_iterations; ++i)
 	{
-		bpf_instance->retreat_bpf_map("dk_shared_mem");
+		bpf_instance->bpf_find_map("dk_shared_mem");
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 
@@ -333,7 +333,7 @@ TEST_F(BPFTest, DumpTaskFile)
 TEST_F(BPFTest, MapFileDescriptor)
 {
 	// 验证map文件描述符是有效的
-	EXPECT_GT(bpf_instance->m_map_fd, 0) << "BPF map file descriptor should be "
+	EXPECT_GT(bpf_instance->m_map_fd, 0) << "BPFManager map file descriptor should be "
 											"valid";
 
 	// 测试文件描述符的读写权限

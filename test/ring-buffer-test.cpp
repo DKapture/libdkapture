@@ -16,8 +16,9 @@
 #include <atomic>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
-#include "bpf.h"
+#include "bpf-manager.h"
 
+extern FILE *gtest_fp;
 // 测试用的回调函数
 static int test_callback(void *ctx, void *data, size_t size)
 {
@@ -35,11 +36,12 @@ static int test_callback_error(void *ctx, void *data, size_t size)
 class RingBufferTest : public ::testing::Test
 {
   protected:
-	BPF *bpf;
+	BPFManager *bpf;
 	void SetUp() override
 	{
 		// 清理可能存在的共享内存
 		cleanup_shared_memory();
+		Log::set_file(gtest_fp);
 	}
 
 	void TearDown() override
@@ -71,7 +73,7 @@ class RingBufferTest : public ::testing::Test
 		struct bpf_map_create_opts opts = {};
 		opts.sz = sizeof(opts);
 
-		bpf = new BPF();
+		bpf = new BPFManager();
 		int map_fd = bpf->m_map_fd;
 		return map_fd;
 	}
@@ -309,7 +311,7 @@ TEST_F(RingBufferTest, BPFPollOperation)
 	else
 	{
 		// 跳过BPF相关测试
-		GTEST_SKIP() << "BPF not available, skipping BPF tests";
+		GTEST_SKIP() << "BPFManager not available, skipping BPFManager tests";
 	}
 }
 
@@ -332,7 +334,7 @@ TEST_F(RingBufferTest, BPFIndexOperations)
 	}
 	else
 	{
-		GTEST_SKIP() << "BPF not available, skipping BPF tests";
+		GTEST_SKIP() << "BPFManager not available, skipping BPFManager tests";
 	}
 }
 
@@ -354,7 +356,7 @@ TEST_F(RingBufferTest, BPFCallbackError)
 	}
 	else
 	{
-		GTEST_SKIP() << "BPF not available, skipping BPF tests";
+		GTEST_SKIP() << "BPFManager not available, skipping BPFManager tests";
 	}
 }
 

@@ -15,6 +15,7 @@
 #include "../include/Ulog.h"
 #include "../include/Ucom.h"
 
+extern FILE *gtest_fp;
 // 测试用的共享内存键值
 static const key_t TEST_SHM_KEY = 0x87654321;
 
@@ -24,6 +25,7 @@ class SharedMemoryTest : public ::testing::Test
 	void SetUp() override
 	{
 		cleanup_test_shm();
+		Log::set_file(gtest_fp);
 	}
 
 	void TearDown() override
@@ -378,6 +380,7 @@ class MirrorMemoryTest : public ::testing::Test
 	void SetUp() override
 	{
 		cleanup_test_mirror_shm();
+		Log::set_file(gtest_fp);
 	}
 
 	void TearDown() override
