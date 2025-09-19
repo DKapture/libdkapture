@@ -2,19 +2,23 @@ PROJ_ROOT ?= ..
 MODULE := $(notdir $(CURDIR))
 BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
 TARGET = $(BUILD_DIR)/demo
-CXX_FLAGS = -g -MMD -I$(PROJ_ROOT)/include/ -I$(PROJ_ROOT)/build/include/
+CXXFLAGS = -I$(PROJ_ROOT)/include/ -I$(PROJ_ROOT)/build/include/
 LD_FLAGS = -L$(PROJ_ROOT)/build/so/ -ldkapture
-ifeq ($(DEBUG), 1)
+
+ifeq ($(Release),1)
+	CXXFLAGS := -DNDEBUG -O2 $(CXXFLAGS)
+else
+	CXXFLAGS := -MMD -g -Og $(CXXFLAGS)
 	LD_FLAGS += -Wl,-rpath=$(PROJ_ROOT)/build/so/
 endif
 
 all: $(TARGET)
 
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(PROJ_ROOT)/build/so/libdkapture.so | $(BUILD_DIR)
-	g++ $(CXX_FLAGS) $< -I$(PROJ_ROOT)/include/ -o $@ $(LD_FLAGS)
+	g++ $(CXXFLAGS) $< -I$(PROJ_ROOT)/include/ -o $@ $(LD_FLAGS)
 
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
-	g++ $(CXX_FLAGS) -c $< -o $@
+	g++ $(CXXFLAGS) -c $< -o $@
 
 $(PROJ_ROOT)/build/so/libdkapture.so: | $(BUILD_DIR)
 	make -C $(PROJ_ROOT) so

@@ -10,9 +10,16 @@ CXX_OBJ = $(CXX_SRC:%.cpp=$(BUILD_DIR)/%.o) \
 		  $(BUILD_DIR)/mountsnoop.o \
 		  $(BUILD_DIR)/irqsnoop.o
 
-CXXFLAGS = -g -O2 -fPIC -MMD -Wall \
+CXXFLAGS = -fPIC -Wall \
 		   -I$(PROJ_ROOT)/include \
 		   -I$(PROJ_ROOT)/build/observe
+
+ifeq ($(Release),1)
+	CXXFLAGS := -DNDEBUG -O2 $(CXXFLAGS)
+else
+	CXXFLAGS := -MMD -g -Og $(CXXFLAGS)
+	LD_FLAGS += -Wl,-rpath=$(PROJ_ROOT)/build/so/
+endif
 
 LDFLAGS = -Wl,--no-as-needed -lbpf -shared
 
