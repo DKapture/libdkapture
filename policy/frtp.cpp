@@ -32,7 +32,7 @@
 #include <thread>
 #include <atomic>
 #include <dirent.h>
-
+#include <map>
 #include "com.h"
 
 #include "frtp.skel.h"
@@ -75,6 +75,15 @@ struct Target
 {
 	uint32_t dev; /**< 设备号 */
 	ino_t ino;	  /**< inode号 */
+
+	bool operator<(const Target &other) const
+	{
+		if (dev != other.dev)
+		{
+			return dev < other.dev;
+		}
+		return ino < other.ino;
+	}
 };
 
 /**
@@ -105,9 +114,10 @@ struct Rule
  */
 struct BpfData
 {
-	Action act;		/**< 违规的操作类型 */
-	pid_t pid;		/**< 违规进程的PID */
-	char process[]; /**< 变长字段，包含进程路径和目标文件信息 */
+	Action act; /**< 违规的操作类型 */
+	pid_t pid;	/**< 违规进程的PID */
+	struct Target target;
+	char process[]; /**< 变长字段，包含进程路径,可能包含目标文件名*/
 };
 
 char line[8192];
@@ -116,6 +126,19 @@ static int log_map_fd;
 struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
 const char *policy_file = NULL;
+static std::map<Target, std::string> target2path_map;
+
+#ifdef BUILTIN
+struct FrtpLog
+{
+	unsigned int act;
+	pid_t pid;
+	const char *binary;
+	const char *target;
+};
+static std::vector<FrtpLog> *logs;
+static FILE *stdout_bak;
+#endif
 
 static struct option lopts[] = {
 	{"policy-file", required_argument, 0, 'p'},
@@ -300,6 +323,7 @@ static int path2target(const char *path, struct Target *target)
 
 	target->ino = st.st_ino;
 	target->dev = dev_old2new(st.st_dev);
+	target2path_map[*target] = path;
 	return 0;
 }
 
@@ -571,14 +595,17 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 															  // BpfData
 															  // structure
 	size_t plen = strlen(log->process);
-	const char *target = log->process + plen + 1;
+	const char *fname = log->process + plen + 1;
+	std::string target_path =
+		target2path_map[log->target] +
+		(std::string(fname).length() > 0 ? std::string("/") + fname : "");
 	pr_warn(
-		"[%s]!!!: %s[%d] tried to %s (%s), denied!",
+		"[%s]!!!: %s[%d] tried to %s %s, denied!",
 		get_time().c_str(),
 		log->process,
 		log->pid,
 		act2str(log->act).c_str(),
-		target
+		target_path.length() > 0 ? target_path.c_str() : "<no matched>"
 	);
 	return 0;
 }
@@ -626,6 +653,28 @@ static int register_signal()
 	return 0;
 }
 
+#ifdef BUILTIN
+void frtp_init(FILE *output, std::vector<FrtpLog> *v)
+{
+	logs = v;
+	target2path_map.clear();
+	exit_flag = false;
+	rb = NULL;
+	policy_file = NULL;
+	stdout_bak = stdout;
+	fflush(stdout);
+	stdout = output;
+	Log::set_file(output);
+}
+
+void frtp_deinit()
+{
+	fflush(stdout);
+	stdout = stdout_bak;
+	Log::set_file(stderr);
+}
+#endif
+
 /**
  * @brief 主函数 - 程序入口点
  *
@@ -643,16 +692,13 @@ static int register_signal()
  * @return 0表示成功，非0表示失败
  */
 #ifdef BUILTIN
-int frtp_init(int argc, char **argv, FILE *output, int64_t timeout)
+int frtp_main(int argc, char **argv)
 #else
 int main(int argc, char **argv)
 #endif
 {
 	std::vector<struct Rule> rules;
 	std::thread *rb_thread;
-#ifdef BUILTIN
-	Log::set_file(output);
-#endif
 	int ret = parse_args(argc, argv);
 	if (ret > 0)
 	{
@@ -663,11 +709,13 @@ int main(int argc, char **argv)
 		return ret;
 	}
 
+#ifndef BUILTIN
 	ret = register_signal();
 	if (ret < 0)
 	{
 		return ret;
 	}
+#endif
 
 	obj = frtp_bpf::open_and_load();
 	if (!obj)
@@ -685,7 +733,11 @@ int main(int argc, char **argv)
 		goto out_destroy;
 	}
 
+#ifndef BUILTIN
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
+#else
+	rb = ring_buffer__new(log_map_fd, handle_event, logs, NULL);
+#endif
 	if (!rb)
 	{
 		ret = -1;
@@ -708,7 +760,7 @@ int main(int argc, char **argv)
 #ifndef BUILTIN
 	follow_trace_pipe();
 #else
-	std::this_thread::sleep_for(std::chrono::microseconds(timeout));
+	std::this_thread::sleep_for(std::chrono::microseconds(logs->size() * 10));
 	exit_flag = true;
 #endif
 	rb_thread->join();
@@ -718,6 +770,5 @@ out_detach:
 	frtp_bpf::detach(obj); // Detach BPF program
 out_destroy:
 	frtp_bpf::destroy(obj); // Clean up BPF object
-	Log::set_file(stderr);
 	return ret;
 }
