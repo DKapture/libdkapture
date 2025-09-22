@@ -3,7 +3,7 @@
 
 #include "shm.h"
 #include "spinlock.h"
-#include "Ucom.h"
+#include "com.h"
 #include "proc-info.skel.h"
 
 class BPFManager

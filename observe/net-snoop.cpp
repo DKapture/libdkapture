@@ -27,7 +27,7 @@
 #include <netinet/in.h>
 
 #include "net-snoop.skel.h"
-#include "Ucom.h"
+#include "com.h"
 
 #define TASK_COMM_LEN 16
 #define DEV_NAME_LEN 16

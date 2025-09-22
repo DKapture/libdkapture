@@ -9,7 +9,7 @@ LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
 CFLAGS := -Wall -I$(PROJ_ROOT)/include \
 			-I$(PROJ_ROOT)/build/include \
 			-I$(BUILD_DIR) \
-			-I$(PROJ_ROOT)/bpf/include
+			-I$(PROJ_ROOT)/bpf/export
 ifeq ($(Release),1)
 	CFLAGS := -DNDEBUG -O2 $(CFLAGS)
 else

@@ -6,7 +6,7 @@
 #include <net/if.h>
 #include <bpf/libbpf.h>
 #include "tc-if.skel.h"
-#include "../include/Ulog.h"
+#include "../include/log.h"
 
 #include <cassert>
 #include <stdexcept>

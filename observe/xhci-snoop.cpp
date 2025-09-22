@@ -6,7 +6,7 @@
 #include <bpf/libbpf.h>
 
 #include "xhci-snoop.skel.h"
-#include "Ucom.h"
+#include "com.h"
 
 #define TASK_COMM_LEN 16
 

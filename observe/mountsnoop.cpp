@@ -21,7 +21,7 @@
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 #include "mountsnoop.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "dkapture.h"
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)

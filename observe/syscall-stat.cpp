@@ -19,7 +19,7 @@
 #include <pthread.h>
 
 #include "syscall-stat.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "jhash.h"
 
 #ifdef __SYSCALL

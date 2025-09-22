@@ -20,9 +20,9 @@
 #include <atomic>
 #include <string>
 
-#include "Ucom.h"
+#include "com.h"
 #include "jhash.h"
-#include "Usr-grp.h"
+#include "usr-grp.h"
 
 #include "trace-file.skel.h"
 

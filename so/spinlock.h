@@ -1,7 +1,7 @@
 #pragma once
 #include <signal.h>
 #include <thread>
-#include "Ucom.h"
+#include "com.h"
 
 // 获取当前lwp的pid
 static inline pid_t get_tid()

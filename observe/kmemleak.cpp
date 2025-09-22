@@ -21,7 +21,7 @@
 #include <bpf/bpf.h>
 
 #include "kmemleak.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "dkapture.h"
 
 #define ALLOCS_MAX_ENTRIES 1000000

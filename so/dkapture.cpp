@@ -3,10 +3,10 @@
 #include <unistd.h>
 #include <system_error>
 
-#include "Ucom.h"
+#include "com.h"
 #include "dkapture.h"
 #include "data-map.h"
-#include "Ulog.h"
+#include "log.h"
 
 class dkapture : public DKapture
 {

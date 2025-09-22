@@ -20,7 +20,7 @@
 
 // Include dkapture headers for data structures
 #include "dkapture.h"
-#include "Ucom.h"
+#include "com.h"
 
 // Command line options configuration
 static struct env

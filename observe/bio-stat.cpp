@@ -25,7 +25,7 @@
 #include <string>
 
 #include "bio-stat.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "jhash.h"
 #include "blk_types.h"
 

@@ -4,7 +4,7 @@
 #include "ring-buffer.h"
 #include "shm.h"
 #include "spinlock.h"
-#include "Ucom.h"
+#include "com.h"
 #include "dkapture.h"
 #include "bpf-manager.h"
 

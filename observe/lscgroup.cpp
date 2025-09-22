@@ -25,9 +25,9 @@
 
 #include "types.h"
 #include "lscgroup.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "jhash.h"
-#include "Ukallsyms.h"
+#include "kallsyms.h"
 
 #define ITER_PASS_STRING 0
 

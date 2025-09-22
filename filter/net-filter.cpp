@@ -24,8 +24,8 @@
 #include "net-filter.skel.h"
 #include "net.h"
 #include "net-filter.h"
-#include "Ucom.h"
-#include "Ulog.h"
+#include "com.h"
+#include "log.h"
 
 /**
  * @brief 读取内核调试跟踪管道

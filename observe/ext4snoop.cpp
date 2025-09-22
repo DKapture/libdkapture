@@ -7,7 +7,7 @@
 #include <bpf/libbpf.h>
 
 #include "ext4snoop.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "ext4snoop.h"
 
 static struct env

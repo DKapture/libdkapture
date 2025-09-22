@@ -13,7 +13,7 @@
 #include <pthread.h>
 
 #include "trace-signal.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "jhash.h"
 
 struct Rule

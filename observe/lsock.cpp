@@ -22,7 +22,7 @@
 #include <stdexcept>
 #include <algorithm>
 
-#include "Ucom.h"
+#include "com.h"
 
 #include "lsock.skel.h"
 #include "types.h"

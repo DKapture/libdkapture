@@ -13,7 +13,7 @@
 #include <pthread.h>
 
 #include "run-queue.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "jhash.h"
 
 #include <stdexcept>

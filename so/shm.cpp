@@ -14,7 +14,7 @@
 
 #include "shm.h"
 #include "spinlock.h"
-#include "Ucom.h"
+#include "com.h"
 
 #define VERSION 0x1234567890abcdefUL
 

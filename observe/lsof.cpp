@@ -21,7 +21,7 @@
 #include <sys/sysmacros.h> // 添加这个头文件用于设备号操作
 
 #include "lsof.skel.h"
-#include "Ucom.h"
+#include "com.h"
 #include "jhash.h"
 
 #define PATH_MAX 4096

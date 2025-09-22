@@ -10,8 +10,8 @@
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 
-#include "Ucom.h"
-#include "Ulog.h"
+#include "com.h"
+#include "log.h"
 #include "ring-buffer.h"
 
 #define RING_BUF_TYPE_BPF 0

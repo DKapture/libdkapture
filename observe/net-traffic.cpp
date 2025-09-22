@@ -17,7 +17,7 @@
 #include <atomic>
 #include <map>
 
-#include "Ucom.h"
+#include "com.h"
 
 #include "net-traffic.skel.h"
 #include "types.h"

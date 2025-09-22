@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #include "sched-snoop.skel.h"
-#include "Ucom.h"
+#include "com.h"
 
 #define TASK_COMM_LEN 16
 

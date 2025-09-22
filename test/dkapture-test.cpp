@@ -1,6 +1,6 @@
 #include "dkapture.h"
-#include "Ulog.h"
-#include "Ucom.h"
+#include "log.h"
+#include "com.h"
 #include "gtest/gtest.h"
 
 #include <sys/ipc.h>

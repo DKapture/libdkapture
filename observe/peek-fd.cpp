@@ -14,7 +14,7 @@
 #include <pthread.h>
 
 #include "peek-fd.skel.h"
-#include "Ucom.h"
+#include "com.h"
 
 // Constants for read and write flags
 #define FD_READ 1

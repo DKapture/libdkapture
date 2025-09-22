@@ -12,8 +12,8 @@
 #include <system_error>
 
 #include "../so/shm.h"
-#include "../include/Ulog.h"
-#include "../include/Ucom.h"
+#include "../include/log.h"
+#include "../include/com.h"
 
 extern FILE *gtest_fp;
 // 测试用的共享内存键值

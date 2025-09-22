@@ -16,7 +16,7 @@
  * @version 1.0
  */
 
-#include "Ulog.h"
+#include "log.h"
 #include <cstdint>
 #include <stdio.h>
 #include <sys/sysmacros.h>
@@ -33,7 +33,7 @@
 #include <atomic>
 #include <dirent.h>
 #include <pwd.h>
-#include "Ucom.h"
+#include "com.h"
 
 #include "elfverify.skel.h"
 

@@ -13,7 +13,7 @@
 #include <atomic>
 #include <pthread.h>
 #include "trace-exec.skel.h"
-#include "Ucom.h"
+#include "com.h"
 
 // BPF object for tracing execution
 static trace_exec_bpf *obj;

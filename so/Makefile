@@ -13,7 +13,7 @@ CXX_OBJ = $(CXX_SRC:%.cpp=$(BUILD_DIR)/%.o) \
 CXXFLAGS = -fPIC -Wall \
 		   -I$(PROJ_ROOT)/include \
 		   -I$(PROJ_ROOT)/build/observe \
-		   -I$(PROJ_ROOT)/bpf/include
+		   -I$(PROJ_ROOT)/bpf/export
 
 ifeq ($(Release),1)
 	CXXFLAGS := -DNDEBUG -O2 $(CXXFLAGS)

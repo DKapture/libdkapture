@@ -15,7 +15,7 @@
  * @version 1.0
  */
 
-#include "Ulog.h"
+#include "log.h"
 #include <cstdint>
 #include <stdio.h>
 #include <fcntl.h>
@@ -33,7 +33,7 @@
 #include <atomic>
 #include <dirent.h>
 
-#include "Ucom.h"
+#include "com.h"
 
 #include "frtp.skel.h"
 
