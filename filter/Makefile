@@ -8,7 +8,8 @@ TARGETs = $(C_SRC:%.c=$(BUILD_DIR)/%) $(CXX_SRC:%.cpp=$(BUILD_DIR)/%)
 LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
 CFLAGS := -Wall -I$(PROJ_ROOT)/include \
 			-I$(PROJ_ROOT)/build/include \
-			-I$(BUILD_DIR)
+			-I$(BUILD_DIR) \
+			-I$(PROJ_ROOT)/bpf/include
 ifeq ($(Release),1)
 	CFLAGS := -DNDEBUG -O2 $(CFLAGS)
 else

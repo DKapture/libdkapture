@@ -6,7 +6,7 @@ CXX_SRC = $(shell ls *.cpp 2>/dev/null)
 TARGETs = $(C_SRC:%.c=$(BUILD_DIR)/%) $(CXX_SRC:%.cpp=$(BUILD_DIR)/%)
 
 LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
-CFLAGS := -Wall -I$(PROJ_ROOT)/include -I$(BUILD_DIR)
+CFLAGS := -Wall -I$(PROJ_ROOT)/include -I$(BUILD_DIR) -I$(PROJ_ROOT)/bpf/include
 
 ifneq ($(SHARED_LIB), )
 	CFLAGS += -fPIC 

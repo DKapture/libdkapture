@@ -2,7 +2,9 @@ PROJ_ROOT ?= ..
 MODULE := $(notdir $(CURDIR))
 BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
 TARGET = $(BUILD_DIR)/demo
-CXXFLAGS = -I$(PROJ_ROOT)/include/ -I$(PROJ_ROOT)/build/include/
+CXXFLAGS = -I$(PROJ_ROOT)/include/ \
+			-I$(PROJ_ROOT)/build/include/ \
+			-I$(PROJ_ROOT)/bpf/include
 LD_FLAGS = -L$(PROJ_ROOT)/build/so/ -ldkapture
 
 ifeq ($(Release),1)
