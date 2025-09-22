@@ -37,11 +37,8 @@ fi
 # Cleanup function
 cleanup() {
     echo -e "${YELLOW}Cleaning build directory...${NC}"
-    rm -rf "${BUILD_DIR}"
+    make distclean
 }
-
-# Error handling
-trap cleanup EXIT
 
 # Check dependencies function
 check_dependencies() {
@@ -197,9 +194,9 @@ fi
 
 # Collect header files to /usr/include/${PROJECT_NAME}
 echo -e "${YELLOW}Collecting header files to /usr/include/${PROJECT_NAME}...${NC}"
-if [[ -f "include/dkapture.h" ]]; then
+if [[ -f "bpf/export/dkapture.h" ]]; then
     echo "  Copying: dkapture.h -> ${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
-    cp "include/dkapture.h" "${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
+    cp "bpf/export/dkapture.h" "${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
 else
     echo -e "${YELLOW}Warning: include/dkapture.h not found${NC}"
 fi
