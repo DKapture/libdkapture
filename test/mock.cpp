@@ -14,6 +14,7 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <sys/time.h>
 
 #include <string>
 #include <vector>
@@ -31,10 +32,9 @@
 #define BPF_PIN_PATH "/sys/fs/bpf/dkapture"
 #define ALIGN_UP(x, a) ((x) + (a) - (x) % (a))
 
-extern int frtp_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
-extern int
-elfverify_init(int argc, char **argv, FILE *output, int64_t timeout = 50);
-uintptr_t test_id;
+std::string test_name;
+// (map_name, (key_size, value_size, max_entries, type))
+std::map<std::string, std::tuple<int, int, int, bpf_map_type>> *map_info = NULL;
 
 struct bpf_link
 {
@@ -55,7 +55,10 @@ struct bpf_program
 struct bpf_map
 {
 	int fd;
-	int sz;
+	size_t key_size;
+	size_t value_size;
+	size_t max_entries;
+	size_t sz;
 	void *mem;
 	bpf_map_type type;
 	std::string name;
@@ -67,6 +70,14 @@ struct bpf_object
 	std::vector<bpf_program> progs;
 	std::vector<bpf_map> maps;
 	std::vector<bpf_link> links;
+};
+
+struct ring_buffer
+{
+	int map_fd;
+	ring_buffer_sample_fn sample_cb;
+	void *ctx;
+	const struct ring_buffer_opts *opts;
 };
 
 static bpf_object g_obj;
@@ -90,7 +101,7 @@ std::string fd_path(int fd)
 	}
 }
 
-void bpf_rb_push_data(bpf_map *map, void *data, size_t sz)
+int bpf_rb_map_push_data(bpf_map *map, void *data, size_t sz)
 {
 	char *p = nullptr;
 	size_t rb_sz = 0;
@@ -102,8 +113,7 @@ void bpf_rb_push_data(bpf_map *map, void *data, size_t sz)
 	unsigned long *pdc_idx = (unsigned long *)(p + page_size);
 	if (*csm_idx + rb_sz <= *pdc_idx + sz)
 	{
-		pr_error("!!! rb left space is not enough !!!");
-		return;
+		return -E2BIG;
 	}
 	p += page_size * 2;
 	idx = *pdc_idx;
@@ -115,6 +125,24 @@ void bpf_rb_push_data(bpf_map *map, void *data, size_t sz)
 	memcpy(p, data, sz);
 	*pdc_idx += sz + BPF_RINGBUF_HDR_SZ;
 	*pdc_idx = (*pdc_idx + 7) & ~7;
+	return 0;
+}
+
+int ring_buffer__push(int fd, void *data, size_t sz)
+{
+	if (fd == 0 || !data || sz == 0)
+	{
+		return -EINVAL;
+	}
+	for (auto &i : g_obj.maps)
+	{
+		if (i.fd == fd && i.type == BPF_MAP_TYPE_RINGBUF)
+		{
+			int ret = bpf_rb_map_push_data(&i, data, sz);
+			return ret;
+		}
+	}
+	return -ENOENT;
 }
 
 void dump_task(bpf_program *p)
@@ -123,7 +151,7 @@ void dump_task(bpf_program *p)
 	auto mock_data = generate_mock_process_data(10);
 	for (auto it : mock_data)
 	{
-		bpf_rb_push_data(map, it, sizeof(*it) + it->dsz);
+		bpf_rb_map_push_data(map, it, sizeof(*it) + it->dsz);
 	}
 	cleanup_mock_process_data(mock_data);
 }
@@ -292,24 +320,11 @@ int bpf_object__find_map_fd_by_name(
 	return -(errno = ENOENT);
 }
 
-static int bpf_object__open_skeleton_frtp(
-	struct bpf_object_skeleton *s,
-	const struct bpf_object_open_opts *opts
-)
-{
-
-	return 0;
-}
-
 int bpf_object__open_skeleton(
 	struct bpf_object_skeleton *s,
 	const struct bpf_object_open_opts *opts
 )
 {
-	if (test_id == (uintptr_t)frtp_init)
-	{
-		return bpf_object__open_skeleton_frtp(s, opts);
-	}
 	if (access(BPF_PIN_PATH, F_OK) != 0)
 	{
 		if (0 != mkdir(BPF_PIN_PATH, 0700))
@@ -340,9 +355,23 @@ int bpf_object__open_skeleton(
 		map.fd = fd;
 		map.pin_path = buf;
 		map.name = name;
-		map.sz = RB_MAP_SIZE;
+		if (map_info && map_info->count(map.name))
+		{
+			const auto &[k, v, e, t] = (*map_info)[map.name];
+			map.key_size = k;
+			map.value_size = v;
+			map.max_entries = e;
+			map.sz = (k + v) * e;
+			map.type = t;
+		}
+		else
+		{
+			map.sz = RB_MAP_SIZE;
+			map.type = BPF_MAP_TYPE_UNSPEC;
+		}
 		int page_size = getpagesize();
-		if (strcmp(name, "dk_shared_mem") == 0)
+		if (strcmp(name, "dk_shared_mem") == 0 ||
+			map.type == BPF_MAP_TYPE_RINGBUF)
 		{
 			int ret = 0;
 			ret = ftruncate(fd, page_size * 2 + RB_MAP_SIZE);
@@ -411,91 +440,195 @@ int bpf_object__open_skeleton(
 	return 0;
 }
 
-int bpf_ringbuffer_push(
-	RingBuffer *m_bpf_rb,
-	int bpf_idx,
-	DKapture::DataHdr *dh
-)
+#include <time.h>
+#include <unistd.h>
+
+int ring_buffer__poll(struct ring_buffer *rb, int timeout)
 {
-	int ret = 0;
-	size_t page_size = getpagesize();
-	// bpf ringbuffer中前两个页是控制数据结构。
-	bpf_idx += page_size * 2 + BPF_RINGBUF_HDR_SZ;
-	ret = lseek(m_bpf_rb->map_fd, bpf_idx, SEEK_SET);
-	if (ret < 0)
+	if (!rb || !rb->sample_cb)
 	{
-		return -1;
+		return -EINVAL;
 	}
-	return write(m_bpf_rb->map_fd, dh, sizeof(DKapture::DataHdr) + dh->dsz);
-}
 
-static void frtp_gen_logs(char *dest, size_t bsz, size_t *usz)
-{
-	int pid = 1;
-	unsigned int act = 0x2;
-	size_t length = 0;
-	const char *str1 = "/usr/bin/binary";
-	const char *str2 = "123,456 7890";
-	struct BpfData
+	struct bpf_map *map = nullptr;
+	for (auto &i : g_obj.maps)
 	{
-		unsigned int act;
-		pid_t pid;
-		char process[];
-	} *buffer = (struct BpfData *)new char[128];
-
-	size_t struct_size = ALIGN_UP(
-		sizeof(struct BpfData) + strlen(str1) + 1 + strlen(str2) + 1,
-		8
-	);
-	assert(struct_size <= 128);
-	*usz = struct_size;
-	strcpy(buffer->process, str1);
-	strcpy(buffer->process + strlen(str1) + 1, str2);
-	buffer->act = act;
-	while (length <= bsz - struct_size)
-	{
-		buffer->pid = pid++;
-		memcpy(dest + length, buffer, struct_size);
-		length += struct_size;
-	}
-	delete buffer;
-}
-
-int ring_buffer__poll(struct ring_buffer *rb, int timeout_ms)
-{
-	if (test_id == (uintptr_t)frtp_init)
-	{
-		auto fn = (ring_buffer_sample_fn)rb;
-		size_t usz;
-		struct BpfData
+		if (i.fd == rb->map_fd)
 		{
-			unsigned int act;
-			pid_t pid;
-			char process[];
-		};
-		char buffer[4096] = {0};
-		frtp_gen_logs(buffer, 4096, &usz);
-		for (size_t i = 0; i < 4096; i += usz)
-		{
-			fn(nullptr, buffer + i, 0);
+			map = &i;
+			break;
 		}
-		return 0;
 	}
-	usleep(100000);
-	return 0;
+	if (!map || !map->mem)
+	{
+		return -ENOENT;
+	}
+
+	int page_size = getpagesize();
+	char *base = (char *)map->mem;
+	unsigned long *consumer = (unsigned long *)base;
+	unsigned long *producer = (unsigned long *)(base + page_size);
+	char *data_area = base + page_size * 2;
+	size_t data_sz = map->sz;
+
+	int records_consumed = 0;
+	struct timespec start_ts, current_ts;
+	bool use_timeout = (timeout >= 0);
+
+	if (use_timeout)
+	{
+		clock_gettime(CLOCK_MONOTONIC, &start_ts);
+	}
+
+	while (true)
+	{
+		// 检查超时
+		if (use_timeout)
+		{
+			clock_gettime(CLOCK_MONOTONIC, &current_ts);
+			long elapsed_ms = (current_ts.tv_sec - start_ts.tv_sec) * 1000 +
+							  (current_ts.tv_nsec - start_ts.tv_nsec) / 1000000;
+			if (elapsed_ms >= timeout)
+			{
+				break;
+			}
+		}
+
+		unsigned long cons = __atomic_load_n(consumer, __ATOMIC_RELAXED);
+		unsigned long prod = __atomic_load_n(producer, __ATOMIC_ACQUIRE);
+
+		bool processed = false;
+
+		while (cons != prod)
+		{
+			processed = true;
+
+			size_t offset = cons & (data_sz - 1);
+			char *p = data_area + offset;
+			long len = *(volatile long *)p;
+
+			if (len <= 0)
+			{
+				cons += 8;
+				cons = (cons + 7) & ~7;
+				continue;
+			}
+
+			if (cons + 8 + len > prod)
+			{
+				break; // 不完整记录
+			}
+
+			p += 8;
+			int ret = rb->sample_cb(rb->ctx, p, len);
+
+			cons += 8 + len;
+			cons = (cons + 7) & ~7;
+			records_consumed++;
+		}
+
+		// 更新 consumer
+		if (cons != __atomic_load_n(consumer, __ATOMIC_RELAXED))
+		{
+			__atomic_store_n(consumer, cons, __ATOMIC_RELEASE);
+		}
+
+		// 决定是否继续
+		if (processed)
+		{
+			// 处理了数据，继续下一次循环（非阻塞行为）
+			continue;
+		}
+
+		if (timeout == 0)
+		{
+			// 非阻塞模式，立即返回
+			break;
+		}
+
+		// 短暂休眠
+		std::this_thread::sleep_for(std::chrono::microseconds(1));
+	}
+
+	return records_consumed;
 }
 
 void ring_buffer__free(struct ring_buffer *rb)
 {
-	if (test_id == (uintptr_t)frtp_init)
-	{
-		return;
-	}
 	free(rb);
+}
+
+static off_t bpf_map_lookup_key(int fd, const void *key, struct bpf_map *map)
+{
+	off_t ret = lseek(fd, 0, SEEK_SET);
+	u8 *buf[map->key_size];
+	while (ret < map->sz)
+	{
+		ssize_t t = read(fd, buf, map->key_size);
+		if (t != map->key_size)
+		{
+			break;
+		}
+		if (memcmp(key, buf, map->key_size) == 0)
+		{
+			break;
+		}
+		ret = lseek(fd, map->value_size, SEEK_CUR);
+	}
+	return ret;
 }
 
 int bpf_map_update_elem(int fd, const void *key, const void *value, __u64 flags)
 {
+	if (!map_info)
+	{
+		return 0;
+	}
+	struct bpf_map *map = nullptr;
+	for (auto &i : g_obj.maps)
+	{
+		if (i.fd == fd)
+		{
+			map = &i;
+			break;
+		}
+	}
+	if (!map)
+	{
+		return 0;
+	}
+
+	off_t fsize = lseek(fd, 0, SEEK_END);
+	off_t pos = bpf_map_lookup_key(fd, key, map);
+	if (flags & BPF_EXIST)
+	{
+		if (fsize == pos)
+		{
+			return -ENOENT;
+		}
+	}
+	else if (flags & BPF_NOEXIST)
+	{
+		if (fsize != pos)
+		{
+			return -EEXIST;
+		}
+		if (fsize + map->key_size + map->value_size > map->sz)
+		{
+			return -E2BIG;
+		}
+	}
+	else
+	{
+		if (fsize == pos && fsize + map->key_size + map->value_size > map->sz)
+		{
+			return -E2BIG;
+		}
+	}
+	long ret;
+	ret = lseek(fd, pos, SEEK_SET);
+	ret = write(fd, key, map->key_size);
+	ret = write(fd, value, map->value_size);
 	return 0;
 }
 
@@ -506,20 +639,25 @@ struct ring_buffer *ring_buffer__new(
 	const struct ring_buffer_opts *opts
 )
 {
-	if (test_id == (uintptr_t)frtp_init)
-	{
-		return (struct ring_buffer *)sample_cb;
-	}
-	return (struct ring_buffer *)malloc(4096);
+	struct ring_buffer *rb =
+		(struct ring_buffer *)malloc(sizeof(struct ring_buffer));
+
+	rb->map_fd = map_fd;
+	rb->sample_cb = sample_cb;
+	rb->ctx = ctx;
+	rb->opts = opts;
+	return rb;
 }
 
 int bpf_map__set_value_size(struct bpf_map *map, __u32 size)
 {
-	return map->sz = size;
+	map->sz = size;
+	return 0;
 }
 
 int bpf_map__set_max_entries(struct bpf_map *map, __u32 max_entries)
 {
+	map->max_entries = max_entries;
 	return 0;
 }
 
@@ -530,12 +668,152 @@ int bpf_map__fd(const struct bpf_map *map)
 
 int bpf_map_lookup_elem(int fd, const void *key, void *value)
 {
+	if (!map_info)
+	{
+		return 0;
+	}
+	struct bpf_map *map = nullptr;
+	for (auto &i : g_obj.maps)
+	{
+		if (i.fd == fd)
+		{
+			map = &i;
+			break;
+		}
+	}
+	if (!map)
+	{
+		return 0;
+	}
+
+	off_t fsize = lseek(fd, 0, SEEK_END);
+	off_t pos = bpf_map_lookup_key(fd, key, map);
+	if (fsize == pos)
+	{
+		return -ENOENT;
+	}
+	lseek(fd, pos + map->key_size, SEEK_SET);
+	read(fd, value, map->value_size);
 	return 0;
 }
 
 int bpf_map_get_next_key(int fd, const void *key, void *next_key)
 {
+	if (!next_key)
+	{
+		return -EINVAL;
+	}
+	if (!map_info)
+	{
+		return 0;
+	}
+	struct bpf_map *map = nullptr;
+	for (auto &i : g_obj.maps)
+	{
+		if (i.fd == fd)
+		{
+			map = &i;
+			break;
+		}
+	}
+	if (!map)
+	{
+		return 0;
+	}
+
+	off_t fsize = lseek(fd, 0, SEEK_END);
+	off_t pos;
+	if (!key)
+	{
+		pos = 0;
+	}
+	else
+	{
+		pos =
+			bpf_map_lookup_key(fd, key, map) + map->key_size + map->value_size;
+	}
+
+	if (fsize <= pos)
+	{
+		return -ENOENT;
+	}
+	lseek(fd, pos, SEEK_SET);
+	read(fd, next_key, map->key_size);
 	return 0;
+}
+
+long bpf_for_each_map_elem(
+	struct bpf_map *map,
+	void *callback_fn,
+	void *callback_ctx,
+	__u64 flags
+)
+{
+	if (!map || !callback_fn)
+	{
+		pr_error("Invalid parameters in %s", __func__);
+		return -EINVAL;
+	}
+	long (*callback)(struct bpf_map *, const void *, void *, void *) =
+		(long (*)(struct bpf_map *, const void *, void *, void *))callback_fn;
+	void *key = malloc(map->key_size);
+	if (!key)
+	{
+		return -ENOMEM;
+	}
+	void *next_key = malloc(map->key_size);
+	if (!next_key)
+	{
+		free(key);
+		return -ENOMEM;
+	}
+	void *value = malloc(map->value_size);
+	if (!value)
+	{
+		free(key);
+		free(next_key);
+		return -ENOMEM;
+	}
+	long ret = bpf_map_get_next_key(map->fd, NULL, next_key);
+	while (ret == 0)
+	{
+		std::swap(key, next_key);
+		ret = bpf_map_lookup_elem(map->fd, key, value);
+		if (ret)
+		{
+			goto out_free_mem;
+		}
+
+		ret = callback(map, key, value, callback_ctx);
+		if (ret)
+		{
+			goto out_free_mem;
+		}
+
+		ret = bpf_map_get_next_key(map->fd, key, next_key);
+	}
+out_free_mem:
+	free(key);
+	free(next_key);
+	free(value);
+	return ret;
+}
+
+long bpf_for_each_map_elem(
+	int fd,
+	void *callback_fn,
+	void *callback_ctx,
+	__u64 flags
+)
+{
+	for (auto &i : g_obj.maps)
+	{
+		if (i.fd == fd)
+		{
+			return bpf_for_each_map_elem(&i, callback_fn, callback_ctx, flags);
+		}
+	}
+	return -ENOENT;
 }
 
 int bpf_object__load_skeleton(struct bpf_object_skeleton *s)
