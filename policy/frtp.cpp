@@ -36,6 +36,7 @@
 #include "com.h"
 
 #include "frtp.skel.h"
+#include "types.h"
 
 /** @brief BPF程序对象指针 */
 static frtp_bpf *obj;
@@ -136,8 +137,21 @@ struct FrtpLog
 	const char *binary;
 	const char *target;
 };
-static std::vector<FrtpLog> *logs;
 static FILE *stdout_bak;
+static std::map<std::string, std::tuple<int, int, int, bpf_map_type>>
+	local_map_info = {
+		{"filter",   {sizeof(u32), sizeof(struct Rule), 400000, BPF_MAP_TYPE_HASH}
+		},
+		{"pid2path",
+		 {sizeof(pid_t), sizeof(char[4096]), 1024, BPF_MAP_TYPE_LRU_HASH}		 },
+		{"logs",	 {0, 1, 1024 * 1024, BPF_MAP_TYPE_RINGBUF}					  },
+};
+static std::atomic<int> *condition;
+int *filter_fdp;
+int *log_fdp;
+extern std::string test_name;
+// (map_name, (key_size, value_size, max_entries))
+extern std::map<std::string, std::tuple<int, int, int, bpf_map_type>> *map_info;
 #endif
 
 static struct option lopts[] = {
@@ -620,12 +634,16 @@ void ringbuf_worker(void)
 {
 	while (!exit_flag)
 	{
-		int err = ring_buffer__poll(rb, 1000 /* timeout in ms */);
+#ifdef BUILTIN
+		int ret = ring_buffer__poll(rb, 50 /* timeout in ms */);
+#else
+		int ret = ring_buffer__poll(rb, 1000 /* timeout in ms */);
+#endif
 		// Check for errors during polling
-		if (err < 0 && err != -EINTR)
+		if (ret < 0 && ret != -EINTR)
 		{
-			pr_error("Error polling ring buffer: %d\n", err);
-			sleep(5); // Sleep before retrying
+			pr_error("Error polling ring buffer: %d", ret);
+			std::this_thread::sleep_for(std::chrono::microseconds(5));
 		}
 	}
 }
@@ -654,9 +672,20 @@ static int register_signal()
 }
 
 #ifdef BUILTIN
-void frtp_init(FILE *output, std::vector<FrtpLog> *v)
+void frtp_init(
+	FILE *output,
+	std::atomic<int> *conditionp,
+	std::atomic<bool> **exit_flagp,
+	int *filter_fd,
+	int *log_fd
+)
 {
-	logs = v;
+	test_name = "frtp";
+	map_info = &local_map_info;
+	condition = conditionp;
+	*exit_flagp = &exit_flag;
+	filter_fdp = filter_fd;
+	log_fdp = log_fd;
 	target2path_map.clear();
 	exit_flag = false;
 	rb = NULL;
@@ -669,6 +698,8 @@ void frtp_init(FILE *output, std::vector<FrtpLog> *v)
 
 void frtp_deinit()
 {
+	test_name = "";
+	map_info = NULL;
 	fflush(stdout);
 	stdout = stdout_bak;
 	Log::set_file(stderr);
@@ -700,12 +731,9 @@ int main(int argc, char **argv)
 	std::vector<struct Rule> rules;
 	std::thread *rb_thread;
 	int ret = parse_args(argc, argv);
-	if (ret > 0)
+	if (ret != 0)
 	{
-		return 0;
-	}
-	else if (ret < 0)
-	{
+		*condition = 2;
 		return ret;
 	}
 
@@ -727,17 +755,19 @@ int main(int argc, char **argv)
 
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto out_destroy);
 
+#ifdef BUILTIN
+	*filter_fdp = filter_fd;
+	*log_fdp = log_map_fd;
+#endif
+
 	if (0 != frtp_bpf::attach(obj))
 	{
 		ret = -1;
 		goto out_destroy;
 	}
 
-#ifndef BUILTIN
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
-#else
-	rb = ring_buffer__new(log_map_fd, handle_event, logs, NULL);
-#endif
+
 	if (!rb)
 	{
 		ret = -1;
@@ -760,8 +790,11 @@ int main(int argc, char **argv)
 #ifndef BUILTIN
 	follow_trace_pipe();
 #else
-	std::this_thread::sleep_for(std::chrono::microseconds(logs->size() * 10));
-	exit_flag = true;
+	*condition = 1;
+	while (!exit_flag)
+	{
+		std::this_thread::sleep_for(std::chrono::microseconds(5));
+	}
 #endif
 	rb_thread->join();
 	delete rb_thread;

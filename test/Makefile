@@ -2,6 +2,8 @@ PROJ_ROOT ?= ..
 MODULE := $(notdir $(CURDIR))
 BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
 LOCAL_CPP = $(wildcard *.cpp)
+LOCAL_CPP := $(filter-out bpf-test.cpp, $(LOCAL_CPP))
+LOCAL_CPP := $(filter-out ring-buffer-test.cpp, $(LOCAL_CPP))
 LOCAL_OBJS = $(LOCAL_CPP:%.cpp=$(BUILD_DIR)/%.o)
 REMOTE_CPP = $(wildcard $(PROJ_ROOT)/so/*.cpp)
 REMOTE_OBJS := $(notdir $(REMOTE_CPP))
@@ -16,7 +18,8 @@ CXXFLAGS = -g -D__GTEST__ -DBUILTIN -MMD \
 		   -I$(PROJ_ROOT)/googletest/googletest/include \
 		   -I$(PROJ_ROOT)/build/include \
 		   -I$(PROJ_ROOT)/build/observe \
-		   -I$(PROJ_ROOT)/build/policy
+		   -I$(PROJ_ROOT)/build/policy \
+		   -I$(PROJ_ROOT)/bpf/export
 
 LDFLAGS = -Wl,-rpath=$(PROJ_ROOT)/googletest/build/lib/
 

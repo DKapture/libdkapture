@@ -18,11 +18,24 @@ class DataMapTest : public ::testing::Test
 	}
 };
 
-int bpf_ringbuffer_push(
+static int bpf_ringbuffer_push(
 	RingBuffer *m_bpf_rb,
 	int bpf_idx,
 	DKapture::DataHdr *dh
-);
+)
+{
+	int ret = 0;
+	size_t page_size = getpagesize();
+	// bpf ringbuffer中前两个页是控制数据结构。
+	bpf_idx += page_size * 2 + BPF_RINGBUF_HDR_SZ;
+	ret = lseek(m_bpf_rb->map_fd, bpf_idx, SEEK_SET);
+	if (ret < 0)
+	{
+		return -1;
+	}
+	return write(m_bpf_rb->map_fd, dh, sizeof(DKapture::DataHdr) + dh->dsz);
+}
+
 TEST_F(DataMapTest, PushAndFind)
 {
 	ulong bpf_idx = 8;

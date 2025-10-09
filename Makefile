@@ -8,7 +8,7 @@ MAKE = make PROJ_ROOT=$(shell pwd)
 
 all: $(TARGETs)
 
-demo: so
+demo test: so
 bpf: bpf.gitsubmodule
 observe filter policy so: bpf
 
