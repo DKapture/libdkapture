@@ -2,8 +2,6 @@ PROJ_ROOT ?= ..
 MODULE := $(notdir $(CURDIR))
 BUILD_DIR = $(PROJ_ROOT)/build/$(MODULE)
 LOCAL_CPP = $(wildcard *.cpp)
-LOCAL_CPP := $(filter-out bpf-test.cpp, $(LOCAL_CPP))
-LOCAL_CPP := $(filter-out ring-buffer-test.cpp, $(LOCAL_CPP))
 LOCAL_OBJS = $(LOCAL_CPP:%.cpp=$(BUILD_DIR)/%.o)
 REMOTE_CPP = $(wildcard $(PROJ_ROOT)/so/*.cpp)
 REMOTE_OBJS := $(notdir $(REMOTE_CPP))
