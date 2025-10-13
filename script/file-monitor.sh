@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 # File Monitor Script - Event Stream Fusion Engine
 # Combined monitoring with trace-file, ext4snoop, mountsnoop, lsof
 # Version: 1.0

@@ -1,3 +1,12 @@
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
+// This file uses/derives from googletest
+// Copyright 2008, Google Inc.
+// Licensed under the BSD 3-Clause License
+// See NOTICE for full license text
+
 #include "gtest/gtest.h"
 #include "bpf-manager.h"
 #include <sys/stat.h>

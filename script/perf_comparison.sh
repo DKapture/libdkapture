@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 # 配置参数
 TEST_FILE="/tmp/test_file"
 EVENT_COUNT=1000

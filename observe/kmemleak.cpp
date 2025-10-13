@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-// Copyright (c) 2023 Meta Platforms, Inc. and affiliates.
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
 //
-// Based on memleak(8) from BCC by Sasha Goldshtein and others.
-// 1-Mar-2023   JP Kobryn   Created this.
+// SPDX-License-Identifier: LGPL-2.1-only
+
 #include <argp.h>
 #include <errno.h>
 #include <signal.h>

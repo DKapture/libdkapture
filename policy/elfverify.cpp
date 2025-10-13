@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
 /**
  * @file elfverify.cpp
  * @brief ELF可执行文件验证和访问控制系统

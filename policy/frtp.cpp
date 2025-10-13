@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
 /**
  * @file frtp.cpp
  * @brief 文件系统实时保护(File Real-Time Protection)用户空间程序

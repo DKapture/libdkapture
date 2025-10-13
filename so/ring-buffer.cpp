@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
 #include <errno.h>
 #include <sys/epoll.h>
 #include <sys/mman.h>

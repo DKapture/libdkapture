@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 # Help information
 show_help() {
     echo "Usage: $0 [OPTIONS]"

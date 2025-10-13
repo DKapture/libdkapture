@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-// Copyright (c) 2020 Wenbo Zhang
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
 //
-// Based on urblat(8) from BCC by Brendan Gregg.
-// 15-Jun-2020   Wenbo Zhang   Created this.
+// SPDX-License-Identifier: LGPL-2.1-only
+
 #include <argp.h>
 #include <signal.h>
 #include <stdio.h>

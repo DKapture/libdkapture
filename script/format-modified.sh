@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 CLANG_FORMAT_VERSION=$(clang-format --version | grep -oP '[0-9]+' | head -1)
 if [ -z "$CLANG_FORMAT_VERSION" ]; then
   echo "Error: clang-format not found"

@@ -1,15 +1,7 @@
-// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-/* Copyright (c) 2021 Google LLC.
- *
- * Based on spinlock_ob from BCC by Jiri Olsa and others
- * 2021-10-26   Barret Rhoden   Created this.
- */
-/* Differences from BCC python tool:
- * - can specify a lock by ksym name, using '-L'
- * - tracks whichever task had the max time for acquire and hold, outputted
- *     when '-s' > 1 (otherwise it's cluttered).
- * - does not reset stats each interval by default. Can request with -R.
- */
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
