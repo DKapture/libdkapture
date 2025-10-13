@@ -1,11 +1,7 @@
-/* SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause) */
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+//
+// SPDX-License-Identifier: LGPL-2.1-only
 
-/*
- * mountsnoop  Trace mount and umount[2] syscalls
- *
- * Copyright (c) 2021 Hengqi Chen
- * 30-May-2021   Hengqi Chen   Created this.
- */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif

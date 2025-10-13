@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 # 脚本用于将 include 目录下以 U 开头的文件重命名，去掉 U 字母
 # 使用方法: ./rename_u_files.sh [--dry-run]
 

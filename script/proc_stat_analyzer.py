@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 """
 进程统计信息分析器
 遍历/proc/pid/stat文件，统计utime和stime为0的进程数量

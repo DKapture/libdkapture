@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
 /**
  * graphics-snoop - Graphics system events monitoring
  * Monitor DRM and DMA fence events in the graphics subsystem

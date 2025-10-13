@@ -11,3 +11,5 @@ build/
 *.deb
 .cache
 compile_commands.json
+.reuse
+!.reuse/dep5

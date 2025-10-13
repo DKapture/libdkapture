@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-// Copyright (c) 2025 DKapture Project
+// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
 //
-// Based on dkapture framework thermal management observation tool.
+// SPDX-License-Identifier: LGPL-2.1-only
+
 #include <argp.h>
 #include <signal.h>
 #include <stdio.h>

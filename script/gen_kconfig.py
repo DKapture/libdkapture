@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 """
 Script to generate kconfig.h from /proc/config.gz
 Usage: python3 gen_kconfig.py [output_file]
