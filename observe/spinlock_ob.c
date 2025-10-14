@@ -800,7 +800,7 @@ static void print_hld_task(struct stack_stat *ss)
 	);
 }
 
-static int print_stats(struct ksyms *ksyms, int stack_map, int stat_map)
+static int print_stats(struct ksyms *ksyms, int stacks, int stat_map)
 {
 	struct stack_stat **stats, *ss;
 	size_t stat_idx = 0;
@@ -845,7 +845,7 @@ static int print_stats(struct ksyms *ksyms, int stack_map, int stat_map)
 			continue;
 		}
 		if (!env.per_thread &&
-			bpf_map_lookup_elem(stack_map, &stack_id, &ss->bt))
+			bpf_map_lookup_elem(stacks, &stack_id, &ss->bt))
 		{
 			/* Can still report the results without a backtrace. */
 			warn("failed to lookup stack_id %u\n", stack_id);
@@ -931,16 +931,16 @@ libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 
 static void enable_fentry(struct spinlock_ob_bpf *obj)
 {
-	bpf_program__set_autoload(obj->progs.kprobe__raw_spin_lock, false);
-	bpf_program__set_autoload(obj->progs.kprobe__raw_spin_lock_exit, false);
-	bpf_program__set_autoload(obj->progs.kprobe__raw_spin_unlock, false);
+	bpf_program__set_autoload(obj->progs.kprobe_raw_spin_lock, false);
+	bpf_program__set_autoload(obj->progs.kretprobe_raw_spin_lock, false);
+	bpf_program__set_autoload(obj->progs.kprobe_raw_spin_unlock, false);
 }
 
 static void enable_kprobes(struct spinlock_ob_bpf *obj)
 {
-	bpf_program__set_autoload(obj->progs._raw_spin_lock, false);
-	bpf_program__set_autoload(obj->progs._raw_spin_lock_exit, false);
-	bpf_program__set_autoload(obj->progs._raw_spin_unlock, false);
+	bpf_program__set_autoload(obj->progs.fentry_raw_spin_lock, false);
+	bpf_program__set_autoload(obj->progs.fexit_raw_spin_lock, false);
+	bpf_program__set_autoload(obj->progs.fentry_raw_spin_unlock, false);
 }
 
 static bool fentry_try_attach(int id)
@@ -1066,9 +1066,9 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	obj->rodata->targ_tgid = env.pid;
-	obj->rodata->targ_pid = env.tid;
-	obj->rodata->targ_lock = lock_addr;
+	obj->rodata->target_tgid = env.pid;
+	obj->rodata->target_pid = env.tid;
+	obj->rodata->target_lock = lock_addr;
 	obj->rodata->per_thread = env.per_thread;
 
 	if (fentry_can_attach("mutex_lock", NULL) ||
@@ -1117,7 +1117,7 @@ int main(int argc, char **argv)
 
 		if (print_stats(
 				ksyms,
-				bpf_map__fd(obj->maps.stack_map),
+				bpf_map__fd(obj->maps.stacks),
 				bpf_map__fd(obj->maps.stat_map)
 			))
 		{
