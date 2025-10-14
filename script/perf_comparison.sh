@@ -2,7 +2,7 @@
 
 # SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
 #
-# SPDX-License-Identifier: LGPL-2.1-only
+# SPDX-License-Identifier: LGPL-2.1
 
 # 配置参数
 TEST_FILE="/tmp/test_file"

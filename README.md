@@ -2,6 +2,35 @@
 
 DKapture（Deepin Kernel Capture）是一个用户空间工具集和动态库，用于观察和操作内核的数据对象或行为。对标业界标杆工具sysdig和systemtap，但实现的方式截然不同，DKapture是基于Linux内核新兴的eBPF技术，相对sysdig和systemtap基于内核模块的技术，eBPF技术更安全。
 
+## License
+
+本项目中的部分文件（如公共头文件）采用 **GNU 宽通用公共许可证第二版（LGPL-2.1）**。
+
+完整许可证文本请参见：[LICENSE](LICENSE)
+
+每个适用此许可证的文件顶部均包含如下 SPDX 标识：
+SPDX-License-Identifier: LGPL-2.1
+
+## 第三方库与许可证说明
+
+本项目引入了以下第三方库，其许可证信息如下：
+
+- **dkapture-bpf**  
+  本项目仅以头文件形式包含`dkapture-bpf`的部分内容。该部分代码的许可证与本项目一致，均为 **LGPL-2.1**，因此无需额外声明。
+
+- **googletest**  
+  本项目通过动态链接方式使用`googletest`，并在相关源文件中引用其头文件。  
+  所有使用或派生自`googletest`的代码文件顶部均保留了原始版权声明，格式如下：
+
+  ```c
+  // This file uses/derives from googletest
+  // Copyright 2008, Google Inc.
+  // Licensed under the BSD 3-Clause License
+  // See NOTICE for full license text
+  ```
+
+  `googletest` 采用 BSD 3-Clause License，其完整许可证文本及版权声明参见 [`NOTICE`](NOTICE)。
+
 # 功能特性
 
 ## 信息采集
