@@ -2,7 +2,7 @@
 
 # SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
 #
-# SPDX-License-Identifier: LGPL-2.1-only
+# SPDX-License-Identifier: LGPL-2.1
 
 """
 Script to generate kconfig.h from /proc/config.gz

@@ -2,7 +2,7 @@
 
 # SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd
 #
-# SPDX-License-Identifier: LGPL-2.1-only
+# SPDX-License-Identifier: LGPL-2.1
 
 # File Monitor Script - Event Stream Fusion Engine
 # Combined monitoring with trace-file, ext4snoop, mountsnoop, lsof
