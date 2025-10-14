@@ -737,7 +737,9 @@ int main(int argc, char **argv)
 	int ret = parse_args(argc, argv);
 	if (ret != 0)
 	{
+#ifdef BUILTIN
 		*condition = 2;
+#endif
 		return ret;
 	}
 
