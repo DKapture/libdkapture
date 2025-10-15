@@ -254,7 +254,7 @@ std::string long_opt2short_opt(const option lopts[])
 	return sopts;
 }
 // Helper function to parse IP range
-void parse_ip_range(
+u32 parse_ip_range(
 	const char *arg,
 	unsigned int &start,
 	unsigned int &end,
@@ -262,6 +262,10 @@ void parse_ip_range(
 	struct in6_addr &end_v6
 )
 {
+	start = end = 0;
+	memset(&start_v6, 0, sizeof(start_v6));
+	memset(&end_v6, 0, sizeof(end_v6));
+
 	std::string input(arg);
 	size_t dash_pos = input.find('-');
 	if (dash_pos == std::string::npos)
@@ -270,10 +274,12 @@ void parse_ip_range(
 		if (inet_pton(AF_INET, arg, &start) == 1)
 		{
 			end = start;
+			return SWITCH_IPV4;
 		}
 		else if (inet_pton(AF_INET6, arg, &start_v6) == 1)
 		{
 			end_v6 = start_v6;
+			return SWITCH_IPV6;
 		}
 		else
 		{
@@ -288,11 +294,13 @@ void parse_ip_range(
 		if (inet_pton(AF_INET, start_ip.c_str(), &start) == 1 &&
 			inet_pton(AF_INET, end_ip.c_str(), &end) == 1)
 		{
+			return SWITCH_IPV4;
 		}
 		else if (inet_pton(AF_INET6, start_ip.c_str(), &start_v6) ==
 				 1 &&
 			 inet_pton(AF_INET6, end_ip.c_str(), &end_v6) == 1)
 		{
+			return SWITCH_IPV6;
 		}
 		else
 		{
@@ -330,6 +338,7 @@ void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	u32 bit_switch = 0;
+	bool has_ip = false;
 	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
 												   // short options
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
@@ -337,9 +346,10 @@ void parse_args(int argc, char **argv)
 		switch (opt)
 		{
 		case 'i': // Source IP
+			has_ip = true;
 			try
 			{
-				parse_ip_range(
+				bit_switch |= parse_ip_range(
 					optarg,
 					rule.lip,
 					rule.lip_end,
@@ -354,9 +364,10 @@ void parse_args(int argc, char **argv)
 			}
 			break;
 		case 'I': // Destination IP
+			has_ip = true;
 			try
 			{
-				parse_ip_range(
+				bit_switch |= parse_ip_range(
 					optarg,
 					rule.rip,
 					rule.rip_end,
@@ -425,6 +436,15 @@ void parse_args(int argc, char **argv)
 	}
 	if (bit_switch)
 	{
+		if (has_ip && (bit_switch & SWITCH_IPV4) && (bit_switch & SWITCH_IPV6))
+		{
+			fprintf(stderr, "IP address type conflict\n");
+			exit(-1);
+		}
+		if (has_ip && (bit_switch & (SWITCH_TCP | SWITCH_UDP)) == 0)
+		{
+			bit_switch |= (SWITCH_TCP | SWITCH_UDP);
+		}
 		rule.bit_switch = bit_switch;
 	}
 	if ((rule.bit_switch & (SWITCH_IPV4 | SWITCH_IPV6)) == 0)
