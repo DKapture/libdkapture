@@ -704,7 +704,7 @@ void print_usage(const char *program_name)
 	printf("                                  Supported nodes: stat, io, "
 		   "traffic, statm, schedstat, fd, ns,\n");
 	printf("                                             status, net, cmdline, "
-		   "env, cwd, root, exe, maps, sock\n");
+		   "env, cwd, root, exe, maps\n");
 	printf("  -f, --file-watch [file]         Enable file monitoring (default: "
 		   "all files)\n");
 	printf("  -m, --memory-scan [pid]         Enable kernel memory leak "
@@ -874,7 +874,8 @@ void run_procfs_read(DKapture *dk)
 		// 如果指定了特定节点，只读取该节点
 		DKapture::DataType specified_type =
 			string_to_datatype(g_options.procfs_node);
-		if (specified_type == DKapture::PROC_NONE)
+		if (specified_type == DKapture::PROC_NONE ||
+			specified_type == DKapture::PROC_PID_sock)
 		{
 			printf("Invalid procfs node: %s\n", g_options.procfs_node.c_str());
 			return;
