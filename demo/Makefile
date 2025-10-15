@@ -12,7 +12,7 @@ CXXFLAGS = -I$(PROJ_ROOT)/include/ \
 LD_FLAGS = -L$(PROJ_ROOT)/build/so/ -ldkapture
 
 ifeq ($(Release),1)
-	CXXFLAGS := -DNDEBUG -O2 $(CXXFLAGS)
+	CXXFLAGS := -O2 $(CXXFLAGS)
 else
 	CXXFLAGS := -MMD -g -Og $(CXXFLAGS)
 	LD_FLAGS += -Wl,-rpath=$(PROJ_ROOT)/build/so/

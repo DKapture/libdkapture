@@ -21,8 +21,10 @@ ifneq ($(GTEST), )
 endif
 ifeq ($(Release),1)
 	CFLAGS := -DNDEBUG -O2 $(CFLAGS)
+	BPF_DIR_PATCH ?= /usr/lib/dkapture
 else
 	CFLAGS := -MMD -g -Og $(CFLAGS)
+	BPF_DIR_PATCH ?= $(BPF_DIR)
 endif
 BPF_DIR := $(PROJ_ROOT)/bpf/build/$(MODULE)
 CXXFLAGS = $(CFLAGS)
@@ -55,7 +57,7 @@ $(BUILD_DIR)/%.o: $(PROJ_ROOT)/so/%.cpp | $(BUILD_DIR)
 
 $(BUILD_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o | $(BUILD_DIR)
 	bpftool gen skeleton $< > $@
-	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BPF_DIR) $@
+	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BPF_DIR_PATCH) $@
 
 clean:
 	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.d $(TARGETs)

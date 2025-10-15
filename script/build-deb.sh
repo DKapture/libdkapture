@@ -121,13 +121,13 @@ echo -e "${BLUE}Compiling include module...${NC}"
 ${MAKE} include || { echo -e "${RED}Error: include module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling observe module...${NC}"
-${MAKE} observe || { echo -e "${RED}Error: observe module compilation failed${NC}"; exit 1; }
+${MAKE} observe BPF_DIR_PATCH="${DKAPTURE_LIB_DIR#$DEB_DIR}" || { echo -e "${RED}Error: observe module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling filter module...${NC}"
-${MAKE} filter || { echo -e "${RED}Error: filter module compilation failed${NC}"; exit 1; }
+${MAKE} filter BPF_DIR_PATCH="${DKAPTURE_LIB_DIR#$DEB_DIR}" || { echo -e "${RED}Error: filter module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling policy module...${NC}"
-${MAKE} policy || { echo -e "${RED}Error: policy module compilation failed${NC}"; exit 1; }
+${MAKE} policy BPF_DIR_PATCH="${DKAPTURE_LIB_DIR#$DEB_DIR}" || { echo -e "${RED}Error: policy module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling so module...${NC}"
 ${MAKE} so || { echo -e "${RED}Error: so module compilation failed${NC}"; exit 1; }
