@@ -441,15 +441,16 @@ void parse_args(int argc, char **argv)
 			fprintf(stderr, "IP address type conflict\n");
 			exit(-1);
 		}
-		if (has_ip && (bit_switch & (SWITCH_TCP | SWITCH_UDP)) == 0)
-		{
-			bit_switch |= (SWITCH_TCP | SWITCH_UDP);
-		}
 		rule.bit_switch = bit_switch;
 	}
 	if ((rule.bit_switch & (SWITCH_IPV4 | SWITCH_IPV6)) == 0)
 	{
 		rule.bit_switch |= (SWITCH_IPV4 | SWITCH_IPV6);
+	}
+	if (rule.bit_switch & (SWITCH_IPV4 | SWITCH_IPV6) &&
+		(rule.bit_switch & (SWITCH_TCP | SWITCH_UDP)) == 0)
+	{
+		rule.bit_switch |= (SWITCH_TCP | SWITCH_UDP);
 	}
 }
 
