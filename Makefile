@@ -3,7 +3,14 @@
 # SPDX-License-Identifier: LGPL-2.1
 
 BUILD_DIR = build
-TARGETs = bpf observe filter policy so tools demo
+TARGETs = bpf observe filter so tools demo
+BPF_TARGET_ARCH := $(shell uname -m)
+ifeq ($(BPF_TARGET_ARCH), loongarch64)
+	BPF_TARGET_ARCH := loongarch
+endif
+ifneq ($(BPF_TARGET_ARCH), loongarch)
+	TARGETs += policy
+endif
 SUBTARGETs = $(foreach i,$(TARGETs),$(i)/%)
 MAKE = make PROJ_ROOT=$(shell pwd)
 

@@ -8,6 +8,21 @@ BUILD_DIR := $(PROJ_ROOT)/build/$(MODULE)
 C_SRC = $(shell ls *.c 2>/dev/null)
 CXX_SRC = $(shell ls *.cpp 2>/dev/null)
 TARGETs = $(C_SRC:%.c=$(BUILD_DIR)/%) $(CXX_SRC:%.cpp=$(BUILD_DIR)/%)
+BPF_TARGET_ARCH := $(shell uname -m)
+ifeq ($(BPF_TARGET_ARCH), loongarch64)
+	BPF_TARGET_ARCH := loongarch
+endif
+ifeq ($(BPF_TARGET_ARCH), loongarch)
+	filter-out-multi = $(strip \
+		$(foreach word,$(1), \
+			$(if $(strip $(foreach substr,$(2),$(findstring $(substr),$(word)))),, \
+				$(word) \
+			) \
+		) \
+	)
+	BLACKLIST := spinlock_ob pagefault
+	TARGETs := $(call filter-out-multi, $(TARGETs), $(BLACKLIST))
+endif
 
 LDFLAGS = -Wl,--no-as-needed -lbpf -lpthread
 CFLAGS := -Wall -I$(PROJ_ROOT)/include -I$(BUILD_DIR) -I$(PROJ_ROOT)/bpf/export
