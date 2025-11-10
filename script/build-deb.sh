@@ -18,8 +18,17 @@ NC='\033[0m' # No Color
 
 # Project information
 PROJECT_NAME="dkapture"
-: ${VERSION:=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' )}
-: ${VERSION:=1.0.0}
+
+: ${IN_KERNEL_TREE:=0}
+
+if [ "$IN_KERNEL_TREE" = 1 ]; then
+    VERSION=$(tail -n1 version 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+    USE_SUBMODULE=0
+else
+    VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+    USE_SUBMODULE=1
+fi
+
 ARCH=$(dpkg --print-architecture)
 PACKAGE_NAME="${PROJECT_NAME}_${VERSION}_${ARCH}"
 
@@ -33,9 +42,9 @@ DKAPTURE_LIB_DIR="${INSTALL_DIR}/lib/dkapture"
 INCLUDE_DIR="${INSTALL_DIR}/include"
 CONTROL_DIR="${DEB_DIR}/DEBIAN"
 if [ $(nproc) -gt 1 ]; then
-    MAKE="make -j$(($(nproc)-1)) Release=1"
+    MAKE="make -j$(($(nproc)-1)) Release=1 USE_SUBMODULE=${USE_SUBMODULE}"
 else
-    MAKE="make Release=1"
+    MAKE="make Release=1 USE_SUBMODULE=${USE_SUBMODULE}"
 fi
 
 # Cleanup function
