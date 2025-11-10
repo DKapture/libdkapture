@@ -17,10 +17,12 @@ MAKE = make PROJ_ROOT=$(shell pwd)
 .PHONY: all clean distclean pseudo $(TARGETs)
 .SUFFIXES:
 
+USE_SUBMODULE ?= 1
+
 all: $(TARGETs)
 
 demo test: so
-bpf: bpf.gitsubmodule
+bpf: $(if $(filter 1,$(USE_SUBMODULE)),bpf.gitsubmodule)
 observe filter policy so: bpf
 
 $(TARGETs):
