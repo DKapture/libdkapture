@@ -18,121 +18,79 @@ NC='\033[0m' # No Color
 
 # Project information
 PROJECT_NAME="dkapture"
-VERSION="1.0.0"
-RELEASE="1"
-ARCH=$(rpm --eval %_arch)
-PACKAGE_NAME="${PROJECT_NAME}-${VERSION}-${RELEASE}.${ARCH}"
+
+: ${IN_KERNEL_TREE:=0}
+
+if [ "$IN_KERNEL_TREE" = 1 ]; then
+    VERSION=$(tail -n1 version 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+    USE_SUBMODULE=0
+else
+    VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+    USE_SUBMODULE=1
+fi
+
+# Extract major.minor.patch from version for RPM
+RPM_VERSION=$(echo "${VERSION}" | sed 's/-.*//g' | sed 's/+.*//g')
+RPM_RELEASE="1"
+
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ]; then
+    RPM_ARCH="aarch64"
+elif [ "$ARCH" = "x86_64" ]; then
+    RPM_ARCH="x86_64"
+else
+    RPM_ARCH="$ARCH"
+fi
+
+PACKAGE_NAME="${PROJECT_NAME}-${RPM_VERSION}-${RPM_RELEASE}.${RPM_ARCH}"
 
 # Directory definitions
 BUILD_DIR="build"
-RPM_DIR="${BUILD_DIR}/rpm"
-BUILDROOT_DIR="${RPM_DIR}/BUILDROOT/${PROJECT_NAME}-${VERSION}-${RELEASE}.${ARCH}"
-INSTALL_DIR="${BUILDROOT_DIR}/usr"
+RPM_BUILD_DIR="${BUILD_DIR}/rpm"
+INSTALL_DIR="${RPM_BUILD_DIR}/usr"
 BIN_DIR="${INSTALL_DIR}/bin"
-LIB_DIR="${INSTALL_DIR}/lib64"
+LIB_DIR="${INSTALL_DIR}/lib"
+DKAPTURE_LIB_DIR="${INSTALL_DIR}/lib/dkapture"
 INCLUDE_DIR="${INSTALL_DIR}/include"
-SPEC_DIR="${RPM_DIR}/SPECS"
-SOURCES_DIR="${RPM_DIR}/SOURCES"
-RPMS_DIR="${RPM_DIR}/RPMS"
-SRPMS_DIR="${RPM_DIR}/SRPMS"
+ETC_DIR="${RPM_BUILD_DIR}/etc"
+SPEC_DIR="${BUILD_DIR}/spec"
 
 if [ $(nproc) -gt 1 ]; then
-    MAKE="make -j$(($(nproc)-1))"
+    MAKE="make -j$(($(nproc)-1)) Release=1 USE_SUBMODULE=${USE_SUBMODULE}"
 else
-    MAKE="make"
+    MAKE="make Release=1 USE_SUBMODULE=${USE_SUBMODULE}"
 fi
 
 # Cleanup function
 cleanup() {
     echo -e "${YELLOW}Cleaning build directory...${NC}"
-    rm -rf "${BUILD_DIR}"
+    make distclean
+    rm -rf "${SPEC_DIR}"
 }
-
-# Error handling
-trap cleanup EXIT
 
 # Check dependencies function
 check_dependencies() {
     echo -e "${BLUE}Checking build dependencies...${NC}"
-    
+
     local missing_deps=()
-    
+
     # Check basic tools
     command -v make >/dev/null 2>&1 || missing_deps+=("make")
     command -v rpmbuild >/dev/null 2>&1 || missing_deps+=("rpm-build")
     command -v gcc >/dev/null 2>&1 || missing_deps+=("gcc")
-    command -v g++ >/dev/null 2>&1 || missing_deps+=("g++")
+    command -v g++ >/dev/null 2>&1 || missing_deps+=("gcc-c++")
     command -v clang >/dev/null 2>&1 || missing_deps+=("clang")
     command -v bpftool >/dev/null 2>&1 || missing_deps+=("bpftool")
-    
+
     if [ ${#missing_deps[@]} -ne 0 ]; then
         echo -e "${RED}Error: Missing the following dependencies:${NC}"
         printf '%s\n' "${missing_deps[@]}"
-        echo -e "${YELLOW}Please run: sudo yum install rpm-build gcc gcc-c++ clang llvm libbpf-devel bpftool${NC}"
+        echo -e "${YELLOW}Please run: sudo yum install -y rpm-build make gcc gcc-c++ clang bpftool libbpf-devel${NC}"
+        echo -e "${YELLOW}Or: sudo dnf install -y rpm-build make gcc gcc-c++ clang bpftool libbpf-devel${NC}"
         exit 1
     fi
-    
-    echo -e "${GREEN}✓ All dependency checks passed${NC}"
-}
 
-# Verify build results function
-verify_build() {
-    echo -e "${BLUE}Verifying build results...${NC}"
-    
-    local missing_files=()
-    
-    # Check executable files in build/observe directory
-    if [ ! -d "build/observe" ]; then
-        missing_files+=("build/observe directory")
-    else
-        local observe_binaries=$(find build/observe -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
-        if [ "$observe_binaries" -eq 0 ]; then
-            missing_files+=("executable files in build/observe directory")
-        fi
-    fi
-    
-    # Check executable files in build/filter directory
-    if [ ! -d "build/filter" ]; then
-        missing_files+=("build/filter directory")
-    else
-        local filter_binaries=$(find build/filter -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
-        if [ "$filter_binaries" -eq 0 ]; then
-            missing_files+=("executable files in build/filter directory")
-        fi
-    fi
-    
-    # Check executable files in build/policy directory
-    if [ ! -d "build/policy" ]; then
-        missing_files+=("build/policy directory")
-    else
-        local policy_binaries=$(find build/policy -maxdepth 1 -type f -executable 2>/dev/null | wc -l)
-        if [ "$policy_binaries" -eq 0 ]; then
-            missing_files+=("executable files in build/policy directory")
-        fi
-    fi
-    
-    # Check dynamic library
-    if [ ! -f "build/so/libdkapture.so" ]; then
-        missing_files+=("libdkapture.so dynamic library")
-    fi
-    
-    # Check demo program
-    if [ ! -f "build/demo/demo" ]; then
-        missing_files+=("demo program")
-    fi
-    
-    # Check header file
-    if [ ! -f "include/dkapture.h" ]; then
-        missing_files+=("dkapture.h header file")
-    fi
-    
-    if [ ${#missing_files[@]} -ne 0 ]; then
-        echo -e "${RED}Error: Missing the following files after compilation:${NC}"
-        printf '  - %s\n' "${missing_files[@]}"
-        exit 1
-    fi
-    
-    echo -e "${GREEN}✓ Build result verification passed${NC}"
+    echo -e "${GREEN}✓ All dependency checks passed${NC}"
 }
 
 echo -e "${GREEN}Starting DKapture RPM package build...${NC}"
@@ -143,15 +101,31 @@ check_dependencies
 # Clean previous build
 cleanup
 
-# Create directory structure
+# Create directory structure after cleanup
 echo -e "${YELLOW}Creating directory structure...${NC}"
-mkdir -p "${BIN_DIR}"
-mkdir -p "${LIB_DIR}"
-mkdir -p "${INCLUDE_DIR}/${PROJECT_NAME}"
 mkdir -p "${SPEC_DIR}"
-mkdir -p "${SOURCES_DIR}"
-mkdir -p "${RPMS_DIR}"
-mkdir -p "${SRPMS_DIR}"
+mkdir -p "${RPM_BUILD_DIR}/usr/bin"
+mkdir -p "${RPM_BUILD_DIR}/usr/lib"
+mkdir -p "${RPM_BUILD_DIR}/usr/lib/dkapture"
+mkdir -p "${RPM_BUILD_DIR}/usr/include/${PROJECT_NAME}"
+mkdir -p "${RPM_BUILD_DIR}/etc/dkapture/policy"
+
+# Copy policy files - avoid duplicates by checking if already copied
+if [[ -f "policy/elfverify.pol" ]]; then
+    echo -e "${BLUE}Copying elfverify.pol to /etc/dkapture/policy...${NC}"
+    cp "policy/elfverify.pol" "${RPM_BUILD_DIR}/etc/dkapture/policy/elfverify.pol"
+elif [[ -f "elfverify.pol" ]]; then
+    echo -e "${BLUE}Copying elfverify.pol to /etc/dkapture/policy...${NC}"
+    cp "elfverify.pol" "${RPM_BUILD_DIR}/etc/dkapture/policy/elfverify.pol"
+fi
+
+if [[ -f "policy/frtp.pol" ]]; then
+    echo -e "${BLUE}Copying frtp.pol to /etc/dkapture/policy...${NC}"
+    cp "policy/frtp.pol" "${RPM_BUILD_DIR}/etc/dkapture/policy/frtp.pol"
+elif [[ -f "frtp.pol" ]]; then
+    echo -e "${BLUE}Copying frtp.pol to /etc/dkapture/policy...${NC}"
+    cp "frtp.pol" "${RPM_BUILD_DIR}/etc/dkapture/policy/frtp.pol"
+fi
 
 # Compile project (excluding googletest, test and tools)
 echo -e "${YELLOW}Compiling project...${NC}"
@@ -162,13 +136,13 @@ echo -e "${BLUE}Compiling include module...${NC}"
 ${MAKE} include || { echo -e "${RED}Error: include module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling observe module...${NC}"
-${MAKE} observe || { echo -e "${RED}Error: observe module compilation failed${NC}"; exit 1; }
+${MAKE} observe BPF_DIR_PATCH="${DKAPTURE_LIB_DIR#$RPM_BUILD_DIR}" || { echo -e "${RED}Error: observe module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling filter module...${NC}"
-${MAKE} filter || { echo -e "${RED}Error: filter module compilation failed${NC}"; exit 1; }
+${MAKE} filter BPF_DIR_PATCH="${DKAPTURE_LIB_DIR#$RPM_BUILD_DIR}" || { echo -e "${RED}Error: filter module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling policy module...${NC}"
-${MAKE} policy || { echo -e "${RED}Error: policy module compilation failed${NC}"; exit 1; }
+${MAKE} policy BPF_DIR_PATCH="${DKAPTURE_LIB_DIR#$RPM_BUILD_DIR}" || { echo -e "${RED}Error: policy module compilation failed${NC}"; exit 1; }
 
 echo -e "${BLUE}Compiling so module...${NC}"
 ${MAKE} so || { echo -e "${RED}Error: so module compilation failed${NC}"; exit 1; }
@@ -176,14 +150,11 @@ ${MAKE} so || { echo -e "${RED}Error: so module compilation failed${NC}"; exit 1
 echo -e "${BLUE}Compiling demo module...${NC}"
 ${MAKE} demo || { echo -e "${RED}Error: demo module compilation failed${NC}"; exit 1; }
 
-# Verify build results
-verify_build
-
 # Collect binary files to /usr/bin
 echo -e "${YELLOW}Collecting binary files to /usr/bin...${NC}"
 
-# Executable files in build/observe directory
-echo -e "${BLUE}Copying executable files from build/observe directory...${NC}"
+# Executable files in observe directory
+echo -e "${BLUE}Copying executable files from observe directory...${NC}"
 for binary in build/observe/*; do
     if [[ -f "$binary" && -x "$binary" ]]; then
         basename_binary=$(basename "$binary")
@@ -193,8 +164,8 @@ for binary in build/observe/*; do
     fi
 done
 
-# Executable files in build/filter directory
-echo -e "${BLUE}Copying executable files from build/filter directory...${NC}"
+# Executable files in filter directory
+echo -e "${BLUE}Copying executable files from filter directory...${NC}"
 for binary in build/filter/*; do
     if [[ -f "$binary" && -x "$binary" ]]; then
         basename_binary=$(basename "$binary")
@@ -204,8 +175,8 @@ for binary in build/filter/*; do
     fi
 done
 
-# Executable files in build/policy directory
-echo -e "${BLUE}Copying executable files from build/policy directory...${NC}"
+# Executable files in policy directory
+echo -e "${BLUE}Copying executable files from policy directory...${NC}"
 for binary in build/policy/*; do
     if [[ -f "$binary" && -x "$binary" ]]; then
         basename_binary=$(basename "$binary")
@@ -222,42 +193,76 @@ if [[ -f "build/demo/demo" ]]; then
     cp "build/demo/demo" "${BIN_DIR}/dk-demo"
 fi
 
-# Collect dynamic libraries to /usr/lib64
-echo -e "${YELLOW}Collecting dynamic libraries to /usr/lib64...${NC}"
+# Collect dynamic libraries to /usr/lib
+echo -e "${YELLOW}Collecting dynamic libraries to /usr/lib...${NC}"
 if [[ -f "build/so/libdkapture.so" ]]; then
     echo "  Copying: libdkapture.so -> ${LIB_DIR}/libdkapture.so"
     cp "build/so/libdkapture.so" "${LIB_DIR}/libdkapture.so"
 fi
 
+# Collect BPF object files to /usr/lib/dkapture
+echo -e "${YELLOW}Collecting BPF object files to /usr/lib/dkapture...${NC}"
+
+# Copy .bpf.o files from bpf/build/filter directory
+echo -e "${BLUE}Copying BPF object files from filter directory...${NC}"
+if [[ -d "bpf/build/filter" ]]; then
+    for bpf_file in bpf/build/filter/*.bpf.o; do
+        if [[ -f "$bpf_file" ]]; then
+            basename_bpf=$(basename "$bpf_file")
+            echo "  Copying: ${basename_bpf} -> ${DKAPTURE_LIB_DIR}/${basename_bpf}"
+            cp "$bpf_file" "${DKAPTURE_LIB_DIR}/${basename_bpf}"
+        fi
+    done
+fi
+
+# Copy .bpf.o files from bpf/build/observe directory
+echo -e "${BLUE}Copying BPF object files from observe directory...${NC}"
+if [[ -d "bpf/build/observe" ]]; then
+    for bpf_file in bpf/build/observe/*.bpf.o; do
+        if [[ -f "$bpf_file" ]]; then
+            basename_bpf=$(basename "$bpf_file")
+            echo "  Copying: ${basename_bpf} -> ${DKAPTURE_LIB_DIR}/${basename_bpf}"
+            cp "$bpf_file" "${DKAPTURE_LIB_DIR}/${basename_bpf}"
+        fi
+    done
+fi
+
+# Copy .bpf.o files from bpf/build/policy directory
+echo -e "${BLUE}Copying BPF object files from policy directory...${NC}"
+if [[ -d "bpf/build/policy" ]]; then
+    for bpf_file in bpf/build/policy/*.bpf.o; do
+        if [[ -f "$bpf_file" ]]; then
+            basename_bpf=$(basename "$bpf_file")
+            echo "  Copying: ${basename_bpf} -> ${DKAPTURE_LIB_DIR}/${basename_bpf}"
+            cp "$bpf_file" "${DKAPTURE_LIB_DIR}/${basename_bpf}"
+        fi
+    done
+fi
+
 # Collect header files to /usr/include/${PROJECT_NAME}
 echo -e "${YELLOW}Collecting header files to /usr/include/${PROJECT_NAME}...${NC}"
-if [[ -f "include/dkapture.h" ]]; then
+if [[ -f "bpf/export/dkapture.h" ]]; then
     echo "  Copying: dkapture.h -> ${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
-    cp "include/dkapture.h" "${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
+    cp "bpf/export/dkapture.h" "${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
 else
-    echo -e "${YELLOW}Warning: include/dkapture.h not found${NC}"
+    echo -e "${YELLOW}Warning: bpf/export/dkapture.h not found${NC}"
 fi
 
 # Create RPM spec file
 echo -e "${YELLOW}Creating RPM spec file...${NC}"
 cat > "${SPEC_DIR}/${PROJECT_NAME}.spec" << EOF
 Name:           ${PROJECT_NAME}
-Version:        ${VERSION}
-Release:        ${RELEASE}%{?dist}
+Version:        ${RPM_VERSION}
+Release:        ${RPM_RELEASE}
 Summary:        Deepin Kernel Capture - eBPF-based system observation tools
 
-Group:          System Environment/Base
-License:        GPLv2+
-URL:            https://github.com/deepin/dkapture
-Source0:        %{name}-%{version}.tar.gz
-BuildArch:      %{_arch}
-BuildRequires:  gcc
-BuildRequires:  gcc-c++
-BuildRequires:  clang
-BuildRequires:  llvm
-BuildRequires:  libbpf-devel
-BuildRequires:  bpftool
-Requires:       libbpf
+License:        LGPL-2.1
+URL:            https://github.com/your-repo/dkapture
+BuildArch:      ${RPM_ARCH}
+
+Requires:       libbpf >= 1.0
+Requires(post): /sbin/ldconfig
+Requires(postun): /sbin/ldconfig
 
 %description
 DKapture is a user-space toolset and dynamic library for observing
@@ -276,92 +281,78 @@ Features include:
 - Memory information collection
 
 %files
-%defattr(-,root,root,-)
-%{_bindir}/dk-*
-%{_libdir}/libdkapture.so
-%{_includedir}/%{name}/*.h
+%attr(755,root,root) /usr/bin/dk-*
+%attr(755,root,root) /usr/lib/libdkapture.so
+%attr(644,root,root) /usr/lib/dkapture/*.bpf.o
+%attr(644,root,root) /usr/include/dkapture/dkapture.h
+%attr(644,root,root) /etc/dkapture/policy/elfverify.pol
+%attr(644,root,root) /etc/dkapture/policy/frtp.pol
 
 %post
-# Set dynamic library permissions
-if [ -f %{_libdir}/libdkapture.so ]; then
-    chmod 755 %{_libdir}/libdkapture.so
-fi
-
-# Set executable file permissions
-find %{_bindir} -name "dk-*" -type f -exec chmod 755 {} \;
-
-# Update dynamic library cache
-ldconfig
-
+/sbin/ldconfig
 echo "DKapture installation completed successfully!"
 
 %postun
-# Update dynamic library cache
-ldconfig
-
+/sbin/ldconfig
 echo "DKapture uninstallation completed successfully!"
 
 %changelog
-* $(date '+%a %b %d %Y') DKapture Team <dkapture@example.com> - ${VERSION}-${RELEASE}
-- Initial RPM package release
+* $(LANG=en_US.UTF-8 date +"%a %b %d %Y") DKapture Team - ${RPM_VERSION}-${RPM_RELEASE}
+- Initial build of ${PROJECT_NAME}
 EOF
-
-# Create source tarball
-echo -e "${YELLOW}Creating source tarball...${NC}"
-tar -czf "${SOURCES_DIR}/${PROJECT_NAME}-${VERSION}.tar.gz" \
-    --exclude='.git' \
-    --exclude='build' \
-    --exclude='*.deb' \
-    --exclude='*.rpm' \
-    --exclude='*.spec' \
-    --exclude='googletest' \
-    --exclude='test' \
-    --exclude='tools' \
-    .
 
 # Build RPM package
 echo -e "${YELLOW}Building RPM package...${NC}"
-rpmbuild --define "_topdir ${RPM_DIR}" -bb "${SPEC_DIR}/${PROJECT_NAME}.spec"
+rpmbuild -bb --buildroot "$(pwd)/${RPM_BUILD_DIR}" --define "_topdir $(pwd)/${BUILD_DIR}/rpmbuild" "${SPEC_DIR}/${PROJECT_NAME}.spec"
 
 # Find the built RPM
-RPM_FILE=$(find "${RPMS_DIR}" -name "*.rpm" | head -1)
+RPM_FILE=$(find "${BUILD_DIR}/rpmbuild/RPMS/" -name "*.rpm" -type f | head -1)
 
-if [ -z "$RPM_FILE" ]; then
-    echo -e "${RED}Error: RPM package not found${NC}"
+if [ -f "$RPM_FILE" ]; then
+    # Move RPM to current directory with standard name
+    cp "$RPM_FILE" "${PACKAGE_NAME}.rpm"
+    FINAL_RPM="${PACKAGE_NAME}.rpm"
+else
+    echo -e "${RED}Error: RPM file not found after build${NC}"
     exit 1
 fi
-
-# Copy RPM to current directory
-cp "$RPM_FILE" .
 
 # Verify RPM package
 echo -e "${YELLOW}Verifying RPM package...${NC}"
 echo -e "${BLUE}Package information:${NC}"
-rpm -qip "$(basename "$RPM_FILE")"
+rpm -qip "${FINAL_RPM}"
 
 echo -e "${BLUE}Package contents:${NC}"
-rpm -qlp "$(basename "$RPM_FILE")"
+rpm -qlp "${FINAL_RPM}"
 
 # Count files
 BIN_COUNT=$(find "${BIN_DIR}" -type f | wc -l)
 LIB_COUNT=$(find "${LIB_DIR}" -type f | wc -l)
+BPF_COUNT=$(find "${DKAPTURE_LIB_DIR}" -type f | wc -l)
 INCLUDE_COUNT=$(find "${INCLUDE_DIR}" -type f | wc -l)
 
-echo -e "${GREEN}RPM package build completed: $(basename "$RPM_FILE")${NC}"
-echo -e "${GREEN}Package size: $(du -h "$(basename "$RPM_FILE")" | cut -f1)${NC}"
-echo -e "${GREEN}Contains: ${BIN_COUNT} executable files, ${LIB_COUNT} library files, ${INCLUDE_COUNT} header files${NC}"
+echo -e "${GREEN}RPM package build completed: ${FINAL_RPM}${NC}"
+echo -e "${GREEN}Package size: $(du -h "${FINAL_RPM}" | cut -f1)${NC}"
+echo -e "${GREEN}Contains: ${BIN_COUNT} executable files, ${LIB_COUNT} library files, ${BPF_COUNT} BPF object files, ${INCLUDE_COUNT} header files${NC}"
 
 # Display installation instructions
 echo -e "${YELLOW}Installation instructions:${NC}"
-echo -e "sudo rpm -i $(basename "$RPM_FILE")"
+echo -e "sudo rpm -ivh ${FINAL_RPM}"
+echo -e "Or: sudo dnf install ${FINAL_RPM}"
+echo -e "Or: sudo yum install ${FINAL_RPM}"
+echo -e ""
+echo -e "${YELLOW}Upgrade instructions:${NC}"
+echo -e "sudo rpm -Uvh ${FINAL_RPM}"
+echo -e "Or: sudo dnf update ${FINAL_RPM}"
 echo -e ""
 echo -e "${YELLOW}Uninstall instructions:${NC}"
 echo -e "sudo rpm -e ${PROJECT_NAME}"
 echo -e ""
-echo -e "${YELLOW}Cleanup instructions:${NC}"
-echo -e "sudo rpm -e ${PROJECT_NAME} --allmatches"
+echo -e "${YELLOW}Package information:${NC}"
+echo -e "rpm -qip ${FINAL_RPM}"
+echo -e "rpm -qlp ${FINAL_RPM}"
 
 # Clean build directory
 cleanup
 
-echo -e "${GREEN}Build completed!${NC}" 
+echo -e "${GREEN}Build completed!${NC}"
