@@ -18,7 +18,7 @@ CXXFLAGS = -g -I$(PROJ_ROOT)/observe \
 all: $(TARGET)
 
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o | $(BUILD_DIR)
-	g++ $(CXXFLAGS) $< -o $@
+	g++ $(CXXFLAGS) $< -o $@ -lrt
 
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
 	g++ $(CXXFLAGS) -c $< -o $@

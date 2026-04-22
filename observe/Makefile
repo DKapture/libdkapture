@@ -5,7 +5,6 @@
 PROJ_ROOT ?= ..
 MODULE := $(notdir $(CURDIR))
 BUILD_DIR := $(PROJ_ROOT)/build/$(MODULE)
-C_SRC = $(shell ls *.c 2>/dev/null)
 CXX_SRC = $(shell ls *.cpp 2>/dev/null)
 TARGETs = $(C_SRC:%.c=$(BUILD_DIR)/%) $(CXX_SRC:%.cpp=$(BUILD_DIR)/%)
 BPF_TARGET_ARCH := $(shell uname -m)
