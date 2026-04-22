@@ -19,10 +19,16 @@
 
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
+#include <pwd.h>
 
 struct ns_key_t {
     uint32_t type;
     uint64_t inum;
+};
+
+struct ns_owner_t {
+    uint32_t pid;
+    uint32_t uid;
 };
 
 // return a human display name for the namespace type
@@ -179,7 +185,7 @@ int main(int argc, char **argv)
     ns_key_t next = {};
     bool first = true;
 
-    std::cout << std::left << std::setw(16) << "TYPE" << std::setw(20) << "INUM" << std::setw(10) << "PID" << "PATH" << "\n";
+    std::cout << std::left << std::setw(16) << "TYPE" << std::setw(20) << "INUM" << std::setw(12) << "USER" << std::setw(8) << "PID" << "PATH" << "\n";
 
     while (true) {
         int ret;
@@ -192,22 +198,35 @@ int main(int argc, char **argv)
         if (ret != 0)
             break;
 
-        // lookup value (we don't need it, but ensure present)
-        uint8_t val;
-        if (bpf_map_lookup_elem(map_fd, &next, &val) != 0) {
-            // skip if lookup failed
+        // lookup owner info stored by BPF (pid and uid)
+        struct ns_owner_t { uint32_t pid; uint32_t uid; } owner = {0,0};
+        if (bpf_map_lookup_elem(map_fd, &next, &owner) != 0) {
+            // not found in map
+            const char *display = ns_display_name(next.type);
+            std::cout << std::left << std::setw(16) << display << std::setw(20) << next.inum << std::setw(12) << "-" << std::setw(8) << "-" << "-" << "\n";
+        } else {
+            const char *display = ns_display_name(next.type);
+            const char *procname = ns_proc_name(next.type);
+            char pathbuf[256] = "-";
+            if (owner.pid)
+                snprintf(pathbuf, sizeof(pathbuf), "/proc/%u/ns/%s", owner.pid, procname);
+
+            // resolve uid -> username if possible
+            char uname[64];
+            bool have_name = false;
+            struct passwd pwd, *pwdp = NULL;
+            long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+            if (bufsize < 0) bufsize = 16384;
+            std::unique_ptr<char[]> buf(new char[bufsize]);
+            if (getpwuid_r(owner.uid, &pwd, buf.get(), bufsize, &pwdp) == 0 && pwdp) {
+                strncpy(uname, pwd.pw_name, sizeof(uname)-1);
+                uname[sizeof(uname)-1] = '\0';
+                have_name = true;
+            }
+
+            std::string user_field = have_name ? std::string(uname) : std::to_string(owner.uid);
+            std::cout << std::left << std::setw(16) << display << std::setw(20) << next.inum << std::setw(12) << user_field << std::setw(8) << owner.pid << pathbuf << "\n";
         }
-
-        const char *display = ns_display_name(next.type);
-        const char *procname = ns_proc_name(next.type);
-        int owner = find_owner_pid_for_ns(next.inum, procname, NULL);
-
-        char pathbuf[256] = "-";
-        if (owner >= 0) {
-            snprintf(pathbuf, sizeof(pathbuf), "/proc/%d/ns/%s", owner, procname);
-        }
-
-        std::cout << std::left << std::setw(16) << display << std::setw(20) << next.inum << std::setw(10) << (owner >= 0 ? std::to_string(owner) : std::string("-")) << pathbuf << "\n";
 
         prev = next;
     }
