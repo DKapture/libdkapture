@@ -12,6 +12,8 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
+#include <algorithm>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -185,7 +187,14 @@ int main(int argc, char **argv)
     ns_key_t next = {};
     bool first = true;
 
-    std::cout << std::left << std::setw(16) << "TYPE" << std::setw(20) << "INUM" << std::setw(12) << "USER" << std::setw(8) << "PID" << "PATH" << "\n";
+    // Collect all entries, then sort by inum and print with NS first
+    struct Entry {
+        uint32_t type;
+        uint64_t inum;
+        uint32_t pid;
+        uint32_t uid;
+    };
+    std::vector<Entry> entries;
 
     while (true) {
         int ret;
@@ -198,37 +207,48 @@ int main(int argc, char **argv)
         if (ret != 0)
             break;
 
-        // lookup owner info stored by BPF (pid and uid)
-        struct ns_owner_t { uint32_t pid; uint32_t uid; } owner = {0,0};
-        if (bpf_map_lookup_elem(map_fd, &next, &owner) != 0) {
-            // not found in map
-            const char *display = ns_display_name(next.type);
-            std::cout << std::left << std::setw(16) << display << std::setw(20) << next.inum << std::setw(12) << "-" << std::setw(8) << "-" << "-" << "\n";
+        ns_owner_t owner = {0,0};
+        if (bpf_map_lookup_elem(map_fd, &next, &owner) == 0) {
+            entries.push_back(Entry{next.type, next.inum, owner.pid, owner.uid});
         } else {
-            const char *display = ns_display_name(next.type);
-            const char *procname = ns_proc_name(next.type);
-            char pathbuf[256] = "-";
-            if (owner.pid)
-                snprintf(pathbuf, sizeof(pathbuf), "/proc/%u/ns/%s", owner.pid, procname);
+            entries.push_back(Entry{next.type, next.inum, 0, 0});
+        }
 
-            // resolve uid -> username if possible
-            char uname[64];
-            bool have_name = false;
+        prev = next;
+    }
+
+    // sort by inum ascending
+    std::sort(entries.begin(), entries.end(), [](const Entry &a, const Entry &b){ return a.inum < b.inum; });
+
+    // print header: NS<system-reminder> first, then TYPE, USER, PID, PATH
+    std::cout << std::left << std::setw(20) << "NS<system-reminder>" << std::setw(16) << "TYPE" << std::setw(12) << "USER" << std::setw(8) << "PID" << "PATH" << "\n";
+
+    for (auto &e : entries) {
+        const char *display = ns_display_name(e.type);
+        const char *procname = ns_proc_name(e.type);
+        char pathbuf[256] = "-";
+        if (e.pid)
+            snprintf(pathbuf, sizeof(pathbuf), "/proc/%u/ns/%s", e.pid, procname);
+
+        std::string user_field;
+        if (e.uid) {
             struct passwd pwd, *pwdp = NULL;
             long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
             if (bufsize < 0) bufsize = 16384;
             std::unique_ptr<char[]> buf(new char[bufsize]);
-            if (getpwuid_r(owner.uid, &pwd, buf.get(), bufsize, &pwdp) == 0 && pwdp) {
+            char uname[64] = {0};
+            bool have_name = false;
+            if (getpwuid_r(e.uid, &pwd, buf.get(), bufsize, &pwdp) == 0 && pwdp) {
                 strncpy(uname, pwd.pw_name, sizeof(uname)-1);
                 uname[sizeof(uname)-1] = '\0';
                 have_name = true;
             }
-
-            std::string user_field = have_name ? std::string(uname) : std::to_string(owner.uid);
-            std::cout << std::left << std::setw(16) << display << std::setw(20) << next.inum << std::setw(12) << user_field << std::setw(8) << owner.pid << pathbuf << "\n";
+            user_field = have_name ? std::string(uname) : std::to_string(e.uid);
+        } else {
+            user_field = "-";
         }
 
-        prev = next;
+        std::cout << std::left << std::setw(20) << e.inum << std::setw(16) << display << std::setw(12) << user_field << std::setw(8) << (e.pid ? std::to_string(e.pid) : std::string("-")) << pathbuf << "\n";
     }
 
     bpf_link__destroy(link);
