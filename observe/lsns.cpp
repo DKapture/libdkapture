@@ -221,7 +221,7 @@ int main(int argc, char **argv)
     std::sort(entries.begin(), entries.end(), [](const Entry &a, const Entry &b){ return a.inum < b.inum; });
 
     // print header: NS<system-reminder> first, then TYPE, USER, PID, PATH
-    std::cout << std::left << std::setw(20) << "NS<system-reminder>" << std::setw(16) << "TYPE" << std::setw(12) << "USER" << std::setw(8) << "PID" << "PATH" << "\n";
+    std::cout << std::left << std::setw(20) << "NS" << std::setw(16) << "TYPE" << std::setw(12) << "USER" << std::setw(8) << "PID" << "PATH" << "\n";
 
     for (auto &e : entries) {
         const char *display = ns_display_name(e.type);
@@ -231,7 +231,8 @@ int main(int argc, char **argv)
             snprintf(pathbuf, sizeof(pathbuf), "/proc/%u/ns/%s", e.pid, procname);
 
         std::string user_field;
-        if (e.uid) {
+        // presence of owner is indicated by pid != 0
+        if (e.pid) {
             struct passwd pwd, *pwdp = NULL;
             long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
             if (bufsize < 0) bufsize = 16384;
@@ -243,6 +244,7 @@ int main(int argc, char **argv)
                 uname[sizeof(uname)-1] = '\0';
                 have_name = true;
             }
+            // Always prefer username when resolvable; otherwise show numeric uid (including 0)
             user_field = have_name ? std::string(uname) : std::to_string(e.uid);
         } else {
             user_field = "-";
