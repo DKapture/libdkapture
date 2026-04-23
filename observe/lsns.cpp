@@ -221,7 +221,7 @@ int main(int argc, char **argv)
     std::sort(entries.begin(), entries.end(), [](const Entry &a, const Entry &b){ return a.inum < b.inum; });
 
     // print header: NS<system-reminder> first, then TYPE, USER, PID, PATH
-    std::cout << std::left << std::setw(20) << "NS" << std::setw(16) << "TYPE" << std::setw(12) << "USER" << std::setw(8) << "PID" << "PATH" << "\n";
+    std::cout << std::left << std::setw(20) << "NS" << std::setw(18) << "TYPE" << std::setw(20) << "USER" << std::setw(12) << "PID" << "PATH" << "\n";
 
     for (auto &e : entries) {
         const char *display = ns_display_name(e.type);
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
             user_field = "-";
         }
 
-        std::cout << std::left << std::setw(20) << e.inum << std::setw(16) << display << std::setw(12) << user_field << std::setw(8) << (e.pid ? std::to_string(e.pid) : std::string("-")) << pathbuf << "\n";
+        std::cout << std::left << std::setw(20) << e.inum << std::setw(18) << display << std::setw(20) << user_field << std::setw(12) << (e.pid ? std::to_string(e.pid) : std::string("-")) << pathbuf << "\n";
     }
 
     bpf_link__destroy(link);
