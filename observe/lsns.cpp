@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <numeric>
 #include <unordered_map>
+#include <unordered_set>
 #include <functional>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -36,18 +37,17 @@ static std::string read_proc_cmd(int pid)
     FILE *f = fopen(path, "r");
     if (f) {
         std::string s;
-        char buf[4096];
-        size_t n = fread(buf, 1, sizeof(buf)-1, f);
+        std::vector<char> buf(4096);
+        size_t n = fread(buf.data(), 1, buf.size()-1, f);
         fclose(f);
         if (n > 0) {
+            // cmdline is NUL-separated; convert inner NULs to spaces to show args
             buf[n] = '\0';
-            // cmdline is NUL-separated, first token is argv[0]
-            s = std::string(buf);
-            // replace embedded NULs with spaces beyond first? keep only first token
-            size_t pos = s.find('\0');
-            if (pos != std::string::npos)
-                s.resize(pos);
-            return s;
+            for (size_t i = 0; i < n; ++i) if (buf[i] == '\0') buf[i] = ' ';
+            // strip any trailing spaces
+            while (n > 0 && buf[n-1] == ' ') { buf[n-1] = '\0'; --n; }
+            s = std::string(buf.data());
+            if (!s.empty()) return s;
         }
     }
     // fallback to comm
@@ -396,32 +396,64 @@ int main(int argc, char **argv)
     // Build a one-time /proc scan to map namespace (type:inum) -> processes
     auto ns_proc_map = scan_procs_by_ns();
 
-    // print header: NS, TYPE, PROCS, USER, PID, PATH
-    std::cout << std::left << std::setw(20) << "NS" << std::setw(16) << "TYPE" << std::setw(8) << "PROCS" << std::setw(20) << "USER" << std::setw(12) << "PID" << "PATH" << "\n";
+    // Second pass: print headers in original order. We'll compute a tree prefix
+    // for each representative and embed that prefix in the header's PATH
+    // column. This matches the original lsns: every namespace header is printed
+    // (we do not print extra tree-only rows) and the PATH column shows tree
+    // prefixes for representative nodes.
+    const int NS_type = 16;
+    const int TYPE_type = 18;
+    const int PROCS_type = 8;
+    const int USER_type = 20;
+    const int PID_type = 12;
+    const int pad_width = NS_type + TYPE_type + PROCS_type + USER_type + PID_type;
+
+    // print header: NS, TYPE, PROCS, USER, PID, COMMAND
+    std::cout << std::left << std::setw(NS_type) << "NS" << std::setw(TYPE_type) << "TYPE" << std::setw(PROCS_type) << "PROCS" << std::setw(USER_type) << "USER" << std::setw(PID_type) << "PID" << "COMMAND" << "\n";
+
+    // First pass: collect header info and representatives (do not print yet)
+    struct HeaderInfo {
+        Entry e;
+        std::string display;
+        std::string procname;
+        std::string pathbuf;
+        std::string user_field;
+        uint64_t total_procs;
+        int rep_tgid;
+        std::string owner_cmd;
+    };
+    std::vector<HeaderInfo> headers;
+    struct RepInfo { int tgid; uint32_t type; uint64_t inum; std::string cmd; };
+    std::unordered_map<int, RepInfo> reps; // tgid -> RepInfo
+    std::unordered_map<std::string, int> rep_by_ns; // key -> tgid
 
     for (auto &e : entries) {
-        const char *display = ns_display_name(e.type);
-        const char *procname = ns_proc_name(e.type);
-        char pathbuf[256] = "-";
-        if (e.pid)
-            snprintf(pathbuf, sizeof(pathbuf), "/proc/%u/ns/%s", e.pid, procname);
+        // Skip pid_for_children namespace type (we don't display it)
+        if (e.type == 9) continue;
+        HeaderInfo h = {};
+        h.e = e;
+        h.display = ns_display_name(e.type);
+        h.procname = ns_proc_name(e.type);
+        h.pathbuf = std::string("-");
+        if (e.pid) {
+            char tmp[256];
+            snprintf(tmp, sizeof(tmp), "/proc/%u/ns/%s", e.pid, h.procname.c_str());
+            h.pathbuf = std::string(tmp);
+        }
 
-        // If there is a per-cpu count map, try to read it and sum per-cpu values.
-        uint64_t total_procs = e.procs;
+        // per-cpu counts -> total_procs
+        h.total_procs = e.procs;
         if (cnt_map_fd >= 0) {
-            // determine number of online CPUs by reading /sys
             int nr_cpus = 0;
             FILE *f = fopen("/sys/devices/system/cpu/online", "r");
             if (f) {
                 char buf[256];
                 if (fgets(buf, sizeof(buf), f)) {
-                    // parse ranges like 0-3,5
                     int a, b;
                     char *p = buf;
                     while (*p) {
                         if (sscanf(p, "%d-%d", &a, &b) == 2) {
                             nr_cpus += (b - a + 1);
-                            // advance p to after the '-')
                             char *comma = strchr(p, ',');
                             if (!comma) break;
                             p = comma + 1;
@@ -430,80 +462,209 @@ int main(int argc, char **argv)
                             char *comma = strchr(p, ',');
                             if (!comma) break;
                             p = comma + 1;
-                        } else {
-                            break;
-                        }
+                        } else break;
                     }
                 }
                 fclose(f);
             }
-            if (nr_cpus <= 0) {
-                // fallback: assume 1
-                nr_cpus = 1;
-            }
-
+            if (nr_cpus <= 0) nr_cpus = 1;
             std::vector<uint32_t> pcnts(nr_cpus);
             if (bpf_map_lookup_elem(cnt_map_fd, &e, pcnts.data()) == 0) {
-                uint64_t sum = 0;
-                for (int i = 0; i < nr_cpus; ++i)
-                    sum += pcnts[i];
-                total_procs = sum;
+                uint64_t sum = 0; for (int i=0;i<nr_cpus;++i) sum += pcnts[i];
+                h.total_procs = sum;
             }
         }
 
-        std::string user_field;
+        // user field
         static std::unordered_map<uint32_t, std::string> uid_cache;
-        // presence of owner is indicated by pid != 0
         if (e.pid) {
             auto it = uid_cache.find(e.uid);
-            if (it != uid_cache.end()) {
-                user_field = it->second;
-            } else {
+            if (it != uid_cache.end()) h.user_field = it->second;
+            else {
                 struct passwd pwd, *pwdp = NULL;
                 long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
                 if (bufsize < 0) bufsize = 16384;
                 std::unique_ptr<char[]> buf(new char[bufsize]);
-                char uname[64] = {0};
-                bool have_name = false;
+                char uname[64] = {0}; bool have_name=false;
                 if (getpwuid_r(e.uid, &pwd, buf.get(), bufsize, &pwdp) == 0 && pwdp) {
                     strncpy(uname, pwd.pw_name, sizeof(uname)-1);
-                    uname[sizeof(uname)-1] = '\0';
-                    have_name = true;
+                    uname[sizeof(uname)-1]='\0'; have_name = true;
                 }
-                user_field = have_name ? std::string(uname) : std::to_string(e.uid);
-                uid_cache[e.uid] = user_field;
+                h.user_field = have_name ? std::string(uname) : std::to_string(e.uid);
+                uid_cache[e.uid] = h.user_field;
             }
-        } else {
-            user_field = "-";
-        }
+        } else h.user_field = "-";
 
-        // Print header line for this namespace. For COMMAND column we will print
-        // the owner's command if available. Tree lines (children) will be
-        // printed on subsequent lines aligned under the COMMAND column.
-        std::string owner_cmd = "-";
-        // lookup processes for this namespace
+        // representative
+        h.rep_tgid = 0;
+        h.owner_cmd = "-";
         std::string key = std::to_string(e.type) + ":" + std::to_string(e.inum);
-        auto it = ns_proc_map.find(key);
-        if (it != ns_proc_map.end()) {
-            const auto &vec = it->second;
-            for (const auto &pi : vec) {
-                if (pi.pid == (int)e.pid) { owner_cmd = pi.cmd; break; }
-            }
-            if (owner_cmd == "-" && e.pid) {
-                // if owner not found in vec, attempt to read directly
-                owner_cmd = read_proc_cmd(e.pid);
-            }
+        auto vecit = ns_proc_map.find(key);
+        if (vecit != ns_proc_map.end() && !vecit->second.empty()) {
+            int min_tgid = vecit->second[0].pid;
+            for (const auto &pi : vecit->second) if (pi.pid < min_tgid) min_tgid = pi.pid;
+            h.rep_tgid = min_tgid;
+            for (const auto &pi : vecit->second) if (pi.pid == h.rep_tgid) { h.owner_cmd = pi.cmd; break; }
         } else if (e.pid) {
-            owner_cmd = read_proc_cmd(e.pid);
+            h.rep_tgid = e.pid; h.owner_cmd = read_proc_cmd(e.pid);
         }
 
-        std::cout << std::left << std::setw(20) << e.inum << std::setw(16) << display << std::setw(8) << (total_procs ? std::to_string(total_procs) : std::string("-")) << std::setw(20) << user_field << std::setw(12) << (e.pid ? std::to_string(e.pid) : std::string("-")) << owner_cmd << "\n";
+        if (h.rep_tgid) {
+            RepInfo ri{h.rep_tgid, e.type, e.inum, h.owner_cmd};
+            reps[h.rep_tgid] = ri;
+            rep_by_ns[key] = h.rep_tgid;
+        }
+        headers.push_back(std::move(h));
+    }
 
-        // If we have collected processes for this namespace, print the tree
-        if (it != ns_proc_map.end() && !it->second.empty() && e.pid) {
-            // pad width equals sum of preceding columns widths to align under COMMAND
-            int pad_width = 20 + 16 + 8 + 20 + 12;
-            print_tree_aligned(e.pid, it->second, pad_width);
+    // Build a map from representative tgid -> HeaderInfo for easy lookup
+    std::unordered_map<int, const HeaderInfo*> rep_header_map;
+    for (const auto &h : headers) if (h.rep_tgid) rep_header_map[h.rep_tgid] = &h;
+
+    // Build representative-only parent->children map
+    std::unordered_map<int, std::vector<int>> rep_children;
+    std::unordered_map<int, int> rep_parent;
+    std::unordered_set<int> rep_roots;
+    for (const auto &kv : reps) rep_roots.insert(kv.first);
+    // raw parent map: store parent_tgid read from /proc for each rep (0 when none)
+    std::unordered_map<int,int> rep_parent_raw;
+    for (const auto &kv : reps) {
+        int tgid = kv.first;
+        int ppid = 0; uint32_t uid = 0; int tgid_out = 0;
+        read_proc_ppid_uid(tgid, ppid, uid, tgid_out);
+        int parent_tgid = 0;
+        if (ppid > 0) {
+            int dummy_ppid = 0; uint32_t dummy_uid = 0; int parent_tgid_read = 0;
+            read_proc_ppid_uid(ppid, dummy_ppid, dummy_uid, parent_tgid_read);
+            parent_tgid = parent_tgid_read;
+        }
+        rep_parent_raw[tgid] = parent_tgid;
+        if (parent_tgid > 0 && reps.count(parent_tgid)) {
+            rep_children[parent_tgid].push_back(tgid);
+            rep_roots.erase(tgid);
+            // record parent mapping for quick lookup
+            rep_parent[tgid] = parent_tgid;
+        }
+    }
+
+    // orphan roots: rep whose parent_tgid is present (non-zero) but parent is not a rep
+    std::unordered_set<int> orphan_roots;
+    for (const auto &kv : rep_parent_raw) {
+        int tgid = kv.first;
+        int parent_tgid = kv.second;
+        if (parent_tgid > 0 && !reps.count(parent_tgid)) orphan_roots.insert(tgid);
+    }
+
+    // build orphan subtree set: all reps that are descendants of any orphan root
+    std::unordered_set<int> orphan_subtree;
+    std::function<void(int)> collect_orphan_subtree = [&](int r) {
+        if (orphan_subtree.count(r)) return;
+        orphan_subtree.insert(r);
+        auto it = rep_children.find(r);
+        if (it == rep_children.end()) return;
+        for (int c : it->second) collect_orphan_subtree(c);
+    };
+    for (int r : orphan_roots) collect_orphan_subtree(r);
+
+    // Sort children lists by namespace inum (ascending) for deterministic order
+    for (auto &kv : rep_children) {
+        auto &vec = kv.second;
+        std::sort(vec.begin(), vec.end(), [&](int a, int b){
+            uint64_t inum_a = reps.count(a) ? reps[a].inum : 0;
+            uint64_t inum_b = reps.count(b) ? reps[b].inum : 0;
+            if (inum_a != inum_b) return inum_a < inum_b;
+            return a < b;
+        });
+    }
+
+    
+
+    // Build prefix map: rep_prefix[rep_tgid] = prefix string (e.g. "├─" or "│  ├─...") to prepend to cmd
+    std::unordered_map<int, std::string> rep_prefix;
+    // recursive DFS to assign prefixes to children
+    std::function<void(int,const std::string&)> build_prefix = [&](int tgid, const std::string &prefix) {
+        auto it = rep_children.find(tgid);
+        if (it == rep_children.end()) return;
+        const auto &ch = it->second;
+        for (size_t i = 0; i < ch.size(); ++i) {
+            bool last = (i+1 == ch.size());
+            std::string this_prefix = prefix + (last ? "└─" : "├─");
+            rep_prefix[ch[i]] = this_prefix;
+            std::string next_prefix = prefix + (last ? "   " : "│  ");
+            build_prefix(ch[i], next_prefix);
+        }
+    };
+
+    // run DFS from each root in deterministic order (sort roots by inum)
+    std::vector<int> roots_vec(rep_roots.begin(), rep_roots.end());
+    std::sort(roots_vec.begin(), roots_vec.end(), [&](int a, int b){
+        uint64_t ina = reps.count(a) ? reps[a].inum : 0;
+        uint64_t inb = reps.count(b) ? reps[b].inum : 0;
+        if (ina != inb) return ina < inb;
+        return a < b;
+    });
+    for (int r : roots_vec) build_prefix(r, std::string());
+
+    // Now print headers in original order, embedding prefix if present. However,
+    // skip printing headers that belong to orphan_subtree for now; we'll print
+    // those after the normal headers, sorted by NS.
+    std::vector<HeaderInfo> orphan_headers;
+    for (const auto &h : headers) {
+        if (h.rep_tgid && orphan_subtree.count(h.rep_tgid)) {
+            orphan_headers.push_back(h);
+            continue;
+        }
+        std::string procs_field = h.total_procs ? std::to_string(h.total_procs) : std::string("-");
+        std::string pid_field = h.rep_tgid ? std::to_string(h.rep_tgid) : std::string("-");
+        std::string path_field = h.owner_cmd;
+        if (h.rep_tgid && rep_prefix.count(h.rep_tgid)) path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
+        std::cout << std::left << std::setw(NS_type) << h.e.inum << std::setw(TYPE_type) << h.display << std::setw(PROCS_type) << procs_field << std::setw(USER_type) << h.user_field << std::setw(PID_type) << pid_field << path_field << "\n";
+    }
+
+    // Sort orphan headers by NS (inum) ascending and print them last. For each
+    // orphan header we still display its subtree (if any) using the same prefix
+    // logic.
+    std::sort(orphan_headers.begin(), orphan_headers.end(), [](const HeaderInfo &a, const HeaderInfo &b){ return a.e.inum < b.e.inum; });
+    for (const auto &h : orphan_headers) {
+        std::string procs_field = h.total_procs ? std::to_string(h.total_procs) : std::string("-");
+        std::string pid_field = h.rep_tgid ? std::to_string(h.rep_tgid) : std::string("-");
+        std::string path_field = h.owner_cmd;
+        if (h.rep_tgid && rep_prefix.count(h.rep_tgid)) path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
+        std::cout << std::left << std::setw(NS_type) << h.e.inum << std::setw(TYPE_type) << h.display << std::setw(PROCS_type) << procs_field << std::setw(USER_type) << h.user_field << std::setw(PID_type) << pid_field << path_field << "\n";
+        // if this orphan has children, print them (they are in rep_children)
+        auto itc = rep_children.find(h.rep_tgid);
+        if (itc == rep_children.end()) continue;
+        const auto &root_children = itc->second;
+        // print recursively as full rows using rep_prefix already computed
+        std::function<void(int,const std::string&,bool)> print_orphan_node = [&](int tgid, const std::string &prefix, bool is_last) {
+            auto rit = reps.find(tgid);
+            std::string cmd = (rit != reps.end()) ? rit->second.cmd : std::to_string(tgid);
+            const HeaderInfo *hh = nullptr;
+            auto hit = rep_header_map.find(tgid);
+            if (hit != rep_header_map.end()) hh = hit->second;
+            std::string path = prefix + (is_last ? "└─" : "├─") + cmd;
+            if (hh) {
+                std::string procs_f = hh->total_procs ? std::to_string(hh->total_procs) : std::string("-");
+                std::string pid_f = std::to_string(hh->rep_tgid);
+                std::cout << std::left << std::setw(NS_type) << hh->e.inum << std::setw(TYPE_type) << ns_display_name(hh->e.type) << std::setw(PROCS_type) << procs_f << std::setw(USER_type) << hh->user_field << std::setw(PID_type) << pid_f << path << "\n";
+            } else if (rit != reps.end()) {
+                auto &rinfo = rit->second;
+                std::cout << std::left << std::setw(NS_type) << rinfo.inum << std::setw(TYPE_type) << ns_display_name(rinfo.type) << std::setw(PROCS_type) << "-" << std::setw(USER_type) << "-" << std::setw(PID_type) << std::to_string(rinfo.tgid) << path << "\n";
+            } else {
+                std::cout << std::string(pad_width, ' ') << path << "\n";
+            }
+            auto itc2 = rep_children.find(tgid);
+            if (itc2 == rep_children.end()) return;
+            const auto &ch = itc2->second;
+            for (size_t i = 0; i < ch.size(); ++i) {
+                bool last = (i+1 == ch.size());
+                std::string child_prefix = prefix + (is_last ? "   " : "│  ");
+                print_orphan_node(ch[i], child_prefix, last);
+            }
+        };
+        for (size_t i = 0; i < root_children.size(); ++i) {
+            bool last = (i+1 == root_children.size());
+            print_orphan_node(root_children[i], std::string(), last);
         }
     }
 
