@@ -8,6 +8,7 @@
 #include <ctime>
 #include <dirent.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -20,7 +21,8 @@
 #include <functional>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <atomic>
+#include <signal.h> 
 // Proc info for building process tree per-namespace
 struct ProcInfo {
     int pid;   // tgid
@@ -28,6 +30,110 @@ struct ProcInfo {
     uint32_t uid;
     std::string cmd;
 };
+static std::atomic<bool> exit_flag(false);
+static bool json_output = false;
+static struct option lopts[] = {
+     {"json", no_argument, 0, 'J'},
+     {"help", no_argument, 0, 'h'},
+     {0, 0, 0, 0},
+};
+
+// Structure for help messages
+struct HelpMsg
+{
+	const char *argparam; // Argument parameter
+	const char *msg;	  // Help message
+};
+
+// Help messages
+static HelpMsg help_msg[] = {
+    {"",			  "use JSON output format\n"     		},
+	{"",			  "print this help message\n"			},
+};
+
+// Convert long options to short options string
+std::string long_opt2short_opt(const option lopts[])
+{
+	std::string sopts = "";
+	for (int i = 0; lopts[i].name; i++)
+	{
+		sopts += lopts[i].val; // Add short option character
+		switch (lopts[i].has_arg)
+		{
+		case no_argument:
+			break;
+		case required_argument:
+			sopts += ":"; // Required argument
+			break;
+		case optional_argument:
+			sopts += "::"; // Optional argument
+			break;
+		default:
+			std::cerr << "Code internal bug!!!\n";
+            std::abort(); 
+		}
+	}
+	return sopts;
+}
+
+void Usage(const char *arg0)
+{
+	printf("\nUsage:\n  %s [option] [<namespace>]\n\n", arg0);
+	printf("list the Linux namespaces that the system is using\n\n");
+	printf("Options:\n");
+	for (int i = 0; lopts[i].name; i++)
+	{
+		printf(
+			"  -%c, --%s %s\n\t%s\n",
+			lopts[i].val,
+			lopts[i].name,
+			help_msg[i].argparam,
+			help_msg[i].msg
+		);
+	}
+}
+
+
+// Parse command line arguments
+void parse_args(int argc, char **argv)
+{
+	int opt, opt_idx;
+	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+												   // short options
+	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
+	{
+		switch (opt)
+		{
+		
+        case 'h': // Help
+            Usage(argv[0]);
+            exit(0);
+            break;
+        case 'J':
+            json_output = true;
+            break;
+		default: // Invalid option
+			Usage(argv[0]);
+			exit(-1);
+			break;
+		}
+	}
+}
+
+
+void register_signal()
+{
+	struct sigaction sa;
+	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
+	sa.sa_flags = 0;							   // No special flags
+	sigemptyset(&sa.sa_mask); // No additional signals to block
+	// Register the signal handler for SIGINT
+	if (sigaction(SIGINT, &sa, NULL) == -1)
+	{
+		perror("sigaction");
+		exit(EXIT_FAILURE);
+	}
+}
 
 // helper: read first token from /proc/<pid>/cmdline or fallback to /proc/<pid>/comm
 static std::string read_proc_cmd(int pid)
@@ -65,6 +171,36 @@ static std::string read_proc_cmd(int pid)
     }
     return std::string("[") + std::to_string(pid) + "]";
 }
+
+// JSON string escape helper
+static std::string json_escape(const std::string &s)
+{
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (unsigned char c : s) {
+        switch (c) {
+        case '"': out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\b': out += "\\b"; break;
+        case '\f': out += "\\f"; break;
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        default:
+            if (c < 0x20) {
+                char buf[8];
+                snprintf(buf, sizeof(buf), "\\u%04x", c);
+                out += buf;
+            } else {
+                out += (char)c;
+            }
+        }
+    }
+    return out;
+}
+
+
+
 
 // Parse PPid and Uid from /proc/<pid>/status
 // Read PPid, Uid and Tgid from /proc/<pid>/status. Returns tgid via tgid_out.
@@ -273,6 +409,7 @@ static int bump_memlock_rlimit()
 
 int main(int argc, char **argv)
 {
+    
     if (bump_memlock_rlimit())
         return 1;
 
@@ -284,7 +421,8 @@ int main(int argc, char **argv)
         "/usr/lib/dkapture/lsns.bpf.o",
         NULL
     };
-
+    parse_args(argc, argv);
+    register_signal();
     struct bpf_object *obj = nullptr;
     int err = 0;
     for (const char **p = candidates; *p; ++p) {
@@ -428,7 +566,7 @@ int main(int argc, char **argv)
     std::unordered_map<std::string, int> rep_by_ns; // key -> tgid
 
     for (auto &e : entries) {
-        // Skip pid_for_children namespace type (we don't display it)
+        // Skip pid_for_children namespace type (we don't display it) 
         if (e.type == 9) continue;
         HeaderInfo h = {};
         h.e = e;
@@ -521,6 +659,8 @@ int main(int argc, char **argv)
     std::unordered_map<int, const HeaderInfo*> rep_header_map;
     for (const auto &h : headers) if (h.rep_tgid) rep_header_map[h.rep_tgid] = &h;
 
+    
+
     // Build representative-only parent->children map
     std::unordered_map<int, std::vector<int>> rep_children;
     std::unordered_map<int, int> rep_parent;
@@ -576,6 +716,147 @@ int main(int argc, char **argv)
             return a < b;
         });
     }
+
+    // If requested, produce pretty JSON output and exit
+    if (json_output) {
+        auto indent = [&](int lvl){ return std::string(lvl * 3, ' '); };
+
+        // recursive pretty JSON printer for a rep node
+        std::function<void(int,int)> print_node = [&](int tgid, int lvl) {
+            const HeaderInfo *hh = nullptr;
+            auto hit = rep_header_map.find(tgid);
+            if (hit != rep_header_map.end()) hh = hit->second;
+
+            std::cout << indent(lvl) << "{\n";
+            auto emit_field_str = [&](const char *name, const std::string &val, bool last){
+                std::cout << indent(lvl+1) << "\"" << name << "\": \"" << json_escape(val) << "\"";
+                if (!last) std::cout << ",";
+                std::cout << "\n";
+            };
+            auto emit_field_num = [&](const char *name, uint64_t val, bool last){
+                std::cout << indent(lvl+1) << "\"" << name << "\": " << val;
+                if (!last) std::cout << ",";
+                std::cout << "\n";
+            };
+
+            if (hh) {
+                emit_field_num("ns", hh->e.inum, false);
+                emit_field_str("type", hh->display, false);
+                emit_field_num("nprocs", hh->total_procs ? hh->total_procs : 0, false);
+                emit_field_num("pid", hh->rep_tgid, false);
+                emit_field_str("user", hh->user_field, false);
+                // command may be last or followed by children
+                auto cit = rep_children.find(tgid);
+                bool has_children = (cit != rep_children.end() && !cit->second.empty());
+                emit_field_str("command", hh->owner_cmd, !has_children);
+                if (has_children) {
+                    std::cout << indent(lvl+1) << "\"children\": [\n";
+                    for (size_t i = 0; i < cit->second.size(); ++i) {
+                        print_node(cit->second[i], lvl+2);
+                        if (i + 1 != cit->second.size()) std::cout << ",\n";
+                        else std::cout << "\n";
+                    }
+                    std::cout << indent(lvl+1) << "]\n";
+                }
+            } else {
+                auto rit = reps.find(tgid);
+                if (rit != reps.end()) {
+                    const auto &r = rit->second;
+                    emit_field_num("ns", r.inum, false);
+                    emit_field_str("type", ns_display_name(r.type), false);
+                    emit_field_num("nprocs", 0, false);
+                    emit_field_num("pid", r.tgid, false);
+                    emit_field_str("user", "-", false);
+                    emit_field_str("command", r.cmd, true);
+                } else {
+                    emit_field_str("type", "unknown", false);
+                    emit_field_num("nprocs", 0, false);
+                    emit_field_num("pid", (uint64_t)tgid, false);
+                    emit_field_str("user", "-", false);
+                    emit_field_str("command", "", true);
+                }
+            }
+
+            std::cout << indent(lvl) << "}";
+        };
+
+        // compute child set and printed inum set to avoid duplicates
+        std::unordered_set<int> child_set;
+        for (const auto &kv : rep_children) for (int c : kv.second) child_set.insert(c);
+        std::unordered_set<uint64_t> printed_inum;
+
+        std::cout << "{\n   \"namespaces\": [\n";
+        bool first_out = true;
+
+        // main pass: headers in original order, skipping orphans and children
+        for (const auto &h : headers) {
+            if (h.rep_tgid && orphan_subtree.count(h.rep_tgid)) continue;
+            // if rep exists and is a child, skip (will be printed under parent)
+            if (h.rep_tgid && child_set.count(h.rep_tgid)) continue;
+
+            // avoid printing same namespace twice by inum
+            if (printed_inum.count(h.e.inum)) continue;
+
+            if (!first_out) std::cout << ",\n";
+            first_out = false;
+
+            if (h.rep_tgid) {
+                print_node(h.rep_tgid, 3);
+                // mark this inum and all descendants as printed
+                printed_inum.insert(h.e.inum);
+                // mark descendants' inums
+                std::function<void(int)> mark_desc = [&](int t){
+                    auto it = rep_header_map.find(t);
+                    if (it != rep_header_map.end()) printed_inum.insert(it->second->e.inum);
+                    auto cit = rep_children.find(t);
+                    if (cit == rep_children.end()) return;
+                    for (int c : cit->second) mark_desc(c);
+                };
+                mark_desc(h.rep_tgid);
+            } else {
+                // print flat header object
+                std::cout << indent(3) << "{\n";
+                std::cout << indent(4) << "\"ns\": " << h.e.inum << ",\n";
+                std::cout << indent(4) << "\"type\": \"" << json_escape(h.display) << "\",\n";
+                std::cout << indent(4) << "\"nprocs\": " << (h.total_procs ? h.total_procs : 0) << ",\n";
+                if (h.rep_tgid) std::cout << indent(4) << "\"pid\": " << h.rep_tgid << ",\n";
+                else if (h.e.pid) std::cout << indent(4) << "\"pid\": " << h.e.pid << ",\n";
+                else std::cout << indent(4) << "\"pid\": null,\n";
+                std::cout << indent(4) << "\"user\": \"" << json_escape(h.user_field) << "\",\n";
+                std::cout << indent(4) << "\"command\": \"" << json_escape(h.owner_cmd) << "\"\n";
+                std::cout << indent(3) << "}";
+                printed_inum.insert(h.e.inum);
+            }
+        }
+
+        // orphan headers printed last, sorted by inum
+        std::vector<const HeaderInfo*> orphans;
+        for (const auto &h : headers) if (h.rep_tgid && orphan_subtree.count(h.rep_tgid)) orphans.push_back(&h);
+        std::sort(orphans.begin(), orphans.end(), [](const HeaderInfo *a, const HeaderInfo *b){ return a->e.inum < b->e.inum; });
+        for (const HeaderInfo *hp : orphans) {
+            if (printed_inum.count(hp->e.inum)) continue;
+            if (!first_out) std::cout << ",\n";
+            first_out = false;
+            print_node(hp->rep_tgid, 3);
+            // mark subtree
+            std::function<void(int)> mark_desc = [&](int t){
+                auto it = rep_header_map.find(t);
+                if (it != rep_header_map.end()) printed_inum.insert(it->second->e.inum);
+                auto cit = rep_children.find(t);
+                if (cit == rep_children.end()) return;
+                for (int c : cit->second) mark_desc(c);
+            };
+            mark_desc(hp->rep_tgid);
+        }
+
+        std::cout << "\n   ]\n}\n";
+
+        bpf_link__destroy(link);
+        bpf_object__close(obj);
+        return 0;
+    }
+
+    
 
     
 
