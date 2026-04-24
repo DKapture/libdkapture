@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <numeric>
+#include <unordered_map>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -183,6 +185,15 @@ int main(int argc, char **argv)
     }
     int map_fd = bpf_map__fd(map);
 
+    struct bpf_map *cnt_map = bpf_object__find_map_by_name(obj, "ns_cnt_map");
+    int cnt_map_fd = -1;
+    if (cnt_map) {
+        cnt_map_fd = bpf_map__fd(cnt_map);
+        std::cerr << "found per-cpu ns_cnt_map\n";
+    } else {
+        std::cerr << "per-cpu ns_cnt_map not found, falling back to ns_map.procs if present\n";
+    }
+
     // iterate keys
     ns_key_t prev = {};
     ns_key_t next = {};
@@ -233,27 +244,78 @@ int main(int argc, char **argv)
         if (e.pid)
             snprintf(pathbuf, sizeof(pathbuf), "/proc/%u/ns/%s", e.pid, procname);
 
+        // If there is a per-cpu count map, try to read it and sum per-cpu values.
+        uint64_t total_procs = e.procs;
+        if (cnt_map_fd >= 0) {
+            // determine number of online CPUs by reading /sys
+            int nr_cpus = 0;
+            FILE *f = fopen("/sys/devices/system/cpu/online", "r");
+            if (f) {
+                char buf[256];
+                if (fgets(buf, sizeof(buf), f)) {
+                    // parse ranges like 0-3,5
+                    int a, b;
+                    char *p = buf;
+                    while (*p) {
+                        if (sscanf(p, "%d-%d", &a, &b) == 2) {
+                            nr_cpus += (b - a + 1);
+                            // advance p to after the '-')
+                            char *comma = strchr(p, ',');
+                            if (!comma) break;
+                            p = comma + 1;
+                        } else if (sscanf(p, "%d", &a) == 1) {
+                            nr_cpus += 1;
+                            char *comma = strchr(p, ',');
+                            if (!comma) break;
+                            p = comma + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                fclose(f);
+            }
+            if (nr_cpus <= 0) {
+                // fallback: assume 1
+                nr_cpus = 1;
+            }
+
+            std::vector<uint32_t> pcnts(nr_cpus);
+            if (bpf_map_lookup_elem(cnt_map_fd, &e, pcnts.data()) == 0) {
+                uint64_t sum = 0;
+                for (int i = 0; i < nr_cpus; ++i)
+                    sum += pcnts[i];
+                total_procs = sum;
+            }
+        }
+
         std::string user_field;
+        static std::unordered_map<uint32_t, std::string> uid_cache;
         // presence of owner is indicated by pid != 0
         if (e.pid) {
-            struct passwd pwd, *pwdp = NULL;
-            long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-            if (bufsize < 0) bufsize = 16384;
-            std::unique_ptr<char[]> buf(new char[bufsize]);
-            char uname[64] = {0};
-            bool have_name = false;
-            if (getpwuid_r(e.uid, &pwd, buf.get(), bufsize, &pwdp) == 0 && pwdp) {
-                strncpy(uname, pwd.pw_name, sizeof(uname)-1);
-                uname[sizeof(uname)-1] = '\0';
-                have_name = true;
+            auto it = uid_cache.find(e.uid);
+            if (it != uid_cache.end()) {
+                user_field = it->second;
+            } else {
+                struct passwd pwd, *pwdp = NULL;
+                long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+                if (bufsize < 0) bufsize = 16384;
+                std::unique_ptr<char[]> buf(new char[bufsize]);
+                char uname[64] = {0};
+                bool have_name = false;
+                if (getpwuid_r(e.uid, &pwd, buf.get(), bufsize, &pwdp) == 0 && pwdp) {
+                    strncpy(uname, pwd.pw_name, sizeof(uname)-1);
+                    uname[sizeof(uname)-1] = '\0';
+                    have_name = true;
+                }
+                user_field = have_name ? std::string(uname) : std::to_string(e.uid);
+                uid_cache[e.uid] = user_field;
             }
-            // Always prefer username when resolvable; otherwise show numeric uid (including 0)
-            user_field = have_name ? std::string(uname) : std::to_string(e.uid);
         } else {
             user_field = "-";
         }
 
-        std::cout << std::left << std::setw(20) << e.inum << std::setw(16) << display << std::setw(8) << (e.procs ? std::to_string(e.procs) : std::string("-")) << std::setw(20) << user_field << std::setw(12) << (e.pid ? std::to_string(e.pid) : std::string("-")) << pathbuf << "\n";
+        std::cout << std::left << std::setw(20) << e.inum << std::setw(16) << display << std::setw(8) << (total_procs ? std::to_string(total_procs) : std::string("-")) << std::setw(20) << user_field << std::setw(12) << (e.pid ? std::to_string(e.pid) : std::string("-")) << pathbuf << "\n";
     }
 
     bpf_link__destroy(link);
