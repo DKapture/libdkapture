@@ -16,6 +16,166 @@
 #include <algorithm>
 #include <numeric>
 #include <unordered_map>
+#include <functional>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+// Proc info for building process tree per-namespace
+struct ProcInfo {
+    int pid;   // tgid
+    int ppid;  // parent's pid (usually parent's tgid)
+    uint32_t uid;
+    std::string cmd;
+};
+
+// helper: read first token from /proc/<pid>/cmdline or fallback to /proc/<pid>/comm
+static std::string read_proc_cmd(int pid)
+{
+    char path[256];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    FILE *f = fopen(path, "r");
+    if (f) {
+        std::string s;
+        char buf[4096];
+        size_t n = fread(buf, 1, sizeof(buf)-1, f);
+        fclose(f);
+        if (n > 0) {
+            buf[n] = '\0';
+            // cmdline is NUL-separated, first token is argv[0]
+            s = std::string(buf);
+            // replace embedded NULs with spaces beyond first? keep only first token
+            size_t pos = s.find('\0');
+            if (pos != std::string::npos)
+                s.resize(pos);
+            return s;
+        }
+    }
+    // fallback to comm
+    snprintf(path, sizeof(path), "/proc/%d/comm", pid);
+    f = fopen(path, "r");
+    if (f) {
+        char buf[256];
+        if (fgets(buf, sizeof(buf), f)) {
+            fclose(f);
+            // strip newline
+            char *nl = strchr(buf, '\n'); if (nl) *nl = '\0';
+            return std::string(buf);
+        }
+        fclose(f);
+    }
+    return std::string("[") + std::to_string(pid) + "]";
+}
+
+// Parse PPid and Uid from /proc/<pid>/status
+// Read PPid, Uid and Tgid from /proc/<pid>/status. Returns tgid via tgid_out.
+static void read_proc_ppid_uid(int pid, int &ppid_out, uint32_t &uid_out, int &tgid_out)
+{
+    ppid_out = 0;
+    uid_out = 0;
+    tgid_out = pid;
+    char path[256];
+    snprintf(path, sizeof(path), "/proc/%d/status", pid);
+    FILE *f = fopen(path, "r");
+    if (!f) return;
+    char line[512];
+    while (fgets(line, sizeof(line), f)) {
+        if (strncmp(line, "PPid:", 5) == 0) {
+            int p = 0;
+            if (sscanf(line+5, "%d", &p) == 1) ppid_out = p;
+        } else if (strncmp(line, "Uid:", 4) == 0) {
+            int u = 0;
+            if (sscanf(line+4, "%d", &u) == 1) uid_out = (uint32_t)u;
+        } else if (strncmp(line, "Tgid:", 5) == 0) {
+            int t = 0;
+            if (sscanf(line+5, "%d", &t) == 1) tgid_out = t;
+        }
+    }
+    fclose(f);
+}
+
+// Scan /proc once and build a mapping key="type:inum" -> vector<ProcInfo>
+static std::unordered_map<std::string, std::vector<ProcInfo>> scan_procs_by_ns()
+{
+    std::unordered_map<std::string, std::vector<ProcInfo>> m;
+    DIR *d = opendir("/proc");
+    if (!d) return m;
+    struct dirent *de;
+    char ns_path[256];
+    const char *proc_names[10] = {"unknown","user","ipc","mnt","pid","net","uts","time","cgroup","pid"};
+    struct stat st;
+    // We'll check the common namespace types 1..9
+    for (;;) {
+        de = readdir(d);
+        if (!de) break;
+        char *endptr;
+        long pid = strtol(de->d_name, &endptr, 10);
+        if (*endptr != '\0') continue;
+        // for each ns type
+        for (uint32_t t = 1; t <= 9; ++t) {
+            const char *procname = proc_names[t];
+            if (!procname) continue;
+            snprintf(ns_path, sizeof(ns_path), "/proc/%ld/ns/%s", pid, procname);
+            if (stat(ns_path, &st) != 0) continue;
+            uint64_t inum = st.st_ino;
+            std::string key = std::to_string(t) + ":" + std::to_string(inum);
+            // Read status to get Tgid/PPid/Uid. We only want thread-group leaders (tgid == pid)
+            int ppid = 0;
+            uint32_t uid = 0;
+            int tgid = 0;
+            read_proc_ppid_uid((int)pid, ppid, uid, tgid);
+            if (tgid != (int)pid)
+                continue; // skip threads; only include TGID entries
+            ProcInfo pi;
+            pi.pid = tgid; // leader id
+            pi.ppid = ppid;
+            pi.uid = uid;
+            pi.cmd = read_proc_cmd((int)tgid);
+            m[key].push_back(pi);
+        }
+    }
+    closedir(d);
+    // sort pid lists for deterministic order
+    for (auto &kv : m) {
+        auto &vec = kv.second;
+        std::sort(vec.begin(), vec.end(), [](const ProcInfo &a, const ProcInfo &b){ return a.pid < b.pid; });
+    }
+    return m;
+}
+
+// Print process tree rooted at owner_pid using the given proc list mapped by pid
+static void print_tree_aligned(int owner_pid, const std::vector<ProcInfo> &procs, int pad_width)
+{
+    std::unordered_map<int, std::vector<int>> children;
+    std::unordered_map<int, std::string> cmd;
+    for (const auto &p : procs) {
+        cmd[p.pid] = p.cmd;
+        children[p.ppid].push_back(p.pid);
+    }
+    for (auto &kv : children) std::sort(kv.second.begin(), kv.second.end());
+
+    // recursive helper defined as a static function to avoid std::function overhead
+    std::function<void(int,const std::string&,bool)> printer = [&](int pid, const std::string &prefix, bool is_last) {
+        std::string line = prefix + (is_last ? "└─" : "├─") + (cmd.count(pid) ? cmd[pid] : std::to_string(pid));
+        std::cout << std::left << std::setw(pad_width) << "" << line << "\n";
+        auto it = children.find(pid);
+        if (it == children.end()) return;
+        const auto &ch = it->second;
+        for (size_t i = 0; i < ch.size(); ++i) {
+            bool last = (i+1 == ch.size());
+            std::string child_prefix = prefix + (is_last ? "   " : "│  ");
+            printer(ch[i], child_prefix, last);
+        }
+    };
+
+    // start from children of owner_pid (owner already printed as header)
+    auto it = children.find(owner_pid);
+    if (it == children.end()) return;
+    const auto &root_children = it->second;
+    for (size_t i = 0; i < root_children.size(); ++i) {
+        bool last = (i+1 == root_children.size());
+        printer(root_children[i], std::string(), last);
+    }
+}
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -233,8 +393,10 @@ int main(int argc, char **argv)
     // sort by inum ascending
     std::sort(entries.begin(), entries.end(), [](const Entry &a, const Entry &b){ return a.inum < b.inum; });
 
-    // print header: NS<system-reminder> first, then TYPE, USER, PID, PATH
-    // Print header: NS, TYPE, PROCS, USER, PID, PATH
+    // Build a one-time /proc scan to map namespace (type:inum) -> processes
+    auto ns_proc_map = scan_procs_by_ns();
+
+    // print header: NS, TYPE, PROCS, USER, PID, PATH
     std::cout << std::left << std::setw(20) << "NS" << std::setw(16) << "TYPE" << std::setw(8) << "PROCS" << std::setw(20) << "USER" << std::setw(12) << "PID" << "PATH" << "\n";
 
     for (auto &e : entries) {
@@ -315,7 +477,34 @@ int main(int argc, char **argv)
             user_field = "-";
         }
 
-        std::cout << std::left << std::setw(20) << e.inum << std::setw(16) << display << std::setw(8) << (total_procs ? std::to_string(total_procs) : std::string("-")) << std::setw(20) << user_field << std::setw(12) << (e.pid ? std::to_string(e.pid) : std::string("-")) << pathbuf << "\n";
+        // Print header line for this namespace. For COMMAND column we will print
+        // the owner's command if available. Tree lines (children) will be
+        // printed on subsequent lines aligned under the COMMAND column.
+        std::string owner_cmd = "-";
+        // lookup processes for this namespace
+        std::string key = std::to_string(e.type) + ":" + std::to_string(e.inum);
+        auto it = ns_proc_map.find(key);
+        if (it != ns_proc_map.end()) {
+            const auto &vec = it->second;
+            for (const auto &pi : vec) {
+                if (pi.pid == (int)e.pid) { owner_cmd = pi.cmd; break; }
+            }
+            if (owner_cmd == "-" && e.pid) {
+                // if owner not found in vec, attempt to read directly
+                owner_cmd = read_proc_cmd(e.pid);
+            }
+        } else if (e.pid) {
+            owner_cmd = read_proc_cmd(e.pid);
+        }
+
+        std::cout << std::left << std::setw(20) << e.inum << std::setw(16) << display << std::setw(8) << (total_procs ? std::to_string(total_procs) : std::string("-")) << std::setw(20) << user_field << std::setw(12) << (e.pid ? std::to_string(e.pid) : std::string("-")) << owner_cmd << "\n";
+
+        // If we have collected processes for this namespace, print the tree
+        if (it != ns_proc_map.end() && !it->second.empty() && e.pid) {
+            // pad width equals sum of preceding columns widths to align under COMMAND
+            int pad_width = 20 + 16 + 8 + 20 + 12;
+            print_tree_aligned(e.pid, it->second, pad_width);
+        }
     }
 
     bpf_link__destroy(link);
