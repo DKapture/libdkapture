@@ -23,6 +23,26 @@
 #include <sys/types.h>
 #include <atomic>
 #include <signal.h> 
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <bpf/libbpf.h>
+#include <bpf/bpf.h>
+#include <pwd.h>
+
+struct ns_key_t {
+    uint32_t type;
+    uint64_t inum;
+};
+
+struct ns_owner_t {
+    uint32_t pid;
+    uint32_t uid;
+    uint32_t procs;
+};
+
 // Proc info for building process tree per-namespace
 struct ProcInfo {
     int pid;   // tgid
@@ -284,26 +304,6 @@ static void print_tree_aligned(int owner_pid, const std::vector<ProcInfo> &procs
         printer(root_children[i], std::string(), last);
     }
 }
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <bpf/libbpf.h>
-#include <bpf/bpf.h>
-#include <pwd.h>
-
-struct ns_key_t {
-    uint32_t type;
-    uint64_t inum;
-};
-
-struct ns_owner_t {
-    uint32_t pid;
-    uint32_t uid;
-    uint32_t procs;
-};
-
 // return a human display name for the namespace type
 static const char* ns_display_name(uint32_t t)
 {
