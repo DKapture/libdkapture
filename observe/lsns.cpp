@@ -33,9 +33,9 @@ struct ProcInfo {
 static std::atomic<bool> exit_flag(false);
 static bool json_output = false;
 static struct option lopts[] = {
-     {"json", no_argument, 0, 'J'},
-     {"help", no_argument, 0, 'h'},
-     {0, 0, 0, 0},
+    {"json", no_argument, 0, 'J'},
+    {"help", no_argument, 0, 'h'},
+    {0, 0, 0, 0},
 };
 
 // Structure for help messages
@@ -47,7 +47,7 @@ struct HelpMsg
 
 // Help messages
 static HelpMsg help_msg[] = {
-    {"",			  "use JSON output format\n"     		},
+    {"",			  "use JSON output format"									},
 	{"",			  "print this help message\n"			},
 };
 
@@ -78,7 +78,7 @@ std::string long_opt2short_opt(const option lopts[])
 
 void Usage(const char *arg0)
 {
-	printf("\nUsage:\n  %s [option] [<namespace>]\n\n", arg0);
+	printf("Usage:\n  %s [option] [<namespace>]\n", arg0);
 	printf("list the Linux namespaces that the system is using\n\n");
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
@@ -97,27 +97,26 @@ void Usage(const char *arg0)
 // Parse command line arguments
 void parse_args(int argc, char **argv)
 {
-	int opt, opt_idx;
-	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
-												   // short options
-	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
-	{
-		switch (opt)
-		{
-		
+    int opt, opt_idx;
+    std::string sopts = long_opt2short_opt(lopts); // Convert long options to
+                                                   // short options
+    while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
+    {
+        switch (opt)
+        {
+        case 'J': // JSON output
+            json_output = true;
+            break;
         case 'h': // Help
             Usage(argv[0]);
             exit(0);
             break;
-        case 'J':
-            json_output = true;
+        default: // Invalid option
+            Usage(argv[0]);
+            exit(-1);
             break;
-		default: // Invalid option
-			Usage(argv[0]);
-			exit(-1);
-			break;
-		}
-	}
+        }
+    }
 }
 
 
@@ -170,33 +169,6 @@ static std::string read_proc_cmd(int pid)
         fclose(f);
     }
     return std::string("[") + std::to_string(pid) + "]";
-}
-
-// JSON string escape helper
-static std::string json_escape(const std::string &s)
-{
-    std::string out;
-    out.reserve(s.size() + 8);
-    for (unsigned char c : s) {
-        switch (c) {
-        case '"': out += "\\\""; break;
-        case '\\': out += "\\\\"; break;
-        case '\b': out += "\\b"; break;
-        case '\f': out += "\\f"; break;
-        case '\n': out += "\\n"; break;
-        case '\r': out += "\\r"; break;
-        case '\t': out += "\\t"; break;
-        default:
-            if (c < 0x20) {
-                char buf[8];
-                snprintf(buf, sizeof(buf), "\\u%04x", c);
-                out += buf;
-            } else {
-                out += (char)c;
-            }
-        }
-    }
-    return out;
 }
 
 
@@ -658,8 +630,10 @@ int main(int argc, char **argv)
     // Build a map from representative tgid -> HeaderInfo for easy lookup
     std::unordered_map<int, const HeaderInfo*> rep_header_map;
     for (const auto &h : headers) if (h.rep_tgid) rep_header_map[h.rep_tgid] = &h;
-
-    
+    // Build rep -> list of headers mapping (a representative may correspond to
+    // multiple namespace headers), used to print all namespaces for a rep.
+    std::unordered_map<int, std::vector<const HeaderInfo*>> rep_to_headers;
+    for (const auto &h : headers) if (h.rep_tgid) rep_to_headers[h.rep_tgid].push_back(&h);
 
     // Build representative-only parent->children map
     std::unordered_map<int, std::vector<int>> rep_children;
@@ -717,147 +691,6 @@ int main(int argc, char **argv)
         });
     }
 
-    // If requested, produce pretty JSON output and exit
-    if (json_output) {
-        auto indent = [&](int lvl){ return std::string(lvl * 3, ' '); };
-
-        // recursive pretty JSON printer for a rep node
-        std::function<void(int,int)> print_node = [&](int tgid, int lvl) {
-            const HeaderInfo *hh = nullptr;
-            auto hit = rep_header_map.find(tgid);
-            if (hit != rep_header_map.end()) hh = hit->second;
-
-            std::cout << indent(lvl) << "{\n";
-            auto emit_field_str = [&](const char *name, const std::string &val, bool last){
-                std::cout << indent(lvl+1) << "\"" << name << "\": \"" << json_escape(val) << "\"";
-                if (!last) std::cout << ",";
-                std::cout << "\n";
-            };
-            auto emit_field_num = [&](const char *name, uint64_t val, bool last){
-                std::cout << indent(lvl+1) << "\"" << name << "\": " << val;
-                if (!last) std::cout << ",";
-                std::cout << "\n";
-            };
-
-            if (hh) {
-                emit_field_num("ns", hh->e.inum, false);
-                emit_field_str("type", hh->display, false);
-                emit_field_num("nprocs", hh->total_procs ? hh->total_procs : 0, false);
-                emit_field_num("pid", hh->rep_tgid, false);
-                emit_field_str("user", hh->user_field, false);
-                // command may be last or followed by children
-                auto cit = rep_children.find(tgid);
-                bool has_children = (cit != rep_children.end() && !cit->second.empty());
-                emit_field_str("command", hh->owner_cmd, !has_children);
-                if (has_children) {
-                    std::cout << indent(lvl+1) << "\"children\": [\n";
-                    for (size_t i = 0; i < cit->second.size(); ++i) {
-                        print_node(cit->second[i], lvl+2);
-                        if (i + 1 != cit->second.size()) std::cout << ",\n";
-                        else std::cout << "\n";
-                    }
-                    std::cout << indent(lvl+1) << "]\n";
-                }
-            } else {
-                auto rit = reps.find(tgid);
-                if (rit != reps.end()) {
-                    const auto &r = rit->second;
-                    emit_field_num("ns", r.inum, false);
-                    emit_field_str("type", ns_display_name(r.type), false);
-                    emit_field_num("nprocs", 0, false);
-                    emit_field_num("pid", r.tgid, false);
-                    emit_field_str("user", "-", false);
-                    emit_field_str("command", r.cmd, true);
-                } else {
-                    emit_field_str("type", "unknown", false);
-                    emit_field_num("nprocs", 0, false);
-                    emit_field_num("pid", (uint64_t)tgid, false);
-                    emit_field_str("user", "-", false);
-                    emit_field_str("command", "", true);
-                }
-            }
-
-            std::cout << indent(lvl) << "}";
-        };
-
-        // compute child set and printed inum set to avoid duplicates
-        std::unordered_set<int> child_set;
-        for (const auto &kv : rep_children) for (int c : kv.second) child_set.insert(c);
-        std::unordered_set<uint64_t> printed_inum;
-
-        std::cout << "{\n   \"namespaces\": [\n";
-        bool first_out = true;
-
-        // main pass: headers in original order, skipping orphans and children
-        for (const auto &h : headers) {
-            if (h.rep_tgid && orphan_subtree.count(h.rep_tgid)) continue;
-            // if rep exists and is a child, skip (will be printed under parent)
-            if (h.rep_tgid && child_set.count(h.rep_tgid)) continue;
-
-            // avoid printing same namespace twice by inum
-            if (printed_inum.count(h.e.inum)) continue;
-
-            if (!first_out) std::cout << ",\n";
-            first_out = false;
-
-            if (h.rep_tgid) {
-                print_node(h.rep_tgid, 3);
-                // mark this inum and all descendants as printed
-                printed_inum.insert(h.e.inum);
-                // mark descendants' inums
-                std::function<void(int)> mark_desc = [&](int t){
-                    auto it = rep_header_map.find(t);
-                    if (it != rep_header_map.end()) printed_inum.insert(it->second->e.inum);
-                    auto cit = rep_children.find(t);
-                    if (cit == rep_children.end()) return;
-                    for (int c : cit->second) mark_desc(c);
-                };
-                mark_desc(h.rep_tgid);
-            } else {
-                // print flat header object
-                std::cout << indent(3) << "{\n";
-                std::cout << indent(4) << "\"ns\": " << h.e.inum << ",\n";
-                std::cout << indent(4) << "\"type\": \"" << json_escape(h.display) << "\",\n";
-                std::cout << indent(4) << "\"nprocs\": " << (h.total_procs ? h.total_procs : 0) << ",\n";
-                if (h.rep_tgid) std::cout << indent(4) << "\"pid\": " << h.rep_tgid << ",\n";
-                else if (h.e.pid) std::cout << indent(4) << "\"pid\": " << h.e.pid << ",\n";
-                else std::cout << indent(4) << "\"pid\": null,\n";
-                std::cout << indent(4) << "\"user\": \"" << json_escape(h.user_field) << "\",\n";
-                std::cout << indent(4) << "\"command\": \"" << json_escape(h.owner_cmd) << "\"\n";
-                std::cout << indent(3) << "}";
-                printed_inum.insert(h.e.inum);
-            }
-        }
-
-        // orphan headers printed last, sorted by inum
-        std::vector<const HeaderInfo*> orphans;
-        for (const auto &h : headers) if (h.rep_tgid && orphan_subtree.count(h.rep_tgid)) orphans.push_back(&h);
-        std::sort(orphans.begin(), orphans.end(), [](const HeaderInfo *a, const HeaderInfo *b){ return a->e.inum < b->e.inum; });
-        for (const HeaderInfo *hp : orphans) {
-            if (printed_inum.count(hp->e.inum)) continue;
-            if (!first_out) std::cout << ",\n";
-            first_out = false;
-            print_node(hp->rep_tgid, 3);
-            // mark subtree
-            std::function<void(int)> mark_desc = [&](int t){
-                auto it = rep_header_map.find(t);
-                if (it != rep_header_map.end()) printed_inum.insert(it->second->e.inum);
-                auto cit = rep_children.find(t);
-                if (cit == rep_children.end()) return;
-                for (int c : cit->second) mark_desc(c);
-            };
-            mark_desc(hp->rep_tgid);
-        }
-
-        std::cout << "\n   ]\n}\n";
-
-        bpf_link__destroy(link);
-        bpf_object__close(obj);
-        return 0;
-    }
-
-    
-
     
 
     // Build prefix map: rep_prefix[rep_tgid] = prefix string (e.g. "├─" or "│  ├─...") to prepend to cmd
@@ -886,67 +719,184 @@ int main(int argc, char **argv)
     });
     for (int r : roots_vec) build_prefix(r, std::string());
 
-    // Now print headers in original order, embedding prefix if present. However,
-    // skip printing headers that belong to orphan_subtree for now; we'll print
-    // those after the normal headers, sorted by NS.
-    std::vector<HeaderInfo> orphan_headers;
-    for (const auto &h : headers) {
-        if (h.rep_tgid && orphan_subtree.count(h.rep_tgid)) {
-            orphan_headers.push_back(h);
-            continue;
+    if (!json_output) {
+        // Now print headers in original order, embedding prefix if present. However,
+        // skip printing headers that belong to orphan_subtree for now; we'll print
+        // those after the normal headers, sorted by NS.
+        std::vector<HeaderInfo> orphan_headers;
+        for (const auto &h : headers) {
+            if (h.rep_tgid && orphan_subtree.count(h.rep_tgid)) {
+                orphan_headers.push_back(h);
+                continue;
+            }
+            std::string procs_field = h.total_procs ? std::to_string(h.total_procs) : std::string("-");
+            std::string pid_field = h.rep_tgid ? std::to_string(h.rep_tgid) : std::string("-");
+            std::string path_field = h.owner_cmd;
+            if (h.rep_tgid && rep_prefix.count(h.rep_tgid)) path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
+            std::cout << std::left << std::setw(NS_type) << h.e.inum << std::setw(TYPE_type) << h.display << std::setw(PROCS_type) << procs_field << std::setw(USER_type) << h.user_field << std::setw(PID_type) << pid_field << path_field << "\n";
         }
-        std::string procs_field = h.total_procs ? std::to_string(h.total_procs) : std::string("-");
-        std::string pid_field = h.rep_tgid ? std::to_string(h.rep_tgid) : std::string("-");
-        std::string path_field = h.owner_cmd;
-        if (h.rep_tgid && rep_prefix.count(h.rep_tgid)) path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
-        std::cout << std::left << std::setw(NS_type) << h.e.inum << std::setw(TYPE_type) << h.display << std::setw(PROCS_type) << procs_field << std::setw(USER_type) << h.user_field << std::setw(PID_type) << pid_field << path_field << "\n";
-    }
 
-    // Sort orphan headers by NS (inum) ascending and print them last. For each
-    // orphan header we still display its subtree (if any) using the same prefix
-    // logic.
-    std::sort(orphan_headers.begin(), orphan_headers.end(), [](const HeaderInfo &a, const HeaderInfo &b){ return a.e.inum < b.e.inum; });
-    for (const auto &h : orphan_headers) {
-        std::string procs_field = h.total_procs ? std::to_string(h.total_procs) : std::string("-");
-        std::string pid_field = h.rep_tgid ? std::to_string(h.rep_tgid) : std::string("-");
-        std::string path_field = h.owner_cmd;
-        if (h.rep_tgid && rep_prefix.count(h.rep_tgid)) path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
-        std::cout << std::left << std::setw(NS_type) << h.e.inum << std::setw(TYPE_type) << h.display << std::setw(PROCS_type) << procs_field << std::setw(USER_type) << h.user_field << std::setw(PID_type) << pid_field << path_field << "\n";
-        // if this orphan has children, print them (they are in rep_children)
-        auto itc = rep_children.find(h.rep_tgid);
-        if (itc == rep_children.end()) continue;
-        const auto &root_children = itc->second;
-        // print recursively as full rows using rep_prefix already computed
-        std::function<void(int,const std::string&,bool)> print_orphan_node = [&](int tgid, const std::string &prefix, bool is_last) {
-            auto rit = reps.find(tgid);
-            std::string cmd = (rit != reps.end()) ? rit->second.cmd : std::to_string(tgid);
-            const HeaderInfo *hh = nullptr;
-            auto hit = rep_header_map.find(tgid);
-            if (hit != rep_header_map.end()) hh = hit->second;
-            std::string path = prefix + (is_last ? "└─" : "├─") + cmd;
-            if (hh) {
-                std::string procs_f = hh->total_procs ? std::to_string(hh->total_procs) : std::string("-");
-                std::string pid_f = std::to_string(hh->rep_tgid);
-                std::cout << std::left << std::setw(NS_type) << hh->e.inum << std::setw(TYPE_type) << ns_display_name(hh->e.type) << std::setw(PROCS_type) << procs_f << std::setw(USER_type) << hh->user_field << std::setw(PID_type) << pid_f << path << "\n";
-            } else if (rit != reps.end()) {
-                auto &rinfo = rit->second;
-                std::cout << std::left << std::setw(NS_type) << rinfo.inum << std::setw(TYPE_type) << ns_display_name(rinfo.type) << std::setw(PROCS_type) << "-" << std::setw(USER_type) << "-" << std::setw(PID_type) << std::to_string(rinfo.tgid) << path << "\n";
-            } else {
-                std::cout << std::string(pad_width, ' ') << path << "\n";
+        // Sort orphan headers by NS (inum) ascending and print them last. For each
+        // orphan header we still display its subtree (if any) using the same prefix
+        // logic.
+        std::sort(orphan_headers.begin(), orphan_headers.end(), [](const HeaderInfo &a, const HeaderInfo &b){ return a.e.inum < b.e.inum; });
+        for (const auto &h : orphan_headers) {
+            std::string procs_field = h.total_procs ? std::to_string(h.total_procs) : std::string("-");
+            std::string pid_field = h.rep_tgid ? std::to_string(h.rep_tgid) : std::string("-");
+            std::string path_field = h.owner_cmd;
+            if (h.rep_tgid && rep_prefix.count(h.rep_tgid)) path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
+            std::cout << std::left << std::setw(NS_type) << h.e.inum << std::setw(TYPE_type) << h.display << std::setw(PROCS_type) << procs_field << std::setw(USER_type) << h.user_field << std::setw(PID_type) << pid_field << path_field << "\n";
+            // if this orphan has children, print them (they are in rep_children)
+            auto itc = rep_children.find(h.rep_tgid);
+            if (itc == rep_children.end()) continue;
+            const auto &root_children = itc->second;
+            // print recursively as full rows using rep_prefix already computed
+            std::function<void(int,const std::string&,bool)> print_orphan_node = [&](int tgid, const std::string &prefix, bool is_last) {
+                auto rit = reps.find(tgid);
+                std::string cmd = (rit != reps.end()) ? rit->second.cmd : std::to_string(tgid);
+                const HeaderInfo *hh = nullptr;
+                auto hit = rep_header_map.find(tgid);
+                if (hit != rep_header_map.end()) hh = hit->second;
+                std::string path = prefix + (is_last ? "└─" : "├─") + cmd;
+                if (hh) {
+                    std::string procs_f = hh->total_procs ? std::to_string(hh->total_procs) : std::string("-");
+                    std::string pid_f = std::to_string(hh->rep_tgid);
+                    std::cout << std::left << std::setw(NS_type) << hh->e.inum << std::setw(TYPE_type) << ns_display_name(hh->e.type) << std::setw(PROCS_type) << procs_f << std::setw(USER_type) << hh->user_field << std::setw(PID_type) << pid_f << path << "\n";
+                } else if (rit != reps.end()) {
+                    auto &rinfo = rit->second;
+                    std::cout << std::left << std::setw(NS_type) << rinfo.inum << std::setw(TYPE_type) << ns_display_name(rinfo.type) << std::setw(PROCS_type) << "-" << std::setw(USER_type) << "-" << std::setw(PID_type) << std::to_string(rinfo.tgid) << path << "\n";
+                } else {
+                    std::cout << std::string(pad_width, ' ') << path << "\n";
+                }
+                auto itc2 = rep_children.find(tgid);
+                if (itc2 == rep_children.end()) return;
+                const auto &ch = itc2->second;
+                for (size_t i = 0; i < ch.size(); ++i) {
+                    bool last = (i+1 == ch.size());
+                    std::string child_prefix = prefix + (is_last ? "   " : "│  ");
+                    print_orphan_node(ch[i], child_prefix, last);
+                }
+            };
+            for (size_t i = 0; i < root_children.size(); ++i) {
+                bool last = (i+1 == root_children.size());
+                print_orphan_node(root_children[i], std::string(), last);
             }
-            auto itc2 = rep_children.find(tgid);
-            if (itc2 == rep_children.end()) return;
-            const auto &ch = itc2->second;
-            for (size_t i = 0; i < ch.size(); ++i) {
-                bool last = (i+1 == ch.size());
-                std::string child_prefix = prefix + (is_last ? "   " : "│  ");
-                print_orphan_node(ch[i], child_prefix, last);
-            }
-        };
-        for (size_t i = 0; i < root_children.size(); ++i) {
-            bool last = (i+1 == root_children.size());
-            print_orphan_node(root_children[i], std::string(), last);
         }
+    } else {
+        // JSON output branch
+        // simple JSON escaping helper
+        auto json_escape = [](const std::string &s)->std::string {
+            std::string out;
+            out.reserve(s.size());
+            for (unsigned char c : s) {
+                switch (c) {
+                    case '"': out += "\\\""; break;
+                    case '\\': out += "\\\\"; break;
+                    case '\n': out += "\\n"; break;
+                    case '\r': out += "\\r"; break;
+                    case '\t': out += "\\t"; break;
+                    default:
+                        if (c < 0x20) {
+                            char buf[8];
+                            snprintf(buf, sizeof(buf), "\\u%04x", c);
+                            out += buf;
+                        } else out += (char)c;
+                }
+            }
+            return out;
+        };
+
+        // We'll print JSON per header to ensure every namespace header is output.
+        // Keep a set of printed namespace keys to avoid duplicates when a
+        // representative covers multiple namespace headers.
+        std::unordered_set<std::string> printed_ns;
+        auto spaces = [&](int n){ return std::string(n, ' '); };
+        std::function<std::string(const HeaderInfo*, int)> build_header_json;
+        build_header_json = [&](const HeaderInfo *hh, int indent)->std::string {
+            std::string key = std::to_string(hh->e.type) + ":" + std::to_string(hh->e.inum);
+            if (printed_ns.count(key)) return std::string();
+            printed_ns.insert(key);
+            std::ostringstream ss;
+            ss << spaces(indent) << "{\n";
+            ss << spaces(indent+3) << "\"ns\": " << hh->e.inum << ",\n";
+            ss << spaces(indent+3) << "\"type\": \"" << hh->display << "\",\n";
+            ss << spaces(indent+3) << "\"nprocs\": " << hh->total_procs << ",\n";
+            ss << spaces(indent+3) << "\"pid\": " << (hh->rep_tgid ? hh->rep_tgid : 0) << ",\n";
+            ss << spaces(indent+3) << "\"user\": \"" << json_escape(hh->user_field) << "\",\n";
+            ss << spaces(indent+3) << "\"command\": \"" << json_escape(hh->owner_cmd) << "\"";
+
+            auto it = rep_children.find(hh->rep_tgid);
+            if (it != rep_children.end() && !it->second.empty()) {
+                // check if there is at least one child header that hasn't been printed
+                bool have_child = false;
+                for (int child_tgid : it->second) {
+                    auto phit = rep_to_headers.find(child_tgid);
+                    if (phit == rep_to_headers.end()) continue;
+                    for (const HeaderInfo *child_hh : phit->second) {
+                        std::string child_key = std::to_string(child_hh->e.type) + ":" + std::to_string(child_hh->e.inum);
+                        if (!printed_ns.count(child_key)) { have_child = true; break; }
+                    }
+                    if (have_child) break;
+                }
+                if (have_child) {
+                    ss << ",\n" << spaces(indent+3) << "\"children\": [\n";
+                    bool first_child = true;
+                    for (int child_tgid : it->second) {
+                        auto phit = rep_to_headers.find(child_tgid);
+                        if (phit == rep_to_headers.end()) continue;
+                        for (const HeaderInfo *child_hh : phit->second) {
+                            std::string child_key = std::to_string(child_hh->e.type) + ":" + std::to_string(child_hh->e.inum);
+                            if (printed_ns.count(child_key)) continue; // skip already-printed child
+                            std::string child_json = build_header_json(child_hh, indent+6);
+                            if (child_json.empty()) continue;
+                            if (!first_child) ss << ",\n";
+                            first_child = false;
+                            ss << child_json;
+                        }
+                    }
+                    ss << "\n" << spaces(indent+3) << "]";
+                }
+            }
+            ss << "\n" << spaces(indent) << "}";
+            return ss.str();
+        };
+
+        // Print top-level JSON array by iterating headers to ensure every header
+        // from the table is emitted. For headers that reference a representative
+        // tgid, print the rep tree if it hasn't already been printed. For headers
+        // without a rep, print the header object directly.
+        std::cout << "{\n  \"namespaces\": [\n";
+        bool first_obj = true;
+        std::vector<std::string> objs;
+        objs.reserve(headers.size());
+        for (const auto &h : headers) {
+            std::string s = build_header_json(&h, 4);
+            if (!s.empty()) objs.push_back(std::move(s));
+        }
+        // any remaining reps not printed yet (possible reps not associated with headers)
+        for (const auto &kv : reps) {
+            int tgid = kv.first;
+            auto phit = rep_to_headers.find(tgid);
+            if (phit == rep_to_headers.end()) {
+                // build a minimal object for this rep and append
+                HeaderInfo tmp = {};
+                tmp.e.type = kv.second.type;
+                tmp.e.inum = kv.second.inum;
+                tmp.e.procs = 0;
+                tmp.rep_tgid = kv.second.tgid;
+                tmp.display = ns_display_name(kv.second.type);
+                tmp.user_field = "-";
+                tmp.owner_cmd = kv.second.cmd;
+                std::string s = build_header_json(&tmp, 4);
+                if (!s.empty()) objs.push_back(std::move(s));
+            }
+        }
+
+        for (size_t i = 0; i < objs.size(); ++i) {
+            if (i) std::cout << ",\n";
+            std::cout << objs[i];
+        }
+        std::cout << "\n  ]\n}\n";
     }
 
     bpf_link__destroy(link);
