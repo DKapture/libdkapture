@@ -802,7 +802,7 @@ class CircleBuf
 			-1,
 			0
 		);
-		if (addr1 == MAP_FAILED)
+		if (addr_map == MAP_FAILED)
 		{
 			pr_error("mmap: %s\n", strerror(errno));
 			goto err;
