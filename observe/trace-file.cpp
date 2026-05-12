@@ -1171,6 +1171,7 @@ static int update_filter(int filter_fd)
 	if (target_fd < 0)
 	{
 		pr_error("open err: %s: %s\n", rule.path, strerror(errno));
+		close(iter_fd);
 		return errno;
 	}
 
