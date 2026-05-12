@@ -642,6 +642,8 @@ int main(int argc, char **argv)
 		if (bpf_map_update_elem(cg_map_fd, &idx, &cgfd, BPF_ANY))
 		{
 			fprintf(stderr, "Failed adding target cgroup to map");
+			close(cgfd);
+			cgfd = -1;
 			goto cleanup;
 		}
 	}
