@@ -13,22 +13,17 @@ import os
 import sys
 from pathlib import Path
 
+from proc_stat_parser import parse_stat_content
+
 def parse_proc_stat(stat_content):
     """
     解析/proc/pid/stat文件内容
     返回(utime, stime)元组
     """
     try:
-        # stat文件格式: pid comm state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime priority nice num_threads itrealvalue starttime vsize rss rsslim startcode endcode startstack kstkesp kstkeip signal blocked sigignore sigcatch wchan nswap cnswap exit_signal processor rt_priority policy delayacct_blkio_ticks guest_time cguest_time start_data end_data start_brk arg_start arg_end env_start env_end exit_code
-        fields = stat_content.strip().split()
-        if len(fields) < 15:
-            return None, None
-        
-        # utime是第14个字段(索引13)，stime是第15个字段(索引14)
-        utime = int(fields[13])
-        stime = int(fields[14])
+        _, utime, stime = parse_stat_content(stat_content)
         return utime, stime
-    except (ValueError, IndexError) as e:
+    except ValueError as e:
         print(f"解析stat文件失败: {e}")
         return None, None
 
@@ -37,17 +32,9 @@ def get_process_name(stat_content):
     从stat内容中提取进程名
     """
     try:
-        fields = stat_content.strip().split()
-        if len(fields) < 2:
-            return "unknown"
-        
-        # 进程名在第二个字段，可能包含空格，需要用括号包围
-        comm_field = fields[1]
-        if comm_field.startswith('(') and comm_field.endswith(')'):
-            return comm_field[1:-1]  # 去掉括号
-        else:
-            return comm_field
-    except:
+        comm, _, _ = parse_stat_content(stat_content)
+        return comm
+    except ValueError:
         return "unknown"
 
 def analyze_process_stats():

@@ -7,6 +7,8 @@
 import os
 import sys
 
+from proc_stat_parser import parse_stat_content
+
 def read_stat_file(stat_path):
     """读取并解析stat文件"""
     try:
@@ -15,32 +17,9 @@ def read_stat_file(stat_path):
             if not content:
                 return None
 
-        # 格式：PID (COMM) STATE PPID ...
-        first_space = content.find(' ')
-        if first_space == -1:
-            raise ValueError("Invalid stat format")
+        return parse_stat_content(content)
 
-        pid = content[:first_space]
-
-        # 找到 COMM 的起始和结束括号
-        first_paren = content.find('(')
-        last_paren = content.rfind(')')
-
-        if first_paren == -1 or last_paren == -1 or last_paren <= first_paren:
-            raise ValueError("Invalid stat format for COMM")
-
-        comm = content[first_paren + 1:last_paren]
-        remaining = content[last_paren + 2:].strip()
-
-        fields = remaining.split()
-
-        # 插入 PID 和 COMM 到字段列表的前面
-        fields.insert(0, comm)
-        fields.insert(0, pid)
-
-        return fields
-
-    except Exception as e:
+    except (OSError, ValueError):
         # 可选：记录日志
         return None
 
@@ -78,20 +57,11 @@ def main():
                     continue
                     
                 stat_fields = read_stat_file(task_stat_path)
-                
-                # stat文件字段说明（从0开始索引）：
-                # 0: pid, 1: comm, 2: state, 3: ppid, 4: pgrp, 5: session, 
-                # 6: tty_nr, 7: tpgid, 8: flags, 9: minflt, 10: cminflt, 
-                # 11: majflt, 12: cmajflt, 13: utime, 14: stime, 15: cutime, 
-                # 16: cstime, 17: priority, 18: nice, 19: num_threads, 
-                # 20: itrealvalue, 21: starttime, 22: vsize, 23: rss, ...
-                
-                if stat_fields and len(stat_fields) >= 17:
+
+                if stat_fields:
                     try:
                         task_pid = pid
-                        task_name = stat_fields[1]          # COMM
-                        task_utime = stat_fields[13]        # UTIME
-                        task_stime = stat_fields[14]        # STIME
+                        task_name, task_utime, task_stime = stat_fields
                         
                         # 对于task目录下的stat文件，TGID应该是线程组的PID
                         # 但在某些情况下，我们需要从进程目录获取正确的TGID

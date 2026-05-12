@@ -13,21 +13,17 @@ import os
 import sys
 from pathlib import Path
 
+from proc_stat_parser import parse_stat_content
+
 def parse_proc_stat(stat_content):
     """
     解析/proc/pid/task/tid/stat文件内容
     返回(utime, stime)元组
     """
     try:
-        fields = stat_content.strip().split()
-        if len(fields) < 15:
-            return None, None
-        
-        # utime是第14个字段(索引13)，stime是第15个字段(索引14)
-        utime = int(fields[13])
-        stime = int(fields[14])
+        _, utime, stime = parse_stat_content(stat_content)
         return utime, stime
-    except (ValueError, IndexError) as e:
+    except ValueError:
         return None, None
 
 def analyze_thread_stats():

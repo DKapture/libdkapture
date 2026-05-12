@@ -13,22 +13,17 @@ import os
 import sys
 from pathlib import Path
 
+from proc_stat_parser import parse_stat_content
+
 def parse_proc_stat(stat_content):
     """
     解析/proc/pid/task/tid/stat文件内容
     返回(utime, stime)元组
     """
     try:
-        # stat文件格式: pid comm state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime priority nice num_threads itrealvalue starttime vsize rss rsslim startcode endcode startstack kstkesp kstkeip signal blocked sigignore sigcatch wchan nswap cnswap exit_signal processor rt_priority policy delayacct_blkio_ticks guest_time cguest_time start_data end_data start_brk arg_start arg_end env_start env_end exit_code
-        fields = stat_content.strip().split()
-        if len(fields) < 15:
-            return None, None
-        
-        # utime是第14个字段(索引13)，stime是第15个字段(索引14)
-        utime = int(fields[13])
-        stime = int(fields[14])
+        _, utime, stime = parse_stat_content(stat_content)
         return utime, stime
-    except (ValueError, IndexError) as e:
+    except ValueError as e:
         print(f"解析stat文件失败: {e}")
         return None, None
 
