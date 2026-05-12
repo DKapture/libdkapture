@@ -239,7 +239,7 @@ if [[ -f "bpf/export/dkapture.h" ]]; then
     echo "  Copying: dkapture.h -> ${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
     cp "bpf/export/dkapture.h" "${INCLUDE_DIR}/${PROJECT_NAME}/dkapture.h"
 else
-    echo -e "${YELLOW}Warning: include/dkapture.h not found${NC}"
+    echo -e "${YELLOW}Warning: bpf/export/dkapture.h not found${NC}"
 fi
 
 # Create control file
