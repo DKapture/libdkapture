@@ -257,7 +257,7 @@ Release:        ${RPM_RELEASE}
 Summary:        Deepin Kernel Capture - eBPF-based system observation tools
 
 License:        LGPL-2.1
-URL:            https://github.com/your-repo/dkapture
+URL:            https://github.com/Dkapture
 BuildArch:      ${RPM_ARCH}
 
 Requires:       libbpf >= 1.0

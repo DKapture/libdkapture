@@ -9,6 +9,7 @@ build/
 *.d
 *.so
 *.deb
+*.rpm
 .cache
 compile_commands.json
 .reuse

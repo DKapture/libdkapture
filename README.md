@@ -209,7 +209,7 @@ sudo dpkg -r dkapture
 ls -la /usr/bin/dk-*
 
 # 测试动态库
-ldd /lib/libdkapture.so
+ldd /usr/lib/libdkapture.so
 
 # 运行示例程序
 dk-demo
