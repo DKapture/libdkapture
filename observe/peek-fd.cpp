@@ -252,7 +252,7 @@ static void enable_read_trace(void)
 
 static void enable_write_trace(void)
 {
-	if (!(rule.rw & FD_READ))
+	if (!(rule.rw & FD_WRITE))
 	{
 		return;
 	}
