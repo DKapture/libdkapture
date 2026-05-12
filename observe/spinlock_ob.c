@@ -821,20 +821,23 @@ static int print_stats(struct ksyms *ksyms, int stacks, int stat_map)
 	{
 		if (stat_idx == stats_sz)
 		{
+			struct stack_stat **tmp;
+
 			stats_sz *= 2;
-			stats = (struct stack_stat **)
+			tmp = (struct stack_stat **)
 				libbpf_reallocarray(stats, stats_sz, sizeof(void *));
-			if (!stats)
+			if (!tmp)
 			{
 				warn("Out of memory\n");
-				return -1;
+				goto free_stats;
 			}
+			stats = tmp;
 		}
 		ss = (struct stack_stat *)malloc(sizeof(struct stack_stat));
 		if (!ss)
 		{
 			warn("Out of memory\n");
-			return -1;
+			goto free_stats;
 		}
 
 		lookup_key = ss->stack_id = stack_id;
@@ -908,6 +911,12 @@ static int print_stats(struct ksyms *ksyms, int stacks, int stat_map)
 	free(stats);
 
 	return 0;
+
+free_stats:
+	for (i = 0; i < (int)stat_idx; i++)
+		free(stats[i]);
+	free(stats);
+	return -1;
 }
 
 static volatile bool exiting;
