@@ -802,14 +802,24 @@ static void print_hld_task(struct stack_stat *ss)
 
 static int print_stats(struct ksyms *ksyms, int stacks, int stat_map)
 {
+	struct bpf_map_info map_info = {};
 	struct stack_stat **stats, *ss;
+	uint32_t map_info_len = sizeof(map_info);
 	size_t stat_idx = 0;
 	size_t stats_sz = 1;
+	size_t stats_cap;
 	uint32_t lookup_key = 0;
 	uint32_t stack_id;
 	int ret, i;
 	int nr_stack_entries;
 
+	ret = bpf_map_get_info_by_fd(stat_map, &map_info, &map_info_len);
+	if (ret || !map_info.max_entries)
+	{
+		warn("failed to get stat map info\n");
+		return -1;
+	}
+	stats_cap = map_info.max_entries;
 	stats = (struct stack_stat **)calloc(stats_sz, sizeof(void *));
 	if (!stats)
 	{
@@ -823,7 +833,16 @@ static int print_stats(struct ksyms *ksyms, int stacks, int stat_map)
 		{
 			struct stack_stat **tmp;
 
+			if (stats_sz == stats_cap)
+			{
+				warn("stat map entry count exceeds max_entries %zu\n", stats_cap);
+				goto free_stats;
+			}
 			stats_sz *= 2;
+			if (stats_sz > stats_cap)
+			{
+				stats_sz = stats_cap;
+			}
 			tmp = (struct stack_stat **)
 				libbpf_reallocarray(stats, stats_sz, sizeof(void *));
 			if (!tmp)
