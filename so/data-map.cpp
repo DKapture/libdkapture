@@ -379,7 +379,7 @@ int DataMap::unsafe_find(ulong hash, ulong lifetime, void *buf, size_t bsz)
 		{
 			pr_error(
 				"dkapture::read: buffer size is too small, %lu needed, %lu "
-				"privided",
+				"provided",
 				dh->dsz,
 				bsz
 			);
