@@ -97,7 +97,7 @@ SPDX-License-Identifier: LGPL-2.1
 ```bash
 # 克隆项目
 git clone https://github.com/DKapture/libdkapture
-cd dkapture
+cd libdkapture
 git submodule update --init --recursive --depth 1
 
 # 完整构建所有模块
