@@ -125,18 +125,6 @@ sys_bpf(enum bpf_cmd cmd, union bpf_attr *attr, unsigned int size)
 		link;                                                                  \
 	})
 
-#define bpf_get_prog_fd(prog)                                                  \
-	({                                                                         \
-		int fd;                                                                \
-		fd = bpf_program__fd(prog);                                            \
-		if (fd < 0)                                                            \
-		{                                                                      \
-			pr_error("fail to get bpf program fd " #prog "");                  \
-			goto err_out;                                                      \
-		}                                                                      \
-		fd;                                                                    \
-	})
-
 #define bpf_attach_tcx(prog, ifi)                                              \
 	({                                                                         \
 		bpf_link *link;                                                        \
