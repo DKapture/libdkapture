@@ -24,6 +24,7 @@
 #include <atomic>
 #include <signal.h>
 #include <sys/resource.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -351,62 +352,6 @@ static std::unordered_map<std::string, std::vector<ProcInfo>> scan_procs_by_ns()
 	}
 	return m;
 }
-
-// Print process tree rooted at owner_pid using the given proc list mapped by
-// pid
-static void print_tree_aligned(
-	int owner_pid,
-	const std::vector<ProcInfo> &procs,
-	int pad_width
-)
-{
-	std::unordered_map<int, std::vector<int>> children;
-	std::unordered_map<int, std::string> cmd;
-	for (const auto &p : procs)
-	{
-		cmd[p.pid] = p.cmd;
-		children[p.ppid].push_back(p.pid);
-	}
-	for (auto &kv : children)
-	{
-		std::sort(kv.second.begin(), kv.second.end());
-	}
-
-	// recursive helper defined as a static function to avoid std::function
-	// overhead
-	std::function<void(int, const std::string &, bool)> printer =
-		[&](int pid, const std::string &prefix, bool is_last)
-	{
-		std::string line = prefix + (is_last ? "└─" : "├─") +
-						   (cmd.count(pid) ? cmd[pid] : std::to_string(pid));
-		std::cout << std::left << std::setw(pad_width) << "" << line << "\n";
-		auto it = children.find(pid);
-		if (it == children.end())
-		{
-			return;
-		}
-		const auto &ch = it->second;
-		for (size_t i = 0; i < ch.size(); ++i)
-		{
-			bool last = (i + 1 == ch.size());
-			std::string child_prefix = prefix + (is_last ? "   " : "│  ");
-			printer(ch[i], child_prefix, last);
-		}
-	};
-
-	// start from children of owner_pid (owner already printed as header)
-	auto it = children.find(owner_pid);
-	if (it == children.end())
-	{
-		return;
-	}
-	const auto &root_children = it->second;
-	for (size_t i = 0; i < root_children.size(); ++i)
-	{
-		bool last = (i + 1 == root_children.size());
-		printer(root_children[i], std::string(), last);
-	}
-}
 // return a human display name for the namespace type
 static const char *ns_display_name(uint32_t t)
 {
@@ -465,45 +410,32 @@ static const char *ns_proc_name(uint32_t t)
 	}
 }
 
-// try to find a pid that owns the namespace in /proc
-static int
-find_owner_pid_for_ns(uint64_t inum, const char *nstype, time_t *ctime_out)
+static int get_terminal_width()
 {
-	DIR *d = opendir("/proc");
-	if (!d)
+	struct winsize ws;
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
 	{
-		return -1;
+		return ws.ws_col;
 	}
-	struct dirent *de;
-	char path[256];
-	struct stat st;
-	int found = -1;
-	while ((de = readdir(d)) != NULL)
+	const char *cols = getenv("COLUMNS");
+	if (cols)
 	{
-		// some filesystems return DT_UNKNOWN; don't rely on d_type
-		// skip non-numeric
-		char *endptr;
-		long pid = strtol(de->d_name, &endptr, 10);
-		if (*endptr != '\0')
+		int w = atoi(cols);
+		if (w > 0)
 		{
-			continue;
-		}
-		snprintf(path, sizeof(path), "/proc/%s/ns/%s", de->d_name, nstype);
-		if (stat(path, &st) == 0)
-		{
-			if ((uint64_t)st.st_ino == inum)
-			{
-				found = (int)pid;
-				if (ctime_out)
-				{
-					*ctime_out = st.st_ctime;
-				}
-				break;
-			}
+			return w;
 		}
 	}
-	closedir(d);
-	return found;
+	return 80;
+}
+
+static std::string truncate_cmd(const std::string &s, int max_width)
+{
+	if (max_width <= 0 || (int)s.size() <= max_width)
+	{
+		return s;
+	}
+	return s.substr(0, max_width);
 }
 
 static int bump_memlock_rlimit()
@@ -683,13 +615,15 @@ int main(int argc, char **argv)
 	// column. This matches the original lsns: every namespace header is printed
 	// (we do not print extra tree-only rows) and the PATH column shows tree
 	// prefixes for representative nodes.
-	const int NS_type = 16;
-	const int TYPE_type = 18;
+	const int NS_type = 12;
+	const int TYPE_type = 8;
 	const int PROCS_type = 8;
-	const int USER_type = 20;
-	const int PID_type = 12;
+	const int USER_type = 18;
+	const int PID_type = 8;
 	const int pad_width =
 		NS_type + TYPE_type + PROCS_type + USER_type + PID_type;
+	const int term_width = get_terminal_width();
+	const int cmd_max_width = term_width - pad_width;
 
 	// print header: NS, TYPE, PROCS, USER, PID, COMMAND
 	std::cout << std::left << std::setw(NS_type) << "NS" << std::setw(TYPE_type)
@@ -1063,6 +997,7 @@ int main(int argc, char **argv)
 			{
 				path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
 			}
+			path_field = truncate_cmd(path_field, cmd_max_width);
 			std::cout << std::left << std::setw(NS_type) << h.e.inum
 					  << std::setw(TYPE_type) << h.display
 					  << std::setw(PROCS_type) << procs_field
@@ -1091,6 +1026,7 @@ int main(int argc, char **argv)
 			{
 				path_field = rep_prefix[h.rep_tgid] + h.owner_cmd;
 			}
+			path_field = truncate_cmd(path_field, cmd_max_width);
 			std::cout << std::left << std::setw(NS_type) << h.e.inum
 					  << std::setw(TYPE_type) << h.display
 					  << std::setw(PROCS_type) << procs_field
@@ -1119,6 +1055,7 @@ int main(int argc, char **argv)
 					hh = hit->second;
 				}
 				std::string path = prefix + (is_last ? "└─" : "├─") + cmd;
+				path = truncate_cmd(path, cmd_max_width);
 				if (hh)
 				{
 					std::string procs_f = hh->total_procs
@@ -1314,7 +1251,6 @@ int main(int argc, char **argv)
 		// representative tgid, print the rep tree if it hasn't already been
 		// printed. For headers without a rep, print the header object directly.
 		std::cout << "{\n  \"namespaces\": [\n";
-		bool first_obj = true;
 		std::vector<std::string> objs;
 		objs.reserve(headers.size());
 		for (const auto &h : headers)
