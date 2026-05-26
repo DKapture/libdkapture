@@ -275,6 +275,7 @@ def patch_header(header_path: str, dry_run: bool = False, obj_dir: str | None = 
     # Infer the corresponding object file path and ensure it exists
     if obj_dir:
         stem = os.path.basename(header_path)[:-len('.skel.h')]
+        stem = re.sub(r'^\.tmp\.\d+\.', '', stem)
         obj_path = os.path.join(obj_dir, stem + '.bpf.o')
     else:
         obj_path = header_path[:-len('.skel.h')] + '.bpf.o'
