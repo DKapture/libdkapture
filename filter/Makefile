@@ -61,14 +61,15 @@ $(BUILD_DIR)/%.o: %.c $(BUILD_DIR)/%.skel.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o | $(BUILD_DIR)
-	bpftool gen skeleton $< > $@
-	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BPF_DIR_PATCH) $@
+	bpftool gen skeleton $< > $(dir $@).tmp.$$$$.$(notdir $@) && \
+	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BPF_DIR_PATCH) $(dir $@).tmp.$$$$.$(notdir $@) && \
+	mv $(dir $@).tmp.$$$$.$(notdir $@) $@
 
 $(BUILD_DIR)/log.o: $(PROJ_ROOT)/so/log.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.d $(TARGETs)
+	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.d $(TARGETs) $(BUILD_DIR)/.tmp.*.skel.h
 
 distclean:
 	rm -rf $(BUILD_DIR)
