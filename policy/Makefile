@@ -56,9 +56,9 @@ $(BPF_PREPROCESS):
 
 $(BUILD_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o $(BPF_PREPROCESS) | $(BUILD_DIR)
 	$(BPF_PREPROCESS) $< $(BUILD_DIR)/$*.bpf.o
-	bpftool gen skeleton $(BUILD_DIR)/$*.bpf.o > $(dir $@).tmp.$$$$.$(notdir $@) && \
-	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BUILD_DIR) $(dir $@).tmp.$$$$.$(notdir $@) && \
-	mv $(dir $@).tmp.$$$$.$(notdir $@) $@
+	bpftool gen skeleton $(BUILD_DIR)/$*.bpf.o > $(dir $@).tmp.$(notdir $@) && \
+	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BUILD_DIR) $(dir $@).tmp.$(notdir $@) && \
+	mv $(dir $@).tmp.$(notdir $@) $@
 
 clean:
 	rm -f $(BUILD_DIR)/*.skel.h $(BUILD_DIR)/*.o $(BUILD_DIR)/*.d $(TARGETs) $(BUILD_DIR)/.tmp.*.skel.h
