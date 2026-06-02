@@ -91,8 +91,8 @@ echo -e "${YELLOW}Collecting main repo source files...${NC}"
 cd "${PROJECT_ROOT}"
 git ls-files --cached | while IFS= read -r f; do
     case "$f" in
-        bpf|bpf/*|googletest|googletest/*|test/*|tools/*|.gitmodules|*.spec)
-            # bpf/ handled separately; googletest/test/tools not needed for RPM
+        bpf|bpf/*|googletest|googletest/*|test/*|.gitmodules|*.spec)
+            # bpf/ handled separately; googletest/test not needed for RPM
             continue
             ;;
         *)
@@ -226,8 +226,12 @@ if [ -f bpf/build/include/vmlinux.h ]; then
     VMLINUX_OVERRIDE="VMLINUX=bpf/build/include/vmlinux.h"
 fi
 
+# Build extern-prep once to avoid parallel build race across modules
+make -C tools extern-prep
+
 make %{?_smp_mflags} USE_SUBMODULE=0                     \\
     \${VMLINUX_OVERRIDE}                                   \\
+    BPF_PREPROCESS=\$(pwd)/build/tools/extern-prep         \\
     KHEADERS_DIR="\${KHEADERS_DIR}"                       \\
     bpf                                                  \\
     observe BPF_DIR_PATCH=/usr/lib/dkapture               \\
