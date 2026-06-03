@@ -62,6 +62,11 @@ int BPFManager::bpf_find_map(const char *name)
 			break;
 		}
 		err = bpf_map_get_info_by_fd(fd, &info, &len);
+		if (err && errno == E2BIG)
+		{
+			len = offsetof(struct bpf_map_info, netns_dev);
+			err = bpf_map_get_info_by_fd(fd, &info, &len);
+		}
 		if (err)
 		{
 			pr_error("bpf_map_get_info_by_fd: %s", strerror(errno));
