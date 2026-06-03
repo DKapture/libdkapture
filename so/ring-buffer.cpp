@@ -30,6 +30,7 @@ RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx) :
 	std::string err_msg;
 	std::system_error exc;
 	uint32_t len = sizeof(info);
+	int ret = 0;
 	page_size = getpagesize();
 	this->type = RING_BUF_TYPE_BPF;
 	this->map_fd = map_fd;
@@ -44,7 +45,13 @@ RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx) :
 		pr_error("create ring-buffer: %s", exc.what());
 		goto err_out;
 	}
-	if (0 != bpf_map_get_info_by_fd(map_fd, &info, &len))
+	ret = bpf_map_get_info_by_fd(map_fd, &info, &len);
+	if (ret != 0 && errno == E2BIG)
+	{
+		len = offsetof(struct bpf_map_info, netns_dev);
+		ret = bpf_map_get_info_by_fd(map_fd, &info, &len);
+	}
+	if (ret != 0)
 	{
 		exc = std::system_error(
 			errno,
