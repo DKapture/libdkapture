@@ -1,0 +1,81 @@
+name: CI
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # ─── AI 代码审查（暂注释，需 ANTHROPIC_API_KEY）───
+  # review:
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     pull-requests: write
+  #     issues: write
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #       with:
+  #         submodules: recursive
+  #     - uses: anomalyco/opencode/github@latest
+  #       env:
+  #         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         model: anthropic/claude-sonnet-4-20250514
+  #         use_github_token: true
+  #         prompt: |
+  # ─── 编译矩阵 (Debug + Release) ───
+  build:
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        build-type: [Debug, Release]
+      max-parallel: 1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang llvm libbpf-dev bpftool cmake
+      - name: Clean build artifacts
+        run: make clean
+      - name: Build BPF programs
+        run: make bpf Release=${{ matrix.build-type == 'Release' && '1' || '0' }}
+      - name: Build user-space programs
+        run: make -j$(nproc) observe filter policy so demo \
+          Release=${{ matrix.build-type == 'Release' && '1' || '0' }}
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.build-type }}
+          path: build/test/*.log
+  # ─── x86 DEB 打包（仅 push main 时触发）───
+  package:
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    env:
+      MAKEFLAGS: -j4
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang llvm libbpf-dev bpftool cmake dpkg-dev
+      - name: Build DEB package
+        run: IN_KERNEL_TREE=1 ./script/build-deb.sh
+      - name: Upload DEB package
+        uses: actions/upload-artifact@v4
+        with:
+          name: dkapture-deb
+          path: ./*.deb
