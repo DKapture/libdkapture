@@ -5,45 +5,34 @@
 #ifndef __BPF_LINKER_H__
 #define __BPF_LINKER_H__
 
-#include <string>
-#include <vector>
-
 #include <bpf/libbpf.h>
 
-#include "map-resolver.h"
-
-/**
- * @brief BPF Map 链接时共享优化器
- *
- * 接管外部已打开的 bpf_object，通过 PinRegistry 查找共享 map，
- * 使用 bpf_map__reuse_fd 绑定共享实例，然后加载到内核。
- *
- * extern map 名由 extern-prep 在构建时写入 /tmp/.dkapture-extern-maps-<prog>，
- * adopt_and_load() 直接读取，确保只共享真正的 extern map。
- */
-class BpfLinker {
-public:
-    BpfLinker();
-    ~BpfLinker();
-
-    int set_object(struct bpf_object *obj);
-
-    int adopt_and_load(struct bpf_object *obj, const char *prog_name);
-
-    int resolve_all_maps();
-
-    int load();
-
-private:
-    struct bpf_object *m_obj = nullptr;
-
-    std::string m_last_error;
-    std::vector<std::string> m_extern_names;
-
-    MapResolver m_resolver;
-};
-
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-// __FILE__ 在调用方展开，得到调用方的文件路径
-#define DK_LINK_LOAD(linker, obj) (linker).adopt_and_load((obj), __FILE__)
+/**
+ * @brief 在 bpf_object__load 之前，解析 extern map
+ *
+ * 遍历所有 map，检查 PinRegistry：如果 map 名已在注册表中，
+ * 则调用 bpf_map__reuse_fd 绑定共享实例。
+ *
+ * @param obj  已 open 但未 load 的 bpf_object
+ * @return 成功返回 0，失败返回负 errno
+ */
+int bpf_linker_resolve_extern(struct bpf_object *obj);
+
+/**
+ * @brief 封装 bpf_map__pin + PinRegistry::register_map，一行完成共享
+ *
+ * @param map      要共享的 BPF map
+ * @param pin_path 完整的 bpffs pin 路径
+ * @return 成功返回 0，失败返回负 errno
+ */
+int bpf_linker_pin_shared(struct bpf_map *map);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

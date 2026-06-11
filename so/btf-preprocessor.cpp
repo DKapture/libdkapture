@@ -103,7 +103,7 @@ int BtfPreprocessor::preprocess(
         }
     }
 
-    // 提取修改后的裸 BTF 数据（linkage 已改，offset 修正由 BpfLinker 在运行时处理）
+    // 提取修改后的裸 BTF 数据（linkage 已改）
     const void *rb;
     __u32 rsz;
     rb = btf__raw_data(btf, &rsz);
@@ -194,8 +194,10 @@ int BtfPreprocessor::preprocess(
                     }
                 }
                 if (!found) {
-                    void *nb = realloc(sd->d_buf, sd->d_size + slen);
+                    // sd->d_buf 由 libelf 管理，不能 realloc；必须 malloc + memcpy
+                    void *nb = malloc(sd->d_size + slen);
                     if (!nb) { elf_end(elf); close(fd); free(bc); return -ENOMEM; }
+                    memcpy(nb, sd->d_buf, sd->d_size);
                     memcpy((char *)nb + sd->d_size, needle, slen);
                     maps_name_off = sd->d_size;
                     sd->d_buf = nb;
@@ -222,13 +224,14 @@ int BtfPreprocessor::preprocess(
             elf_end(elf); close(fd); free(bc);
             m_last_error = "elf_getdata(.maps) returned NULL"; return -EINVAL;
         }
-        // 旧 d_buf 由 libelf 管理，直接 realloc 扩展
-        void *new_buf = realloc(existing->d_buf, maps_existing_sz + extern_sz);  /* <stdlib.h> */
+        // 旧 d_buf 由 libelf 管理，不能 realloc（会导致 elf_end 时 double-free）；
+        // 必须 malloc 新 buffer + memcpy 旧数据，旧 buffer 泄漏（一次性的构建工具可接受）
+        void *new_buf = malloc(maps_existing_sz + extern_sz);  /* <stdlib.h> */
         if (!new_buf) {
             elf_end(elf); close(fd); free(bc);
-            m_last_error = "realloc for .maps append failed"; return -ENOMEM;
+            m_last_error = "malloc for .maps append failed"; return -ENOMEM;
         }
-        // 追加的 extern 区域初始化为零
+        memcpy(new_buf, existing->d_buf, maps_existing_sz);  /* <string.h> */
         memset((char *)new_buf + maps_existing_sz, 0, extern_sz);  /* <string.h> */
         existing->d_buf = new_buf;
         existing->d_size = maps_existing_sz + extern_sz;
@@ -315,6 +318,74 @@ int BtfPreprocessor::preprocess(
     bsh.sh_size = rsz;
     gelf_update_shdr(btf_scn, &bsh);
 
+    // ── 第 6.5 步：创建 .extern_map_names ELF section ────────
+    // 将 extern map 名存储为自定义 ELF section，运行时供
+    // bpf_linker_resolve_extern() 读取，避免修改 BTF 导致的
+    // .rel.BTF 损坏
+    {
+        std::string data;
+        for (auto &v : lv) {
+            if (!data.empty()) data += '\0';
+            data += v.name;
+        }
+        if (!data.empty()) data += '\0';
+
+        Elf_Scn *ext_scn = elf_newscn(elf);
+        if (ext_scn) {
+            size_t name_off = 0;
+            Elf_Scn *shstrtab_scn = elf_getscn(elf, shstrndx);
+            if (shstrtab_scn) {
+                Elf_Data *sd = elf_getdata(shstrtab_scn, nullptr);
+                if (sd && sd->d_buf) {
+                    const char *needle = ".extern_map_names";
+                    size_t slen = strlen(needle) + 1;
+                    const char *p = (const char *)sd->d_buf;
+                    int found = 0;
+                    if (sd->d_size >= slen) {
+                        for (size_t i = 0; i < sd->d_size - slen; i++) {
+                            if (memcmp(p + i, needle, slen) == 0) {
+                                name_off = i; found = 1; break;
+                            }
+                        }
+                    }
+                    if (!found) {
+                        void *nb = malloc(sd->d_size + slen);
+                        if (nb) {
+                            memcpy(nb, sd->d_buf, sd->d_size);
+                            memcpy((char *)nb + sd->d_size,
+                                   needle, slen);
+                            name_off = sd->d_size;
+                            sd->d_buf = nb;
+                            sd->d_size += slen;
+                            GElf_Shdr ssh; gelf_getshdr(shstrtab_scn,
+                                                         &ssh);
+                            ssh.sh_size = sd->d_size;
+                            gelf_update_shdr(shstrtab_scn, &ssh);
+                        }
+                    }
+                }
+            }
+
+            Elf_Data *ed = elf_newdata(ext_scn);
+            if (ed) {
+                ed->d_buf = malloc(data.size());
+                if (ed->d_buf) {
+                    memcpy(ed->d_buf, data.data(), data.size());
+                    ed->d_size = data.size();
+                    ed->d_type = ELF_T_BYTE;
+                }
+            }
+
+            GElf_Shdr esh; memset(&esh, 0, sizeof(esh));
+            esh.sh_name = name_off;
+            esh.sh_type = SHT_PROGBITS;
+            esh.sh_flags = 0;
+            esh.sh_size = data.size();
+            esh.sh_addralign = 1;
+            gelf_update_shdr(ext_scn, &esh);
+        }
+    }
+
     // ── 第 7 步：写入磁盘 ────────────────────────────────────
 
     if (elf_update(elf, ELF_C_WRITE) < 0) {
@@ -329,6 +400,61 @@ int BtfPreprocessor::preprocess(
     return n;
 }
 
+// 遍历 BTF 类型链，跳过 CONST/VOLATILE/TYPEDEF，返回最终类型 ID
+static int btf_resolve_type(struct btf *btf, int type_id)
+{
+	int id = type_id;
+	for (int i = 0; i < 32; i++) {  // 防止无限循环
+		const struct btf_type *t = btf__type_by_id(btf, id);
+		if (!t) break;
+		if (btf_is_const(t) || btf_is_volatile(t) || btf_is_typedef(t))
+			id = t->type;
+		else
+			break;
+	}
+	return id;
+}
+
+// 从 extern var 的 struct 类型中提取 map 元数据
+static void fill_map_metadata(struct btf *btf, int struct_type_id,
+			      int *map_type, int *key_size,
+			      int *value_size, int *max_entries)
+{
+	const struct btf_type *st = btf__type_by_id(btf, struct_type_id);
+	if (!st || !btf_is_composite(st)) return;
+
+	const struct btf_member *members = btf_members(st);
+	int vlen = btf_vlen(st);
+	for (int i = 0; i < vlen; i++) {
+		const char *name = btf__name_by_offset(btf, members[i].name_off);
+		if (!name) continue;
+
+		int mtype = members[i].type;
+		if (strcmp(name, "type") == 0 || strcmp(name, "max_entries") == 0) {
+			// member → PTR → ARRAY → btf_array->nelems
+			const struct btf_type *ptr_t = btf__type_by_id(btf, mtype);
+			if (!ptr_t || !btf_is_ptr(ptr_t)) continue;
+			const struct btf_type *arr_t = btf__type_by_id(btf, ptr_t->type);
+			if (!arr_t || !btf_is_array(arr_t)) continue;
+			if (name[0] == 't')  // "type"
+				*map_type = btf_array(arr_t)->nelems;
+			else  // "max_entries"
+				*max_entries = btf_array(arr_t)->nelems;
+		} else if (strcmp(name, "key") == 0 || strcmp(name, "value") == 0) {
+			// member → PTR → target → size
+			const struct btf_type *ptr_t = btf__type_by_id(btf, mtype);
+			if (!ptr_t || !btf_is_ptr(ptr_t)) continue;
+			int resolved = btf_resolve_type(btf, ptr_t->type);
+			const struct btf_type *base = btf__type_by_id(btf, resolved);
+			if (!base) continue;
+			if (name[0] == 'k')  // "key"
+				*key_size = base->size;
+			else  // "value"
+				*value_size = base->size;
+		}
+	}
+}
+
 // 从 BTF 中收集 extern map 变量信息：名称、类型 ID、struct 大小
 int BtfPreprocessor::count_extern_and_get_info(
     struct btf *btf, std::vector<ExternVarInfo> *ev)
@@ -336,14 +462,16 @@ int BtfPreprocessor::count_extern_and_get_info(
     auto add = [&](int vid, int sid, int sz, const char *n) {
         ExternVarInfo x;
         x.name = n ? n : "";
-        x.var_btf_id = vid; 
+        x.var_btf_id = vid;
         x.struct_btf_id = sid;
-        x.struct_size = sz; 
-        x.offset = 0; 
-        x.map_type = 0; 
-        x.key_size = 0; 
-        x.value_size = 0; 
+        x.struct_size = sz;
+        x.offset = 0;
+        x.map_type = 0;
+        x.key_size = 0;
+        x.value_size = 0;
         x.max_entries = 0;
+        fill_map_metadata(btf, sid, &x.map_type, &x.key_size,
+                          &x.value_size, &x.max_entries);
         ev->push_back(x);
     };
     // 先查 .maps DATASEC，再退化为扫描所有 extern struct 变量
@@ -370,7 +498,12 @@ int BtfPreprocessor::count_extern_and_get_info(
             add(t, x->type, val->size, n);
         }
     }
-    for (auto &x : *ev) fprintf(stdout, "  [prep] extern '%s' size=%d\n", x.name.c_str(), x.struct_size);
+    for (auto &x : *ev) {
+        fprintf(stdout, "  [prep] extern '%s' size=%d map_type=%d "
+                "key_size=%d value_size=%d max_entries=%d\n",
+                x.name.c_str(), x.struct_size, x.map_type,
+                x.key_size, x.value_size, x.max_entries);
+    }
     return 0;
 }
 

@@ -264,7 +264,65 @@ def find_and_patch_elf_bytes_call(src: str, struct_name: str) -> str:
     return new_src
 
 
-def patch_header(header_path: str, dry_run: bool = False, obj_dir: str | None = None) -> None:
+def patch_load_for_extern(src: str, struct_name: str, prog_name: str) -> str:
+    """Patch __load() to inject bpf_linker_resolve_extern."""
+    load_func = f"{struct_name}__load("
+    # Find the __load function: "static inline int xxx__load(struct xxx *obj)"
+    pattern = re.compile(
+        rf"static\s+inline\s+int\s+{re.escape(load_func)}\s*struct\s+{re.escape(struct_name)}\s*\*\s*obj\s*\)"
+    )
+    m = pattern.search(src)
+    if not m:
+        return src
+
+    # Find the function body
+    brace_start = src.find("{", m.end())
+    if brace_start == -1:
+        return src
+    depth, i = 0, brace_start
+    n = len(src)
+    while i < n:
+        ch = src[i]
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    if depth != 0:
+        return src
+
+    body_start = brace_start + 1
+    body_end = i
+
+    new_body = (
+        f"\n\tint err = bpf_linker_resolve_extern(obj->obj);\n"
+        f"\tif (err) {{\n"
+        f'\t\tfprintf(stderr, "Failed to resolve extern maps: %d\\n", err);\n'
+        f"\t\treturn err;\n"
+        f"\t}}\n"
+        f"\terr = bpf_object__load_skeleton(obj->skeleton);\n"
+        f"\tif (err)\n"
+        f"\t\treturn err;\n"
+        f"\treturn 0;\n"
+    )
+
+    src = src[:body_start] + new_body + src[body_end:]
+
+    # Add #include "bpf-linker.h"
+    if '#include "bpf-linker.h"' not in src:
+        src = src.replace(
+            '#include <stdio.h>',
+            '#include <stdio.h>\n#include "bpf-linker.h"',
+            1
+        )
+
+    return src
+
+
+def patch_header(header_path: str, dry_run: bool = False, obj_dir: str | None = None,
+                 has_extern: str | None = None) -> None:
     if not header_path.endswith('.skel.h'):
         raise ValueError("Input file must end with .skel.h")
     with open(header_path, 'r', encoding='utf-8') as f:
@@ -331,6 +389,10 @@ def patch_header(header_path: str, dry_run: bool = False, obj_dir: str | None = 
     # Add error handling for s->data assignment
     new_src = find_and_patch_elf_bytes_call(new_src, struct_name)
 
+    # Patch __load() for extern map support
+    if has_extern:
+        new_src = patch_load_for_extern(new_src, struct_name, has_extern)
+
     if dry_run:
         sys.stdout.write(new_src)
         return
@@ -344,13 +406,16 @@ def main() -> None:
     parser.add_argument('header', help='Path to the .skel.h file (absolute or relative)')
     parser.add_argument('--dry-run', action='store_true', help='Print result to stdout without writing')
     parser.add_argument('--obj-dir', dest='obj_dir', default=None,
-                        help='Directory containing <stem>.bpf.o; overrides default alongside header')
+                        help='Directory containing <stem>.bpf.o')
+    parser.add_argument('--has-extern', dest='has_extern', default=None,
+                        help='Program name for extern map patching')
     args = parser.parse_args()
 
     header_path = args.header
     if not os.path.isabs(header_path):
         header_path = os.path.abspath(header_path)
-    patch_header(header_path, dry_run=args.dry_run, obj_dir=args.obj_dir)
+    patch_header(header_path, dry_run=args.dry_run, obj_dir=args.obj_dir,
+                 has_extern=args.has_extern)
 
 
 if __name__ == '__main__':

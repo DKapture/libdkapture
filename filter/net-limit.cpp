@@ -26,6 +26,7 @@
 #include <string>
 
 #include "net-limit.skel.h"
+#include "bpf-linker.h"
 
 using namespace std;
 
@@ -33,13 +34,10 @@ using namespace std;
 #define NET_LIMIT_EGRESS 1
 #define NET_LIMIT_INGRESS 2
 
-static const char *PIN_DIR = "/sys/fs/bpf/dkapture/net-limit";
-static const char *PIN_CGROUP_RULES = "/sys/fs/bpf/dkapture/net-limit/"
-									  "cgroup_rules";
-static const char *PIN_BUCKETS = "/sys/fs/bpf/dkapture/net-limit/buckets";
-static const char *PIN_STATS = "/sys/fs/bpf/dkapture/net-limit/stats";
-static const char *PIN_SHAPE_RULES = "/sys/fs/bpf/dkapture/net-limit/"
-									 "shape_rules";
+static const char *PIN_CGROUP_RULES = "/sys/fs/bpf/dkapture/cgroup_rules";
+static const char *PIN_BUCKETS = "/sys/fs/bpf/dkapture/buckets";
+static const char *PIN_STATS = "/sys/fs/bpf/dkapture/stats";
+static const char *PIN_SHAPE_RULES = "/sys/fs/bpf/dkapture/shape_rules";
 
 static volatile bool running = true;
 static string g_last_tgid_cgroup_path;
@@ -536,17 +534,6 @@ static bool parse_size(const string &text, uint64_t *value)
 	return *value > 0;
 }
 
-static int ensure_pin_dir()
-{
-	mkdir("/sys/fs/bpf/dkapture", 0755);
-	if (mkdir(PIN_DIR, 0755) != 0 && errno != EEXIST)
-	{
-		fprintf(stderr, "mkdir %s failed: %s\n", PIN_DIR, strerror(errno));
-		return -1;
-	}
-	return 0;
-}
-
 static int open_pinned_map(const char *path)
 {
 	int fd = bpf_obj_get(path);
@@ -560,97 +547,6 @@ static int open_pinned_map(const char *path)
 		);
 	}
 	return fd;
-}
-
-static int reuse_pinned_map(struct bpf_map *map, const char *path)
-{
-	int fd = bpf_obj_get(path);
-	int err;
-
-	if (fd < 0)
-	{
-		if (errno == ENOENT)
-		{
-			return 0;
-		}
-		fprintf(
-			stderr,
-			"open pinned map %s failed: %s\n",
-			path,
-			strerror(errno)
-		);
-		return -1;
-	}
-
-	err = bpf_map__reuse_fd(map, fd);
-	close(fd);
-	if (err)
-	{
-		fprintf(stderr, "reuse pinned map %s failed: %d\n", path, err);
-	}
-	return err;
-}
-
-static int pin_map_if_missing(struct bpf_map *map, const char *path)
-{
-	int err;
-
-	if (access(path, F_OK) == 0)
-	{
-		return 0;
-	}
-	err = bpf_map__pin(map, path);
-	if (err)
-	{
-		fprintf(stderr, "pin map %s failed: %d\n", path, err);
-	}
-	return err;
-}
-
-static int prepare_pinned_maps(struct net_limit_bpf *skel)
-{
-	if (ensure_pin_dir() != 0)
-	{
-		return -1;
-	}
-	if (reuse_pinned_map(skel->maps.cgroup_rules, PIN_CGROUP_RULES) != 0)
-	{
-		return -1;
-	}
-	if (reuse_pinned_map(skel->maps.buckets, PIN_BUCKETS) != 0)
-	{
-		return -1;
-	}
-	if (reuse_pinned_map(skel->maps.stats, PIN_STATS) != 0)
-	{
-		return -1;
-	}
-	if (reuse_pinned_map(skel->maps.shape_rules, PIN_SHAPE_RULES) != 0)
-	{
-		return -1;
-	}
-	return 0;
-}
-
-static int pin_loaded_maps(struct net_limit_bpf *skel)
-{
-	if (pin_map_if_missing(skel->maps.cgroup_rules, PIN_CGROUP_RULES) != 0)
-	{
-		return -1;
-	}
-	if (pin_map_if_missing(skel->maps.buckets, PIN_BUCKETS) != 0)
-	{
-		return -1;
-	}
-	if (pin_map_if_missing(skel->maps.stats, PIN_STATS) != 0)
-	{
-		return -1;
-	}
-	if (pin_map_if_missing(skel->maps.shape_rules, PIN_SHAPE_RULES) != 0)
-	{
-		return -1;
-	}
-	return 0;
 }
 
 static const char *direction_name(uint32_t direction)
@@ -974,7 +870,8 @@ static int do_shape_load(int argc, char **argv)
 		fprintf(stderr, "failed to open bpf object\n");
 		return 1;
 	}
-	if (prepare_pinned_maps(skel) != 0)
+	err = bpf_linker_resolve_extern(skel->obj);
+	if (err)
 	{
 		goto out;
 	}
@@ -983,7 +880,23 @@ static int do_shape_load(int argc, char **argv)
 		fprintf(stderr, "failed to load bpf object\n");
 		goto out;
 	}
-	if (pin_loaded_maps(skel) != 0)
+	err = bpf_linker_pin_shared(skel->maps.cgroup_rules);
+	if (err)
+	{
+		goto out;
+	}
+	err = bpf_linker_pin_shared(skel->maps.buckets);
+	if (err)
+	{
+		goto out;
+	}
+	err = bpf_linker_pin_shared(skel->maps.stats);
+	if (err)
+	{
+		goto out;
+	}
+	err = bpf_linker_pin_shared(skel->maps.shape_rules);
+	if (err)
 	{
 		goto out;
 	}
@@ -1218,9 +1131,12 @@ static int do_load(int argc, char **argv)
 		fprintf(stderr, "failed to open bpf object\n");
 		goto out;
 	}
-	if (pin && prepare_pinned_maps(skel) != 0)
-	{
-		goto out;
+	if (pin) {
+		err = bpf_linker_resolve_extern(skel->obj);
+		if (err)
+		{
+			goto out;
+		}
 	}
 	if (net_limit_bpf__load(skel) != 0)
 	{
@@ -1230,7 +1146,23 @@ static int do_load(int argc, char **argv)
 
 	if (pin)
 	{
-		if (pin_loaded_maps(skel) != 0)
+		err = bpf_linker_pin_shared(skel->maps.cgroup_rules);
+		if (err)
+		{
+			goto out;
+		}
+		err = bpf_linker_pin_shared(skel->maps.buckets);
+		if (err)
+		{
+			goto out;
+		}
+		err = bpf_linker_pin_shared(skel->maps.stats);
+		if (err)
+		{
+			goto out;
+		}
+		err = bpf_linker_pin_shared(skel->maps.shape_rules);
+		if (err)
 		{
 			goto out;
 		}

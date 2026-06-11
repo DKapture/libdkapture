@@ -50,7 +50,7 @@ all: $(TARGETs)
 $(BUILD_DIR):
 	@mkdir -p $@
 
-SO_NAMES = bpf-linker pin-registry map-resolver btf-preprocessor
+SO_NAMES = bpf-linker pin-registry btf-preprocessor
 SO_OBJS = $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(SO_NAMES)))
 
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(BUILD_DIR)/log.o $(SO_OBJS) | $(BUILD_DIR)
@@ -63,9 +63,6 @@ $(BUILD_DIR)/%.o: %.c $(BUILD_DIR)/%.skel.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 BPF_PREPROCESS = $(PROJ_ROOT)/build/tools/extern-prep
-
-$(BPF_PREPROCESS):
-	$(MAKE) -C $(PROJ_ROOT)/tools extern-prep
 
 $(BUILD_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o $(BPF_PREPROCESS) | $(BUILD_DIR)
 	$(BPF_PREPROCESS) $< $(BUILD_DIR)/$*.bpf.o
