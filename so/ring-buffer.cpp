@@ -25,7 +25,7 @@ RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx) :
 	page_size(0), comsumer_index(NULL), producer_index(NULL), epoll_fd(-1),
 	map_fd(-1), ctx(ctx), rci(0), cb(cb)
 {
-	struct bpf_map_info info;
+	struct bpf_map_info info = {};
 	struct epoll_event ee;
 	std::string err_msg;
 	std::system_error exc;
