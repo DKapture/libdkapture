@@ -6,7 +6,6 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
-#include <thread>
 #include <unistd.h>
 #include <argp.h>
 #include <fcntl.h>
@@ -15,65 +14,8 @@
 #include <atomic>
 #include <sys/syscall.h>
 
-// libbpf headers
-#include <bpf/bpf.h>
-#include <bpf/libbpf.h>
-
-// Auto-generated BPF skeleton
-#include "ps.skel.h"
-// Task information structure that matches the one defined in ps.h
-struct dcapture_task
-{
-	pid_t pid;
-	char comm[16]; // TASK_COMM_LEN in kernel is 16
-	int state;
-	pid_t ppid;
-	pid_t pgid;
-	pid_t sid;
-	int tty_nr;
-	int tty_pgrp;
-	unsigned int flags;
-	unsigned long cmin_flt;
-	unsigned long cmaj_flt;
-	unsigned long min_flt;
-	unsigned long maj_flt;
-	unsigned long long utime;
-	unsigned long long stime;
-	unsigned long long cutime;
-	unsigned long long cstime;
-	int priority;
-	int nice;
-	int num_threads;
-	unsigned long long start_time;
-	unsigned long vsize;
-	unsigned long rss;
-	unsigned long rsslim;
-	unsigned long start_code;
-	unsigned long end_code;
-	unsigned long start_stack;
-	unsigned long kstkesp;
-	unsigned long kstkeip;
-	unsigned long signal;
-	unsigned long blocked;
-	unsigned long sigignore;
-	unsigned long sigcatch;
-	unsigned long wchan;
-	int exit_signal;
-	int processor;
-	unsigned int rt_priority;
-	unsigned int policy;
-	unsigned long long delayacct_blkio_ticks;
-	unsigned long guest_time;
-	long cguest_time;
-	unsigned long start_data;
-	unsigned long end_data;
-	unsigned long start_brk;
-	unsigned long arg_start;
-	unsigned long arg_end;
-	unsigned long env_start;
-	unsigned long env_end;
-	int exit_code;
-};
+#include "dkapture.h"
+#include "com.h"
 
 // Command line options configuration
 static struct env
@@ -89,8 +31,6 @@ static struct env
 	.show_threads = false,
 };
 
-static ps_bpf *obj;
-static struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
 
 const char *argp_program_version = "ps 1.0";
@@ -109,17 +49,6 @@ static const struct argp_option opts[] = {
 	{"threads", 'T', NULL, 0, "Display all threads"},
 	{},
 };
-
-// libbpf print callback
-static int
-libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
-{
-	if (level == LIBBPF_DEBUG && !env.verbose)
-	{
-		return 0;
-	}
-	return vfprintf(stderr, format, args);
-}
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
@@ -210,11 +139,10 @@ static char get_state_char(int state)
 	return '?'; // Unknown
 }
 
-// Process data received from BPF program
-static int handle_event(void *ctx, void *data, size_t data_sz)
+static int handle_event(void *ctx, const void *data, size_t data_sz)
 {
-	const struct dcapture_task *task =
-		static_cast<const struct dcapture_task *>(data);
+	const DKapture::DataHdr *hdr = static_cast<const DKapture::DataHdr *>(data);
+	const struct ProcPidStat *stat = reinterpret_cast<const struct ProcPidStat *>(hdr->data);
 	static bool header_printed = false;
 	static int event_count = 0;
 
@@ -252,60 +180,33 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	}
 
 	// Calculate CPU usage (simple approximation)
-	unsigned long long total_time = task->utime + task->stime;
+	unsigned long long total_time = stat->utime + stat->stime;
 	double cpu_usage = 0.0; // Would require two sample points for actual CPU
 							// usage
 
 	// Calculate memory usage (KB)
-	unsigned long memory = task->vsize / 1024;
+	unsigned long memory = stat->vsize / 1024;
 
 	// Convert CPU time to readable format (min:sec)
 	std::string cpu_time = format_time(total_time);
 
 	// Output process information
-	std::cout << std::setw(5) << task->pid << " " << std::setw(5) << task->ppid
-			  << " " << std::setw(5) << task->pgid << " ";
+	std::cout << std::setw(5) << hdr->pid << " " << std::setw(5) << stat->ppid
+			  << " " << std::setw(5) << stat->pgid << " ";
 
 	if (env.verbose)
 	{
-		std::cout << std::setw(5) << task->tty_nr << " " << std::setw(3)
-				  << task->nice << " " << std::setw(6) << task->num_threads
+		std::cout << std::setw(5) << stat->tty_nr << " " << std::setw(3)
+				  << stat->nice << " " << std::setw(6) << stat->num_threads
 				  << " " << std::setw(8) << memory << " ";
 	}
 
-	std::cout << std::setw(1) << get_state_char(task->state) << " "
+	std::cout << std::setw(1) << get_state_char(stat->state) << " "
 			  << std::fixed << std::setprecision(1) << std::setw(8) << cpu_usage
-			  << " " << std::setw(8) << cpu_time << " " << task->comm
+			  << " " << std::setw(8) << cpu_time << " " << hdr->comm
 			  << std::endl;
 
 	return 0;
-}
-
-// Trigger the BPF iterator
-void trigger_iterator()
-{
-	int iter_fd = -1;
-
-	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.dump_task));
-	if (iter_fd < 0)
-	{
-		std::cerr << "Error creating BPF iterator\n";
-		return;
-	}
-	char *buf = (char *)malloc(4096);
-	if (!buf)
-	{
-		std::cerr << "Failed to allocate buffer memory\n";
-		close(iter_fd);
-		return;
-	}
-	while (read(iter_fd, buf, 4096) > 0)
-	{
-	}
-	free(buf);
-
-	close(iter_fd);
-	iter_fd = -1;
 }
 
 int main(int argc, char **argv)
@@ -320,111 +221,25 @@ int main(int argc, char **argv)
 	}
 
 	register_signal();
-	libbpf_set_print(libbpf_print_fn);
 
-	std::cerr << "Loading BPF program..." << std::endl;
-
-	// Open BPF program
-	obj = ps_bpf::open();
-	if (!obj)
+	DKapture *dk = DKapture::new_instance();
+	if (!dk)
 	{
-		std::cerr << "Failed to open BPF program: " << errno << " ("
-				  << strerror(errno) << ")" << std::endl;
+		std::cerr << "Failed to create DKapture instance" << std::endl;
 		return 1;
 	}
 
-	// Load BPF program
-	if (ps_bpf::load(obj))
+	if (dk->open() != 0)
 	{
-		std::cerr << "Failed to load BPF program" << std::endl;
-		ps_bpf::destroy(obj);
+		std::cerr << "Failed to open DKapture (need root?)" << std::endl;
+		delete dk;
 		return 1;
 	}
 
-	std::cerr << "BPF program loaded successfully, attaching..." << std::endl;
+	dk->read(DKapture::PROC_PID_STAT, handle_event, nullptr);
 
-	// Attach BPF program
-	if (ps_bpf::attach(obj))
-	{
-		std::cerr << "Failed to attach BPF program" << std::endl;
-		ps_bpf::destroy(obj);
-		return 1;
-	}
-
-	std::cerr << "BPF program attached successfully, setting up ringbuf..."
-			  << std::endl;
-
-	// Set up ring buffer callback
-	rb = ring_buffer__new(
-		bpf_map__fd(obj->maps.output),
-		handle_event,
-		NULL,
-		NULL
-	);
-	if (!rb)
-	{
-		std::cerr << "Failed to create ring buffer: " << errno << " ("
-				  << strerror(errno) << ")" << std::endl;
-		ps_bpf::detach(obj);
-		ps_bpf::destroy(obj);
-		return 1;
-	}
-
-	// Trigger the iterator to collect process information
-	std::cerr << "Attempting to trigger iterator program..." << std::endl;
-
-	int iter_fd = -1;
-
-	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.dump_task));
-	if (iter_fd < 0)
-	{
-		std::cerr << "Error creating BPF iterator\n";
-		return 1;
-	}
-	char *buf = (char *)calloc(4096, 1);
-	if (!buf)
-	{
-		std::cerr << "Failed to allocate buffer from heap\n";
-		close(iter_fd);
-		return 1;
-	}
-	read(iter_fd, buf, 4096);
-
-	std::thread t(
-		[&iter_fd, &buf]()
-		{
-			while (read(iter_fd, buf, sizeof(buf)) > 0)
-				;
-			close(iter_fd);
-			iter_fd = -1;
-			exit_flag = true;
-		}
-	);
-
-	std::cerr << "Collecting process information..." << std::endl;
-
-	// Process events from ring buffer until exit signal received
-	while (!exit_flag)
-	{
-		err = ring_buffer__poll(rb, 100);
-		if (err < 0 && err != -EINTR)
-		{
-			std::cerr << "Error polling ring buffer: " << err << std::endl;
-			break;
-		}
-		if (err == 0)
-		{
-			break;
-		}
-	}
-
-	t.join();
-
-	// Cleanup resources
-	std::cerr << "Cleaning up resources..." << std::endl;
-	ring_buffer__free(rb);
-	ps_bpf::detach(obj);
-	ps_bpf::destroy(obj);
+	dk->close();
+	delete dk;
 
 	return 0;
 }
