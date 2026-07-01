@@ -52,6 +52,8 @@ CXX = g++
 # Ensure object directory exists
 
 all: $(TARGETs)
+ps: $(BUILD_DIR)/ps
+proc-info: $(BUILD_DIR)/proc-info
 
 $(BUILD_DIR):
 	@mkdir -p $@
@@ -61,6 +63,13 @@ SO_OBJS = $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(SO_NAMES)))
 
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(BUILD_DIR)/log.o $(SO_OBJS)
 	$(CXX) $(LDFLAGS) $^ -o $@
+
+$(BUILD_DIR)/ps.o: ps.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/proc-info.o: proc-info.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 
 $(BUILD_DIR)/%.o: %.cpp $(BUILD_DIR)/%.skel.h | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -80,6 +89,17 @@ $(BUILD_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o $(BPF_PREPROCESS) | $(BUILD_DIR)
 	$(BPF_PREPROCESS) $< $(BUILD_DIR)/$*.bpf.o
 	bpftool gen skeleton $(BUILD_DIR)/$*.bpf.o > $@
 	python3 $(PROJ_ROOT)/script/patch_skel.py --obj-dir $(BUILD_DIR) $@
+	
+# ps 工具使用 DKapture 框架，需要链接 libdkapture.so
+$(BUILD_DIR)/ps: $(BUILD_DIR)/ps.o $(BUILD_DIR)/log.o $(PROJ_ROOT)/build/so/libdkapture.so
+	$(CXX) $(LDFLAGS) -L$(PROJ_ROOT)/build/so/ -ldkapture -Wl,-rpath='$$ORIGIN/../so/' $^ -o $@
+
+# proc-info 工具使用 DKapture 框架，需要链接 libdkapture.so
+$(BUILD_DIR)/proc-info: $(BUILD_DIR)/proc-info.o $(BUILD_DIR)/log.o $(PROJ_ROOT)/build/so/libdkapture.so
+	$(CXX) $(LDFLAGS) -L$(PROJ_ROOT)/build/so/ -ldkapture -Wl,-rpath='$$ORIGIN/../so/' $^ -o $@
+
+$(PROJ_ROOT)/build/so/libdkapture.so:
+	$(MAKE) -C $(PROJ_ROOT) so
 
 clean:
 	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.d $(TARGETs) $(BUILD_DIR)/.tmp.*.skel.h

@@ -6,25 +6,11 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
-#include <thread>
 #include <unistd.h>
 #include <argp.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <signal.h>
-#include <atomic>
-#include <sys/syscall.h>
-
-// libbpf headers
-#include <bpf/bpf.h>
-#include <bpf/libbpf.h>
-
-// Auto-generated BPF skeleton
-#include "proc-info.skel.h"
 
 // Include dkapture headers for data structures
 #include "dkapture.h"
-#include "com.h"
 
 // Command line options configuration
 static struct env
@@ -54,10 +40,6 @@ static struct env
 	.show_loginuid = true,
 };
 
-static proc_info_bpf *obj;
-static struct ring_buffer *rb = NULL;
-static std::atomic<bool> exit_flag(false);
-
 const char *argp_program_version = "proc-info 1.0";
 const char *argp_program_bug_address = NULL;
 
@@ -81,17 +63,6 @@ static const struct argp_option opts[] = {
 	{"no-loginuid", 'l', NULL, 0, "Don't show loginuid information"},
 	{},
 };
-
-// libbpf print callback
-static int
-libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
-{
-	if (level == LIBBPF_DEBUG && !env.verbose)
-	{
-		return 0;
-	}
-	return vfprintf(stderr, format, args);
-}
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
@@ -142,26 +113,6 @@ static const struct argp argp = {
 	.doc = argp_program_doc,
 };
 
-// Signal handler for clean termination
-static void sig_handler(int sig)
-{
-	exit_flag = true;
-}
-
-static void register_signal()
-{
-	struct sigaction sa;
-	sa.sa_handler = sig_handler;
-	sa.sa_flags = 0;
-	sigemptyset(&sa.sa_mask);
-
-	if (sigaction(SIGINT, &sa, NULL) == -1)
-	{
-		perror("sigaction");
-		exit(EXIT_FAILURE);
-	}
-}
-
 // Convert clock ticks to human-readable time string
 static std::string format_time(unsigned long long time)
 {
@@ -204,7 +155,7 @@ static char get_state_char(int state)
 }
 
 // Process data received from BPF program
-static int handle_event(void *ctx, void *data, size_t data_sz)
+static int handle_event(void *ctx, const void *data, size_t data_sz)
 {
 	const struct DKapture::DataHdr *hdr =
 		static_cast<const struct DKapture::DataHdr *>(data);
@@ -254,10 +205,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	{
 	case DKapture::PROC_PID_STAT:
 	{
-		if (!env.show_header)
-		{
-			break;
-		}
 		const struct ProcPidStat *stat =
 			reinterpret_cast<const struct ProcPidStat *>(hdr->data);
 
@@ -532,38 +479,48 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
-// Trigger the BPF iterator
-void trigger_iterator()
+static std::vector<DKapture::DataType> build_data_types()
 {
-	int iter_fd = -1;
+	std::vector<DKapture::DataType> dts = {
+		DKapture::PROC_PID_STAT,
+		DKapture::PROC_PID_FD,
+	};
 
-	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.dump_task));
-	if (iter_fd < 0)
+	if (env.show_io)
 	{
-		std::cerr << "Error creating BPF iterator\n";
-		return;
+		dts.push_back(DKapture::PROC_PID_IO);
 	}
-	char *buf = (char *)malloc(4096);
-	if (!buf)
+	if (env.show_traffic)
 	{
-		std::cerr << "Failed to allocate buffer memory\n";
-		close(iter_fd);
-		return;
+		dts.push_back(DKapture::PROC_PID_traffic);
 	}
-	while (read(iter_fd, buf, 4096) > 0)
+	if (env.show_statm)
 	{
+		dts.push_back(DKapture::PROC_PID_STATM);
 	}
-	free(buf);
+	if (env.show_status)
+	{
+		dts.push_back(DKapture::PROC_PID_STATUS);
+	}
+	if (env.show_schedstat)
+	{
+		dts.push_back(DKapture::PROC_PID_SCHEDSTAT);
+	}
+	if (env.show_ns)
+	{
+		dts.push_back(DKapture::PROC_PID_NS);
+	}
+	if (env.show_loginuid)
+	{
+		dts.push_back(DKapture::PROC_PID_LOGINUID);
+	}
 
-	close(iter_fd);
-	iter_fd = -1;
+	return dts;
 }
 
 int main(int argc, char **argv)
 {
 	int err;
-	int iter_fd = -1;
-	char buf[8];
 
 	// Parse command line arguments
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
@@ -572,87 +529,25 @@ int main(int argc, char **argv)
 		return err;
 	}
 
-	register_signal();
-	libbpf_set_print(libbpf_print_fn);
-
-	// Open BPF program
-	obj = proc_info_bpf::open();
-	if (!obj)
+	DKapture *dk = DKapture::new_instance();
+	if (!dk)
 	{
-		std::cerr << "Failed to open BPF program: " << errno << " ("
-				  << strerror(errno) << ")" << std::endl;
+		std::cerr << "Failed to create DKapture instance" << std::endl;
 		return 1;
 	}
 
-	// Load BPF program
-	if (proc_info_bpf::load(obj))
+	if (dk->open(env.verbose ? stderr : stdout, env.verbose ? DKapture::DEBUG : DKapture::INFO) != 0)
 	{
-		std::cerr << "Failed to load BPF program" << std::endl;
-		proc_info_bpf::destroy(obj);
+		std::cerr << "Failed to open DKapture (need root?)" << std::endl;
+		delete dk;
 		return 1;
 	}
 
-	union bpf_attr attr = {};
-	attr.test.prog_fd = bpf_get_prog_fd(obj->progs.proc_info_init);
-	bpf_syscall(BPF_PROG_TEST_RUN, attr);
+	std::vector<DKapture::DataType> dts = build_data_types();
+	err = dk->read(dts, handle_event, nullptr);
 
-	// Attach BPF program
-	if (proc_info_bpf::attach(obj))
-	{
-		std::cerr << "Failed to attach BPF program" << std::endl;
-		proc_info_bpf::destroy(obj);
-		return 1;
-	}
-	// Set up ring buffer callback
-	rb = ring_buffer__new(
-		bpf_map__fd(obj->maps.dk_shared_mem),
-		handle_event,
-		NULL,
-		NULL
-	);
-	if (!rb)
-	{
-		std::cerr << "Failed to create ring buffer: " << errno << " ("
-				  << strerror(errno) << ")" << std::endl;
-		proc_info_bpf::detach(obj);
-		proc_info_bpf::destroy(obj);
-		return 1;
-	}
+	dk->close();
+	delete dk;
 
-	// Trigger the iterator to collect process information
-	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.dump_task));
-	if (iter_fd < 0)
-	{
-		std::cerr << "Error creating BPF iterator\n";
-		return 1;
-	}
-	while (read(iter_fd, buf, sizeof(buf)) > 0)
-	{
-	}
-	close(iter_fd);
-	iter_fd = -1;
-	exit_flag = true;
-
-	// Process events from ring buffer until exit signal received
-	while (1)
-	{
-		err = ring_buffer__poll(rb, 0);
-		if (err < 0 && err != -EINTR)
-		{
-			std::cerr << "Error polling ring buffer: " << err << std::endl;
-			break;
-		}
-		if (err == 0)
-		{
-			break;
-		}
-	}
-err_out:
-	// Cleanup resources
-	std::cerr << "Cleaning up resources..." << std::endl;
-	ring_buffer__free(rb);
-	proc_info_bpf::detach(obj);
-	proc_info_bpf::destroy(obj);
-
-	return 0;
+	return err < 0 ? 1 : 0;
 }
