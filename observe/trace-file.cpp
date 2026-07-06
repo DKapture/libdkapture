@@ -640,7 +640,10 @@ struct RwvLog : public BpfData
 			szs += std::to_string(psz[i]);
 			szs += "|";
 		}
-		szs.pop_back();
+		if (!szs.empty())
+		{
+			szs.pop_back();
+		}
 		switch (log_type)
 		{
 		case LOG_READV:
