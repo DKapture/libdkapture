@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LGPL-2.1
 
 BUILD_DIR = build
-TARGETs = include observe filter policy
+TARGETs = include tools observe filter policy
 SUBTARGETs = $(foreach i,$(TARGETs),$(i)/%)
 MAKE = make PROJ_ROOT=$(shell pwd)
 
@@ -12,7 +12,7 @@ MAKE = make PROJ_ROOT=$(shell pwd)
 
 all: $(TARGETs)
 
-observe filter policy: include
+observe filter policy: include tools
 
 $(TARGETs):
 	$(MAKE) -C $@

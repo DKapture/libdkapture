@@ -18,6 +18,7 @@ CLANG_FLAGS = -g -MMD -Wall -O2 \
 			-I$(PROJ_ROOT)/build/include \
 			-I/usr/include/$(shell uname -m)-linux-gnu/ \
 			-I$(KHEADERS_DIR)
+BPF_PREPROCESS ?= $(PROJ_ROOT)/build/tools/extern-prep
 
 .PHONY: all clean
 # 注明不要删除的中间文件
@@ -30,14 +31,16 @@ all: $(TARGETs)
 $(BUILD_DIR):
 	@mkdir -p $@
 
-$(BUILD_DIR)/%.bpf.o: %.bpf.c $(PROJ_ROOT)/build/include/vmlinux.h $(PROJ_ROOT)/build/include/kconfig.h | $(BUILD_DIR)
+$(BUILD_DIR)/%.bpf.o: %.bpf.c $(PROJ_ROOT)/build/include/vmlinux.h $(PROJ_ROOT)/build/include/kconfig.h $(BPF_PREPROCESS) | $(BUILD_DIR)
 	clang -D__$(BPF_TARGET_ARCH)__ $(CLANG_FLAGS) -target bpf -c $< -o $@
+	$(BPF_PREPROCESS) $@ $@.tmp
+	mv $@.tmp $@
 
-$(PROJ_ROOT)/build/include/vmlinux.h:
-	make -C $(PROJ_ROOT)/include/ $@
+$(PROJ_ROOT)/build/include/vmlinux.h $(PROJ_ROOT)/build/include/kconfig.h:
+	$(MAKE) -C $(PROJ_ROOT)/include $@
 
-$(PROJ_ROOT)/build/include/kconfig.h:
-	make -C $(PROJ_ROOT)/include/ $@
+$(BPF_PREPROCESS):
+	$(MAKE) -C $(PROJ_ROOT)/tools $@
 
 built-in.a:
 	clang -r $(BUILD_DIR)/*.bpf.o -o $@
