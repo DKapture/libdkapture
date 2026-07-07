@@ -130,7 +130,7 @@ static bool check_bpf_env(void)
 		buf[0] = fs_type[0] = '\0';
 		sscanf(
 			line,
-			"%*s %*s %*s %*s %4096s %*s %*s %*s %16s %*s %*s",
+			"%*s %*s %*s %*s %4095s %*s %*s %*s %15s %*s %*s",
 			buf,
 			fs_type
 		);
@@ -573,21 +573,21 @@ static int parse_port(char *port_str, u16 &sport, u16 &dport)
 	}
 
 	int n;
-	char *tmp;
+	char *endptr;
 	if (strstr(port_str, "--"))
 	{
 		parse_area(port_str, begin, end, 8);
-		n = strtol(begin, &tmp, 10);
-		return_if_invalid(n, begin, tmp);
+		n = strtol(begin, &endptr, 10);
+		return_if_invalid(n, begin, endptr);
 		sport = (u16)n;
-		n = strtol(end, NULL, 10);
-		return_if_invalid(n, end, tmp);
+		n = strtol(end, &endptr, 10);
+		return_if_invalid(n, end, endptr);
 		dport = (u16)n;
 	}
 	else
 	{
-		n = strtol(port_str, NULL, 10);
-		return_if_invalid(n, begin, tmp);
+		n = strtol(port_str, &endptr, 10);
+		return_if_invalid(n, port_str, endptr);
 		sport = (u16)n;
 		dport = sport;
 	}
