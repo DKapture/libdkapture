@@ -185,7 +185,14 @@ BPFManager::BPFManager()
 	{ // look like there is already a bpf program loaded
 		pr_debug("use existing bpf mirror");
 		m_proc_iter_link_path = bpf_find_iter("dump_task");
+		m_dump_task_file = bpf_find_iter("dump_task_file");
+		m_dump_task_vma = bpf_find_iter("dump_task_vma");
 		if (m_proc_iter_link_path.empty())
+		{
+			err = -errno;
+			goto err_out;
+		}
+		if (m_dump_task_file.empty() || m_dump_task_vma.empty())
 		{
 			err = -errno;
 			goto err_out;
@@ -317,6 +324,42 @@ int BPFManager::dump_task_file(void)
 	while ((rd_sz = ::read(fd, buf, sizeof(buf))) > 0)
 	{
 		// nothing needs to be done, just trigger the bpf iterator to run
+		DEBUG(0, "rd_sz: (%ld)", rd_sz);
+	}
+
+	if (rd_sz < 0)
+	{
+		pr_error("read iter(%d): %s(%d)", fd, strerror(errno), errno);
+	}
+	::close(fd);
+	return 0;
+}
+
+int BPFManager::dump_task_vma(void)
+{
+	int fd;
+	ssize_t rd_sz;
+	char buf[8];
+	if (m_obj)
+	{
+		fd = bpf_create_iter(m_obj->links.dump_task_vma, return -1);
+	}
+	else
+	{
+		fd = ::open(m_dump_task_vma.c_str(), O_RDONLY);
+	}
+	if (fd < 0)
+	{
+		pr_error(
+			"bpf_iter_create (%s): %s",
+			m_dump_task_vma.c_str(),
+			strerror(errno)
+		);
+		return -1;
+	}
+
+	while ((rd_sz = ::read(fd, buf, sizeof(buf))) > 0)
+	{
 		DEBUG(0, "rd_sz: (%ld)", rd_sz);
 	}
 

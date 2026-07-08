@@ -23,6 +23,7 @@ class BPFManager
 	int m_map_id = 0; // 调试使用，无逻辑影响
 	int bpf_task_iter_fd = -1;
 	std::string m_dump_task_file;
+	std::string m_dump_task_vma;
 
 	int bpf_find_map(const char *name);
 	std::string bpf_find_iter(const char *name);
@@ -36,6 +37,7 @@ class BPFManager
 	proc_info_bpf *m_obj = nullptr;
 	std::string m_proc_iter_link_path;
 	int dump_task_file(void);
+	int dump_task_vma(void);
 
 	BPFManager();
 	~BPFManager();

@@ -459,6 +459,32 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 				  << std::endl;
 		break;
 	}
+	case DKapture::PROC_PID_VMA_FILE:
+	{
+		const struct ProcPidVmaFile *vma =
+			reinterpret_cast<const struct ProcPidVmaFile *>(hdr->data);
+
+		std::cout << std::setw(5) << hdr->pid << " " << std::setw(5)
+				  << hdr->tgid << " " << std::setw(16) << hdr->comm << " "
+				  << std::setw(5) << " "
+				  << " " << std::setw(8) << "VMA"
+				  << " ";
+
+		if (env.verbose)
+		{
+			std::cout << std::setw(8) << " "
+					  << " " << std::setw(8) << " "
+					  << " " << std::setw(8) << " "
+					  << " " << std::setw(8) << " "
+					  << " ";
+		}
+
+		std::cout << "INODE:" << vma->inode << " DEV:" << std::hex << vma->dev
+				  << std::dec << " MODE:" << std::oct << vma->i_mode
+				  << std::dec << " START:0x" << std::hex << vma->start
+				  << " END:0x" << vma->end << std::dec << std::endl;
+		break;
+	}
 	case DKapture::PROC_PID_NS:
 	{
 		if (!env.show_ns)
@@ -530,6 +556,45 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	}
 
 	return 0;
+}
+static std::vector<DKapture::DataType> build_data_types()
+{
+	std::vector<DKapture::DataType> dts = {
+		DKapture::PROC_PID_STAT,
+		DKapture::PROC_PID_FD,
+		DKapture::PROC_PID_VMA_FILE,
+	};
+
+	if (env.show_io)
+	{
+		dts.push_back(DKapture::PROC_PID_IO);
+	}
+	if (env.show_traffic)
+	{
+		dts.push_back(DKapture::PROC_PID_traffic);
+	}
+	if (env.show_statm)
+	{
+		dts.push_back(DKapture::PROC_PID_STATM);
+	}
+	if (env.show_status)
+	{
+		dts.push_back(DKapture::PROC_PID_STATUS);
+	}
+	if (env.show_schedstat)
+	{
+		dts.push_back(DKapture::PROC_PID_SCHEDSTAT);
+	}
+	if (env.show_ns)
+	{
+		dts.push_back(DKapture::PROC_PID_NS);
+	}
+	if (env.show_loginuid)
+	{
+		dts.push_back(DKapture::PROC_PID_LOGINUID);
+	}
+
+	return dts;
 }
 
 // Trigger the BPF iterator
