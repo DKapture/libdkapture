@@ -262,12 +262,17 @@ ssize_t dkapture::read(const char *path, DataHdr *buf, size_t bsz)
 }
 
 int lsock_query(DKapture::DKCallback callback, void *ctx);
+int lscgroup_query(DKapture::DKCallback callback, void *ctx);
 
 ssize_t dkapture::read(DataType dt, DKCallback cb, void *ctx)
 {
 	if (dt == PROC_PID_sock)
 	{
 		return lsock_query(cb, ctx);
+	}
+		if (dt == PROC_CGROUP || dt == PROC_CGROUP_SUBSYS)
+	{
+		return lscgroup_query(cb, ctx);
 	}
 	m_datamap->set_iterator(cb, ctx);
 	ssize_t ret = read(dt, 0, nullptr, 0);

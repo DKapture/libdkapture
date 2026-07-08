@@ -11,6 +11,7 @@ CXX_OBJ = $(CXX_SRC:%.cpp=$(BUILD_DIR)/%.o) \
 		  $(BUILD_DIR)/trace-file.o \
 		  $(BUILD_DIR)/kmemleak.o \
 		  $(BUILD_DIR)/lsock.o \
+		  $(BUILD_DIR)/lscgroup.o \
 		  $(BUILD_DIR)/mountsnoop.o \
 		  $(BUILD_DIR)/irqsnoop.o
 
@@ -36,6 +37,9 @@ all so: $(TARGET)
 
 $(TARGET): $(CXX_OBJ)
 	g++ $(LDFLAGS) $^ -o $@
+	
+$(PROJ_ROOT)/build/observe/proc-info.skel.h: $(PROJ_ROOT)/bpf/build/observe/proc-info.bpf.o $(PROJ_ROOT)/build/tools/extern-prep
+	make -C $(PROJ_ROOT)/observe $@
 
 $(BUILD_DIR)/%.o: $(PROJ_ROOT)/observe/%.cpp $(PROJ_ROOT)/build/observe/%.skel.h | $(BUILD_DIR)
 	$(CXX) -DBUILTIN $(CXXFLAGS) -c $< -o $@
