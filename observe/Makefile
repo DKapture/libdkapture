@@ -7,7 +7,10 @@ MODULE := $(notdir $(CURDIR))
 BUILD_DIR := $(PROJ_ROOT)/build/$(MODULE)
 C_SRC = $(shell ls *.c 2>/dev/null)
 CXX_SRC = $(shell ls *.cpp 2>/dev/null)
-TARGETs = $(C_SRC:%.c=$(BUILD_DIR)/%) $(CXX_SRC:%.cpp=$(BUILD_DIR)/%)
+TARGET_NAMES = $(C_SRC:%.c=%) $(CXX_SRC:%.cpp=%)
+TARGETs = $(addprefix $(BUILD_DIR)/,$(TARGET_NAMES))
+NO_SKEL_CXX_TARGETS = ps proc-info lsof
+DKAPTURE_TARGETS = ps proc-info lsof
 BPF_TARGET_ARCH := $(shell uname -m)
 ifeq ($(BPF_TARGET_ARCH), loongarch64)
 	BPF_TARGET_ARCH := loongarch
@@ -44,7 +47,7 @@ CXXFLAGS = $(CFLAGS)
 CC = gcc
 CXX = g++
 
-.PHONY: all clean
+.PHONY: all clean $(TARGET_NAMES)
 # 注明不要删除的中间文件
 .SECONDARY:
 .SUFFIXES:
@@ -53,16 +56,27 @@ CXX = g++
 
 all: $(TARGETs)
 
+$(TARGET_NAMES): %: $(BUILD_DIR)/%
+
+$(PROJ_ROOT)/build/so/libdkapture.so:
+	$(MAKE) -C $(PROJ_ROOT)/so
+
 $(BUILD_DIR):
 	@mkdir -p $@
 
 SO_NAMES = bpf-linker pin-registry map-resolver btf-preprocessor
 SO_OBJS = $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(SO_NAMES)))
 
+$(addprefix $(BUILD_DIR)/,$(DKAPTURE_TARGETS)): LDFLAGS += -L$(PROJ_ROOT)/build/so -ldkapture -Wl,-rpath,$(PROJ_ROOT)/build/so
+$(addprefix $(BUILD_DIR)/,$(DKAPTURE_TARGETS)): $(PROJ_ROOT)/build/so/libdkapture.so
+
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(BUILD_DIR)/log.o $(SO_OBJS)
 	$(CXX) $(LDFLAGS) $^ -o $@
 
 $(BUILD_DIR)/%.o: %.cpp $(BUILD_DIR)/%.skel.h | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(NO_SKEL_CXX_TARGETS))): $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.c $(BUILD_DIR)/%.skel.h | $(BUILD_DIR)
@@ -75,6 +89,9 @@ BPF_PREPROCESS = $(PROJ_ROOT)/build/tools/extern-prep
 
 $(BPF_PREPROCESS):
 	$(MAKE) -C $(PROJ_ROOT)/tools extern-prep
+
+$(BPF_DIR)/%.bpf.o:
+	$(MAKE) -C $(PROJ_ROOT)/bpf/$(MODULE) PROJ_ROOT=$(PROJ_ROOT)/bpf $(BPF_DIR)/$*.bpf.o
 
 $(BUILD_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o $(BPF_PREPROCESS) | $(BUILD_DIR)
 	$(BPF_PREPROCESS) $< $(BUILD_DIR)/$*.bpf.o
