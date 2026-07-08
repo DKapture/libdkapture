@@ -29,11 +29,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <bpf/libbpf.h>
-#include <bpf/bpf.h>
 #include <pwd.h>
 
-#include "lsns.skel.h"
+#include "dkapture.h"
 
 struct ns_key_t
 {
@@ -43,6 +41,30 @@ struct ns_key_t
 
 struct ns_owner_t
 {
+	uint32_t pid;
+	uint32_t uid;
+	uint32_t procs;
+};
+
+struct NsEntry
+{
+	uint32_t type;
+	uint64_t inum;
+	uint32_t pid;
+	uint32_t uid;
+	uint32_t procs;
+};
+
+struct NsCollector
+{
+	std::unordered_map<std::string, NsEntry> entries;
+	std::unordered_map<uint32_t, uint32_t> pid_uid_cache;
+};
+
+struct Entry
+{
+	uint32_t type;
+	uint64_t inum;
 	uint32_t pid;
 	uint32_t uid;
 	uint32_t procs;
@@ -59,7 +81,7 @@ struct ProcInfo
 static std::atomic<bool> exit_flag(false);
 static bool json_output = false;
 static struct option lopts[] = {
-	{"json", no_argument, 0, 'J'},
+	{"json", no_argument, 0, 'j'},
 	{"help", no_argument, 0, 'h'},
 	{0,		0,		   0, 0  },
 };
@@ -128,8 +150,8 @@ void parse_args(int argc, char **argv)
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
 	{
 		switch (opt)
-		{
-		case 'J': // JSON output
+	{
+		case 'j': // JSON output
 			json_output = true;
 			break;
 		case 'h': // Help
@@ -440,132 +462,131 @@ static std::string truncate_cmd(const std::string &s, int max_width)
 	return s.substr(0, max_width);
 }
 
-static int bump_memlock_rlimit()
+static uint32_t read_uid_for_pid(uint32_t pid)
 {
-	struct rlimit r = {RLIM_INFINITY, RLIM_INFINITY};
-	if (setrlimit(RLIMIT_MEMLOCK, &r))
+	int ppid = 0;
+	uint32_t uid = 0;
+	int tgid = 0;
+	read_proc_ppid_uid(pid, ppid, uid, tgid);
+	return uid;
+}
+
+static void collect_namespace(
+	NsCollector &collector,
+	uint32_t type,
+	uint64_t inum,
+	uint32_t tgid
+)
+{
+	if (inum == 0 || tgid == 0)
 	{
-		perror("setrlimit");
-		return -1;
+		return;
 	}
+
+	std::string key = std::to_string(type) + ":" + std::to_string(inum);
+	auto it = collector.entries.find(key);
+	if (it == collector.entries.end())
+	{
+		uint32_t uid = 0;
+		auto uid_it = collector.pid_uid_cache.find(tgid);
+		if (uid_it != collector.pid_uid_cache.end())
+		{
+			uid = uid_it->second;
+		}
+		else
+		{
+			uid = read_uid_for_pid(tgid);
+			collector.pid_uid_cache[tgid] = uid;
+		}
+
+		collector.entries.emplace(
+			key,
+			NsEntry{type, inum, tgid, uid, 1}
+		);
+		return;
+	}
+
+	it->second.procs++;
+	if (tgid < it->second.pid)
+	{
+		it->second.pid = tgid;
+		auto uid_it = collector.pid_uid_cache.find(tgid);
+		if (uid_it != collector.pid_uid_cache.end())
+		{
+			it->second.uid = uid_it->second;
+		}
+		else
+		{
+			it->second.uid = read_uid_for_pid(tgid);
+			collector.pid_uid_cache[tgid] = it->second.uid;
+		}
+	}
+}
+
+static int collect_ns_callback(void *ctx, const void *data, size_t data_sz)
+{
+	if (!ctx || !data || data_sz < sizeof(DKapture::DataHdr))
+	{
+		return -EINVAL;
+	}
+
+	const DKapture::DataHdr *hdr =
+		reinterpret_cast<const DKapture::DataHdr *>(data);
+	if (hdr->type != DKapture::PROC_PID_NS ||
+		data_sz < sizeof(DKapture::DataHdr) + sizeof(ProcPidNs))
+	{
+		return -EINVAL;
+	}
+
+	const ProcPidNs *ns = reinterpret_cast<const ProcPidNs *>(hdr->data);
+	NsCollector *collector = reinterpret_cast<NsCollector *>(ctx);
+	const uint32_t tgid = hdr->tgid > 0 ? static_cast<uint32_t>(hdr->tgid)
+										: static_cast<uint32_t>(hdr->pid);
+
+	collect_namespace(*collector, 0, ns->cgroup, tgid);
+	collect_namespace(*collector, 1, ns->ipc, tgid);
+	collect_namespace(*collector, 2, ns->mnt, tgid);
+	collect_namespace(*collector, 3, ns->net, tgid);
+	collect_namespace(*collector, 4, ns->pid, tgid);
+	collect_namespace(*collector, 6, ns->user, tgid);
+	collect_namespace(*collector, 7, ns->uts, tgid);
+	collect_namespace(*collector, 8, ns->time, tgid);
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
-
-	if (bump_memlock_rlimit())
-	{
-		return 1;
-	}
-
-	libbpf_set_print(NULL);
-
-	struct lsns_bpf *skel = lsns_bpf__open_and_load();
-	if (!skel)
-	{
-		std::cerr << "failed to open/load lsns BPF object\n";
-		return 1;
-	}
-	std::cerr << "loaded BPF object via skeleton\n";
-
 	parse_args(argc, argv);
 	register_signal();
-
-	struct bpf_program *prog = skel->progs.iter_tasks;
-
-	if (!prog)
-	{
-		std::cerr << "failed to find iter_tasks program in object\n";
-		lsns_bpf__destroy(skel);
-		return 1;
-	}
-
-	/* new libbpf API requires an attach opts pointer; pass NULL when none
-	 * needed */
-	struct bpf_link *link = bpf_program__attach_iter(prog, NULL);
-	if (!link)
-	{
-		std::cerr << "failed to attach iterator program\n";
-		lsns_bpf__destroy(skel);
-		return 1;
-	}
-
-	int iter_fd = bpf_iter_create(bpf_link__fd(link));
-	if (iter_fd < 0)
-	{
-		std::cerr << "bpf_iter_create failed: " << strerror(errno) << "\n";
-		lsns_bpf__destroy(skel);
-		return 1;
-	}
-
-	// consume iterator until it finishes
-	char buf[4096];
-	while (read(iter_fd, buf, sizeof(buf)) > 0)
-	{
-		// drain
-	}
-	close(iter_fd);
-
-	int map_fd = bpf_map__fd(skel->maps.ns_map);
-	int cnt_map_fd = -1;
-	if (skel->maps.ns_cnt_map)
-	{
-		cnt_map_fd = bpf_map__fd(skel->maps.ns_cnt_map);
-		std::cerr << "found per-cpu ns_cnt_map\n";
-	}
-	else
-	{
-		std::cerr << "per-cpu ns_cnt_map not found, falling back to "
-					 "ns_map.procs if present\n";
-	}
-
-	// iterate keys
-	ns_key_t prev = {};
-	ns_key_t next = {};
-	bool first = true;
-
-	// Collect all entries, then sort by inum and print with NS first
-	struct Entry
-	{
-		uint32_t type;
-		uint64_t inum;
-		uint32_t pid;
-		uint32_t uid;
-		uint32_t procs;
-	};
 	std::vector<Entry> entries;
-
-	while (true)
+	DKapture *dk = DKapture::new_instance();
+	if (!dk)
 	{
-		int ret;
-		if (first)
-		{
-			ret = bpf_map_get_next_key(map_fd, NULL, &next);
-			first = false;
-		}
-		else
-		{
-			ret = bpf_map_get_next_key(map_fd, &prev, &next);
-		}
-		if (ret != 0)
-		{
-			break;
-		}
+		std::cerr << "failed to create DKapture instance\n";
+		return 1;
+	}
+	if (dk->open(stderr, DKapture::ERROR) < 0)
+	{
+		std::cerr << "failed to open DKapture\n";
+		delete dk;
+		return 1;
+	}
 
-		ns_owner_t owner = {0, 0, 0};
-		if (bpf_map_lookup_elem(map_fd, &next, &owner) == 0)
-		{
-			entries.push_back(
-				Entry{next.type, next.inum, owner.pid, owner.uid, owner.procs}
-			);
-		}
-		else
-		{
-			entries.push_back(Entry{next.type, next.inum, 0, 0, 0});
-		}
+	NsCollector collector;
+	if (dk->read(DKapture::PROC_PID_NS, collect_ns_callback, &collector) < 0)
+	{
+		std::cerr << "failed to read namespace data from DKapture\n";
+		delete dk;
+		return 1;
+	}
+	delete dk;
 
-		prev = next;
+	for (const auto &kv : collector.entries)
+	{
+		const NsEntry &entry = kv.second;
+		entries.push_back(
+			Entry{entry.type, entry.inum, entry.pid, entry.uid, entry.procs}
+		);
 	}
 
 	// sort by inum ascending
@@ -648,64 +669,7 @@ int main(int argc, char **argv)
 			h.pathbuf = std::string(tmp);
 		}
 
-		// per-cpu counts -> total_procs
 		h.total_procs = e.procs;
-		if (cnt_map_fd >= 0)
-		{
-			int nr_cpus = 0;
-			FILE *f = fopen("/sys/devices/system/cpu/online", "r");
-			if (f)
-			{
-				char buf[256];
-				if (fgets(buf, sizeof(buf), f))
-				{
-					int a, b;
-					char *p = buf;
-					while (*p)
-					{
-						if (sscanf(p, "%d-%d", &a, &b) == 2)
-						{
-							nr_cpus += (b - a + 1);
-							char *comma = strchr(p, ',');
-							if (!comma)
-							{
-								break;
-							}
-							p = comma + 1;
-						}
-						else if (sscanf(p, "%d", &a) == 1)
-						{
-							nr_cpus += 1;
-							char *comma = strchr(p, ',');
-							if (!comma)
-							{
-								break;
-							}
-							p = comma + 1;
-						}
-						else
-						{
-							break;
-						}
-					}
-				}
-				fclose(f);
-			}
-			if (nr_cpus <= 0)
-			{
-				nr_cpus = 1;
-			}
-			std::vector<uint32_t> pcnts(nr_cpus);
-			if (bpf_map_lookup_elem(cnt_map_fd, &e, pcnts.data()) == 0)
-			{
-				uint64_t sum = 0;
-				for (int i = 0; i < nr_cpus; ++i)
-				{
-					sum += pcnts[i];
-				}
-				h.total_procs = sum;
-			}
-		}
 
 		// user field
 		static std::unordered_map<uint32_t, std::string> uid_cache;
@@ -1265,8 +1229,6 @@ int main(int argc, char **argv)
 		}
 		std::cout << "\n  ]\n}\n";
 	}
-
-	lsns_bpf__destroy(skel);
 
 	return 0;
 }
