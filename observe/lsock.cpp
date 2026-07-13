@@ -8,8 +8,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/syscall.h>
-#include <bpf/bpf.h>
-#include <bpf/btf.h>
 #include <signal.h>
 #include <getopt.h>
 #include <sys/socket.h>
@@ -25,10 +23,15 @@
 #include <map>
 #include <stdexcept>
 #include <algorithm>
+#include <memory>
 
 #include "com.h"
 
+#ifdef BUILTIN
+#include <bpf/bpf.h>
+#include <bpf/btf.h>
 #include "lsock.skel.h"
+#endif
 #include "types.h"
 #include "dkapture.h"
 #include "net.h"
@@ -69,7 +72,9 @@ enum LogType
 	LOG_TCP_IPV6,
 };
 
+#ifdef BUILTIN
 static lsock_bpf *obj;
+#endif
 
 struct Rule
 {
@@ -164,15 +169,9 @@ struct TaskSock
 	short rport; // 远端端口
 };
 
-#ifndef BUILTIN
 static struct Rule rule = {};
-static int filter_fd;
+#ifndef BUILTIN
 static std::atomic<bool> exit_flag(false);
-static std::vector<int> iter_fds;
-static Trace trace;
-static std::map<pid_t, std::vector<TaskSock>> task_sock;
-static std::map<u64 /* inode */, std::vector<TaskSock>> sock_task;
-static std::map<u64 /* inode */, BpfData> sock_info;
 
 static struct option lopts[] = {
 	{"sip",	required_argument, 0, 'i'},
@@ -474,6 +473,71 @@ static void rule_init()
 	rule.uid = -1;
 }
 
+static bool ipv6_zero(const struct in6_addr *ip)
+{
+	const u32 *a = (const u32 *)ip;
+	u32 mem_sz = sizeof(*ip) / sizeof(*a);
+
+	for (u32 i = 0; i < mem_sz; i++)
+	{
+		if (a[i] != 0)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+static int ipv6_cmp(const struct in6_addr *ipa, const struct in6_addr *ipb)
+{
+	const u32 *a = (const u32 *)ipa;
+	const u32 *b = (const u32 *)ipb;
+	u32 mem_sz = sizeof(*ipa) / sizeof(*a);
+
+	for (int i = mem_sz - 1; i >= 0; i--)
+	{
+		if (a[i] != b[i])
+		{
+			return a[i] > b[i] ? 1 : -1;
+		}
+	}
+	return 0;
+}
+
+static bool rule_match(const BpfData &log)
+{
+	bool ret = false;
+
+	if (rule.uid != (uid_t)-1 && log.uid != rule.uid)
+	{
+		return false;
+	}
+
+	ret = (rule.lport == 0 ||
+		   (rule.lport <= log.lport && log.lport <= rule.lport_end)) &&
+		  (rule.rport == 0 ||
+		   (rule.rport <= log.rport && log.rport <= rule.rport_end));
+	if (!ret)
+	{
+		return false;
+	}
+
+	if (log.log_type == LOG_UDP_IPV4 || log.log_type == LOG_TCP_IPV4)
+	{
+		return (rule.lip == 0 ||
+				(rule.lip <= log.lip && log.lip <= rule.lip_end)) &&
+			   (rule.rip == 0 ||
+				(rule.rip <= log.rip && log.rip <= rule.rip_end));
+	}
+
+	return (ipv6_zero(&rule.lipv6) ||
+			(ipv6_cmp(&rule.lipv6, &log.lipv6) <= 0 &&
+			 ipv6_cmp(&log.lipv6, &rule.lipv6_end) <= 0)) &&
+		   (ipv6_zero(&rule.ripv6) ||
+			(ipv6_cmp(&rule.ripv6, &log.ripv6) <= 0 &&
+			 ipv6_cmp(&log.ripv6, &rule.ripv6_end) <= 0));
+}
+
 static const char *unix_titles = "Num               "
 								 "RefCount "
 								 "Protocol "
@@ -771,6 +835,122 @@ static size_t process_ring_buf(const char *buf, size_t bsz)
 	return bsz;
 }
 
+#ifndef BUILTIN
+struct SockReadContext
+{
+	std::map<pid_t, std::vector<TaskSock>> task_sock;
+	std::map<u64, std::vector<TaskSock>> sock_task;
+};
+
+static int collect_sock_event(void *ctx, const void *data, size_t data_sz)
+{
+	if (!ctx || !data || data_sz < sizeof(DKapture::DataHdr))
+	{
+		return -EINVAL;
+	}
+
+	const auto *hdr = static_cast<const DKapture::DataHdr *>(data);
+	auto &out = *static_cast<SockReadContext *>(ctx);
+
+	if (hdr->type == DKapture::PROC_PID_sock)
+	{
+		if (data_sz < sizeof(DKapture::DataHdr) + sizeof(ProcPidSock))
+		{
+			return -EINVAL;
+		}
+
+		const auto *sk = reinterpret_cast<const ProcPidSock *>(hdr->data);
+		TaskSock ts = {};
+		ts.pid = hdr->pid;
+		ts.fd = sk->fd;
+		strncpy(ts.comm, hdr->comm, sizeof(ts.comm));
+		ts.comm[sizeof(ts.comm) - 1] = '\0';
+		ts.ino = sk->ino;
+		ts.family = sk->family;
+		ts.type = sk->type;
+		ts.state = sk->state;
+		ts.lipv6 = sk->lipv6;
+		ts.ripv6 = sk->ripv6;
+		ts.lport = sk->lport;
+		ts.rport = sk->rport;
+		out.task_sock[ts.pid].push_back(ts);
+		out.sock_task[ts.ino].push_back(ts);
+		return 0;
+	}
+
+	if (hdr->type != DKapture::PROC_SOCK_INFO)
+	{
+		return 0;
+	}
+	if (data_sz < sizeof(DKapture::DataHdr) + sizeof(ProcSockInfo))
+	{
+		return -EINVAL;
+	}
+
+	const auto *info = reinterpret_cast<const ProcSockInfo *>(hdr->data);
+	BpfData log = {};
+	log.log_type = (LogType)info->log_type;
+	log.lipv6 = info->lipv6;
+	log.ripv6 = info->ripv6;
+	log.lport = info->lport;
+	log.rport = info->rport;
+	log.state = info->state;
+	log.tx_queue = info->tx_queue;
+	log.rx_queue = info->rx_queue;
+	log.tr = info->tr;
+	log.retrnsmt = info->retrnsmt;
+	log.timeout = info->timeout;
+	log.uid = info->uid;
+	memcpy(log.sk_addr, info->sk_addr, sizeof(log.sk_addr));
+	log.tm_when = info->tm_when;
+	log.ino = info->ino;
+	log.icsk_rto = info->icsk_rto;
+	log.icsk_ack = info->icsk_ack;
+	log.bit_flags = info->bit_flags;
+	log.snd_cwnd = info->snd_cwnd;
+	log.sk_ref = info->sk_ref;
+	if (log.log_type == LOG_UNIX)
+	{
+		log.sk_type = info->sk_type;
+		log.plen = info->plen;
+	}
+	else
+	{
+		log.ssthresh = info->ssthresh;
+	}
+
+	if (!rule_match(log))
+	{
+		return 0;
+	}
+
+	if (log.log_type == LOG_UNIX && info->plen > 0)
+	{
+		size_t payload_sz =
+			sizeof(DKapture::DataHdr) + sizeof(ProcSockInfo) + info->plen;
+		if (data_sz < payload_sz)
+		{
+			return -EINVAL;
+		}
+
+		size_t log_sz = sizeof(BpfData) + info->plen;
+		if (log_sz % 8)
+		{
+			log_sz += 8 - log_sz % 8;
+		}
+
+		std::vector<char> storage(log_sz, 0);
+		memcpy(storage.data(), &log, sizeof(BpfData));
+		memcpy(storage.data() + sizeof(BpfData), info->path, info->plen);
+		process_ring_buf(storage.data(), storage.size());
+		return 0;
+	}
+
+	dump_log(log, sizeof(BpfData));
+	return 0;
+}
+#endif
+
 static u32 page_size = 4096;
 #define CIRCLE_BUF_SIZE (page_size * 2)
 
@@ -923,25 +1103,146 @@ parse_task_sock(const TaskSock ts, DKapture::DKCallback cb, void *ctx)
 	free(hdr);
 	return ret;
 }
-#endif
 
-static int get_task_sock(
-#ifndef BUILTIN
-	std::map<pid_t, std::vector<TaskSock>> &task_sock
-#else
+static int parse_sock_info(
+	const BpfData &log,
+	size_t left,
+	DKapture::DKCallback cb,
+	void *ctx
+)
+{
+	size_t extra = 0;
+	if (log.log_type == LOG_UNIX)
+	{
+		if (sizeof(BpfData) + log.plen > left)
+		{
+			return -EINVAL;
+		}
+		extra = log.plen;
+	}
+
+	size_t payload_sz = sizeof(ProcSockInfo) + extra;
+	size_t total_sz = sizeof(DKapture::DataHdr) + payload_sz;
+	DKapture::DataHdr *hdr = (typeof(hdr))malloc(total_sz);
+	if (!hdr)
+	{
+		pr_error("malloc: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	memset(hdr, 0, total_sz);
+	hdr->type = DKapture::PROC_SOCK_INFO;
+	hdr->dsz = total_sz;
+
+	ProcSockInfo *info = (typeof(info))hdr->data;
+	info->log_type = log.log_type;
+	info->lipv6 = log.lipv6;
+	info->ripv6 = log.ripv6;
+	info->lport = log.lport;
+	info->rport = log.rport;
+	info->state = log.state;
+	info->tx_queue = log.tx_queue;
+	info->rx_queue = log.rx_queue;
+	info->tr = log.tr;
+	info->retrnsmt = log.retrnsmt;
+	info->timeout = log.timeout;
+	info->uid = log.uid;
+	memcpy(info->sk_addr, log.sk_addr, sizeof(info->sk_addr));
+	info->tm_when = log.tm_when;
+	info->ino = log.ino;
+	info->icsk_rto = log.icsk_rto;
+	info->icsk_ack = log.icsk_ack;
+	info->bit_flags = log.bit_flags;
+	info->snd_cwnd = log.snd_cwnd;
+	info->sk_ref = log.sk_ref;
+	if (log.log_type == LOG_UNIX)
+	{
+		info->sk_type = log.sk_type;
+		info->plen = log.plen;
+		if (log.plen > 0)
+		{
+			memcpy(info->path, log.path, log.plen);
+		}
+	}
+	else
+	{
+		info->ssthresh = log.ssthresh;
+	}
+
+	int ret = cb(ctx, hdr, total_sz);
+	free(hdr);
+	return ret;
+}
+
+static int emit_sock_info(
+	int fd,
 	DKapture::DKCallback callback,
 	void *ctx
+)
+{
+	ssize_t rd_sz;
+	size_t left = 0;
+	const size_t buf_size = 8192;
+	std::vector<char> storage(buf_size);
+
+	while ((rd_sz = read(fd, storage.data() + left, storage.size() - left)) > 0)
+	{
+		const char *buf = storage.data();
+		size_t bsz = rd_sz + left;
+		while (bsz >= sizeof(BpfData))
+		{
+			const BpfData *log = (const BpfData *)buf;
+			size_t llen;
+			if (log->log_type == LOG_UNIX)
+			{
+				if (sizeof(BpfData) + log->plen > bsz)
+				{
+					break;
+				}
+				llen = sizeof(BpfData) + log->plen;
+			}
+			else
+			{
+				llen = sizeof(BpfData);
+			}
+			if (parse_sock_info(*log, bsz, callback, ctx) != 0)
+			{
+				return -1;
+			}
+			if (llen % 8)
+			{
+				llen += 8 - llen % 8;
+			}
+			bsz -= llen;
+			buf += llen;
+		}
+		left = bsz;
+		if (left > 0)
+		{
+			memmove(storage.data(), buf, left);
+		}
+	}
+
+	if (rd_sz < 0)
+	{
+		pr_error("read iter(%d): %s\n", fd, strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
 #endif
+
+#ifdef BUILTIN
+static int get_task_sock(
+	DKapture::DKCallback callback,
+	void *ctx
 )
 {
 	int fd = -1;
 	TaskSock *ti;
 	char *buf = nullptr;
 	ssize_t rd_sz;
-#ifndef BUILTIN
-	task_sock.clear();
-	sock_task.clear();
-#endif
 	fd = bpf_create_iter(obj->links.dump_task_ino, goto exit);
 	buf = new char[256];
 	while ((rd_sz = read(fd, buf, 256)) > 0)
@@ -949,15 +1250,10 @@ static int get_task_sock(
 		ti = (TaskSock *)buf;
 		while (rd_sz >= (ssize_t)sizeof(TaskSock))
 		{
-#ifndef BUILTIN
-			task_sock[ti->pid].push_back(*ti);
-			sock_task[ti->ino].push_back(*ti);
-#else
 			if (parse_task_sock(*ti, callback, ctx))
 			{
 				goto exit;
 			}
-#endif
 			rd_sz -= sizeof(TaskSock);
 			ti++;
 		}
@@ -966,58 +1262,6 @@ static int get_task_sock(
 	{
 		pr_error("read iter(%d): %s\n", fd, strerror(errno));
 	}
-
-#ifndef BUILTIN
-	if (0)
-	{ // for debug
-		int len;
-		len = printf("%10s %16s %10s", "pid", "comm", "ino\n");
-		while (len--)
-		{
-			printf("=");
-		}
-		printf("\n");
-		for (auto &it : task_sock)
-		{
-			auto &tss = it.second;
-			for (auto &ts : tss)
-			{
-				if (&ts == &tss[0])
-				{
-					printf("%10d %16s %10llu\n", ts.pid, ts.comm, ts.ino);
-				}
-				else
-				{
-					printf("%10s %16s %10llu\n", "", "", ts.ino);
-				}
-			}
-			printf("\n");
-		}
-		len = printf("%10s %10s %16s", "sock-ino", "pid", "comm\n");
-		while (len--)
-		{
-			printf("=");
-		}
-		printf("\n");
-		for (auto &it : sock_task)
-		{
-			auto &sts = it.second;
-			for (auto &st : sts)
-			{
-				if (&st == &sts[0])
-				{
-					printf("%10llu %10d %16s\n", st.ino, st.pid, st.comm);
-				}
-				else
-				{
-					printf("%10s %10d %16s\n", "", st.pid, st.comm);
-				}
-			}
-			printf("\n");
-		}
-		exit(0);
-	}
-#endif
 
 exit:
 	if (fd > 0)
@@ -1030,11 +1274,16 @@ exit:
 	}
 	return 0;
 }
+#endif
 
 #ifdef BUILTIN
 int lsock_query(DKapture::DKCallback callback, void *ctx)
 {
 	int ret = -1;
+	int iter_fd;
+	u32 key = 0;
+	int builtin_filter_fd = -1;
+	Rule builtin_rule = {};
 	obj = lsock_bpf::open();
 	if (!obj)
 	{
@@ -1052,6 +1301,35 @@ int lsock_query(DKapture::DKCallback callback, void *ctx)
 	}
 
 	ret = get_task_sock(callback, ctx);
+	if (ret != 0)
+	{
+		goto out;
+	}
+
+	builtin_filter_fd = bpf_get_map_fd(obj->obj, "filter", goto out);
+	builtin_rule.bit_switch = SWITCH_ALL;
+	builtin_rule.uid = -1;
+	bpf_map_update_elem(builtin_filter_fd, &key, &builtin_rule, BPF_ANY);
+
+	iter_fd = bpf_create_iter(obj->links.dump_tcp, goto out);
+	ret = emit_sock_info(iter_fd, callback, ctx);
+	close(iter_fd);
+	if (ret != 0)
+	{
+		goto out;
+	}
+
+	iter_fd = bpf_create_iter(obj->links.dump_udp, goto out);
+	ret = emit_sock_info(iter_fd, callback, ctx);
+	close(iter_fd);
+	if (ret != 0)
+	{
+		goto out;
+	}
+
+	iter_fd = bpf_create_iter(obj->links.dump_unix, goto out);
+	ret = emit_sock_info(iter_fd, callback, ctx);
+	close(iter_fd);
 out:
 	lsock_bpf::detach(obj);	 // Detach BPF program
 	lsock_bpf::destroy(obj); // Clean up BPF object
@@ -1060,98 +1338,32 @@ out:
 #else
 int main(int argc, char **argv)
 {
-	int iter_fd;
-	ssize_t rd_sz;
-	CircleBuf *cb;
-	u32 key = 0;
+	SockReadContext ctx = {};
 
 	rule_init();
 	parse_args(argc, argv);
-	page_size = sysconf(_SC_PAGESIZE);
-	DEBUG(0, "page size: %u\n", page_size);
-	DEBUG(0, "BpfData header size: %lu\n", sizeof(BpfData));
-
 	register_signal();
-	cb = new CircleBuf(CIRCLE_BUF_SIZE);
-	memset(cb->buf(), 0, CIRCLE_BUF_SIZE);
-
-	trace.start();
-	trace.async_follow();
-
-	obj = lsock_bpf::open();
-	if (!obj)
+	std::unique_ptr<DKapture> dk(DKapture::new_instance());
+	if (!dk)
 	{
-		goto err_out;
+		fprintf(stderr, "failed to create DKapture instance\n");
+		return 1;
 	}
-
-	if (lsock_bpf::load(obj) < 0)
+	if (dk->open(stderr, DKapture::ERROR) < 0)
 	{
-		goto err_out;
+		fprintf(stderr, "failed to open DKapture\n");
+		return 1;
 	}
-
-	if (0 != lsock_bpf::attach(obj))
+	if (dk->read(DKapture::PROC_PID_sock, collect_sock_event, &ctx) < 0)
 	{
-		goto err_out;
+		fprintf(stderr, "failed to read task socket data from DKapture\n");
+		return 1;
 	}
-
-	get_task_sock(task_sock);
-	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
-	bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY);
-
-	if (rule.bit_switch & SWITCH_TCP)
+	if (dk->read(DKapture::PROC_SOCK_INFO, collect_sock_event, &ctx) < 0)
 	{
-		iter_fd = bpf_create_iter(obj->links.dump_tcp, goto err_out);
-		iter_fds.push_back(iter_fd);
+		fprintf(stderr, "failed to read socket snapshot data from DKapture\n");
+		return 1;
 	}
-	if (rule.bit_switch & SWITCH_UDP)
-	{
-		iter_fd = bpf_create_iter(obj->links.dump_udp, goto err_out);
-		iter_fds.push_back(iter_fd);
-	}
-	if (rule.bit_switch & SWITCH_UNX)
-	{
-		iter_fd = bpf_create_iter(obj->links.dump_unix, goto err_out);
-		iter_fds.push_back(iter_fd);
-	}
-
-	for (auto fd : iter_fds)
-	{
-		size_t left = 0;
-		while ((rd_sz = read(fd, cb->buf(), CIRCLE_BUF_SIZE - left)) > 0)
-		{
-#if ITER_PASS_STRING
-			write(fileno(stdout), cb->buf(), rd_sz);
-#else
-			DEBUG(0, "rd_sz: %ld left: %lu\n", rd_sz, left);
-			left = process_ring_buf(
-				cb->buf() + CIRCLE_BUF_SIZE - left,
-				rd_sz + left
-			);
-#endif
-		}
-		if (rd_sz < 0)
-		{
-			pr_error("read iter(%d): %s\n", fd, strerror(errno));
-		}
-		close(fd);
-	}
-	trace.stop();
-
-	lsock_bpf::detach(obj);	 // Detach BPF program
-	lsock_bpf::destroy(obj); // Clean up BPF object
-	delete cb;
 	return 0;
-
-err_out:
-	if (obj)
-	{
-		lsock_bpf::detach(obj);	 // Detach BPF program
-		lsock_bpf::destroy(obj); // Clean up BPF object
-	}
-	if (cb)
-	{
-		delete cb;
-	}
-	return -1;
 }
 #endif
