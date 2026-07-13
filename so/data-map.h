@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: LGPL-2.1
 
 #pragma once
+#include <atomic>
 #include "limits.h"
 
 #include "ring-buffer.h"
@@ -41,6 +42,7 @@ class DataMap
 	volatile long *m_idx = nullptr;
 	DKapture::DKCallback m_user_cb = nullptr;
 	void *m_user_ctx = nullptr;
+	std::atomic<bool> m_closing = false;
 
 	int unsafe_find(ulong hash, ulong lifetime, void *buf, size_t bsz);
 	ulong unsafe_find(ulong bpf_idx) const;
@@ -55,6 +57,7 @@ class DataMap
 	DataMap();
 	~DataMap();
 	int find(ulong hash, ulong lifetime, void *buf, size_t bsz);
+	void shutdown();
 	void list_all_entrys(void);
 	void set_iterator(DKapture::DKCallback cb, void *ctx)
 	{

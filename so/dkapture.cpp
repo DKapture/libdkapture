@@ -11,11 +11,18 @@
 #include "data-map.h"
 #include "log.h"
 
+int peek_fd_deinit(void);
+
 class dkapture : public DKapture
 {
   private:
+	struct ObserverState
+	{
+		bool fd_watch = false;
+	};
 	DataMap *m_datamap = nullptr;
 	u64 m_lifetime = 10;
+	ObserverState m_observers = {};
 	pid_t parse_path(const char *path, DataType &pid);
 
   public:
@@ -39,6 +46,7 @@ class dkapture : public DKapture
 	virtual int kmemleak_scan_stop(void) override;
 	virtual int file_watch(const char *path, DKCallback cb, void *ctx) override;
 	virtual int fs_watch(const char *path, DKCallback cb, void *ctx) override;
+	virtual int fd_watch(const PeekFdRule *rule, DKCallback cb, void *ctx) override;
 	virtual int irq_watch(DKCallback cb, void *ctx) override;
 	virtual int close(void) override;
 	virtual ~dkapture() override;
@@ -87,6 +95,11 @@ err_out:
 
 int dkapture::close(void)
 {
+	if (m_observers.fd_watch)
+	{
+		peek_fd_deinit();
+		m_observers.fd_watch = false;
+	}
 	// Implementation for closing the capture
 	SAFE_DELETE(m_datamap);
 	return 0;
@@ -320,6 +333,12 @@ int trace_file_init(
 	int (*cb)(void *, const void *, size_t),
 	void *ctx
 );
+int peek_fd_init(
+	int argc,
+	char **argv,
+	int (*cb)(void *, const void *, size_t),
+	void *ctx
+);
 int dkapture::file_watch(const char *path, DKCallback cb, void *ctx)
 {
 	if (cb == nullptr)
@@ -341,6 +360,53 @@ int dkapture::file_watch(const char *path, DKCallback cb, void *ctx)
 		char *args[] = {arg0, arg1, arg2, 0};
 		return trace_file_init(3, args, cb, ctx);
 	}
+}
+
+int dkapture::fd_watch(const PeekFdRule *rule, DKCallback cb, void *ctx)
+{
+	if (!cb)
+	{
+		m_observers.fd_watch = false;
+		return peek_fd_deinit();
+	}
+	if (!rule || rule->pid < 0 || rule->fd < 0 || rule->rw == 0)
+	{
+		return -EINVAL;
+	}
+
+	char *arg0 = (char *)"dkapture";
+	char *arg1 = (char *)"-p";
+	char pid_s[16];
+	sprintf(pid_s, "%d", rule->pid);
+	char *arg2 = pid_s;
+	char *arg3 = (char *)"-f";
+	char fd_s[16];
+	sprintf(fd_s, "%d", rule->fd);
+	char *arg4 = fd_s;
+	char *args[9] = {arg0, arg1, arg2, arg3, arg4, nullptr, nullptr, nullptr,
+					 nullptr};
+	int argc = 5;
+	int idx = 5;
+
+	if (rule->rw & 1)
+	{
+		args[idx++] = (char *)"-r";
+	}
+	if (rule->rw & 2)
+	{
+		args[idx++] = (char *)"-w";
+	}
+	if (rule->sock)
+	{
+		args[idx++] = (char *)"-s";
+	}
+	argc = idx;
+	int ret = peek_fd_init(argc, args, cb, ctx);
+	if (ret == 0)
+	{
+		m_observers.fd_watch = true;
+	}
+	return ret;
 }
 
 int kmemleak_stop(void);

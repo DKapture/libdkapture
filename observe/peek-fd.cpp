@@ -9,16 +9,21 @@
 #include <string.h>
 #include <time.h>
 #include <sys/syscall.h>
-#include <bpf/bpf.h>
-#include <bpf/libbpf.h>
 #include <limits.h>
 #include <getopt.h>
 #include <string>
 #include <signal.h>
 #include <pthread.h>
+#include <memory>
 
-#include "peek-fd.skel.h"
 #include "com.h"
+#include "dkapture.h"
+
+#ifdef BUILTIN
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
+#include "peek-fd.skel.h"
+#endif
 
 // Constants for read and write flags
 #define FD_READ 1
@@ -44,11 +49,13 @@ struct BpfData
 };
 
 // Global variables
+#ifdef BUILTIN
 static peek_fd_bpf *obj;	   // BPF program object
 static int log_map_fd;		   // File descriptor for log map
 struct ring_buffer *rb = NULL; // Ring buffer for log events
 static int filter_fd;		   // File descriptor for filter map
 static pthread_t t1;		   // Thread for processing ring buffer
+#endif
 static bool exit_flag = false; // Flag to signal exit
 static bool enable_sock_trace;
 // Command line options
@@ -180,7 +187,7 @@ void parse_args(int argc, char **argv)
 }
 
 // Handle events from the ring buffer
-static int handle_event(void *ctx, void *data, size_t data_sz)
+static int handle_event(void *ctx, const void *data, size_t data_sz)
 {
 	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
 															  // BpfData
@@ -190,6 +197,22 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
+// Register signal handler for graceful exit
+void register_signal(void)
+{
+	struct sigaction sa;
+	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
+	sa.sa_flags = 0;							   // No special flags
+	sigemptyset(&sa.sa_mask); // No additional signals to block
+	// Register the signal handler for SIGINT
+	if (sigaction(SIGINT, &sa, NULL) == -1)
+	{
+		perror("sigaction");
+		exit(EXIT_FAILURE);
+	}
+}
+
+#ifdef BUILTIN
 // Worker thread for processing ring buffer
 void *ringbuf_worker(void *)
 {
@@ -206,19 +229,21 @@ void *ringbuf_worker(void *)
 	return NULL;
 }
 
-// Register signal handler for graceful exit
-void register_signal(void)
+int peek_fd_deinit(void)
 {
-	struct sigaction sa;
-	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
-	sa.sa_flags = 0;							   // No special flags
-	sigemptyset(&sa.sa_mask); // No additional signals to block
-	// Register the signal handler for SIGINT
-	if (sigaction(SIGINT, &sa, NULL) == -1)
+	exit_flag = true;
+	if (rb)
 	{
-		perror("sigaction");
-		exit(EXIT_FAILURE);
+		ring_buffer__free(rb);
+		rb = NULL;
 	}
+	if (obj)
+	{
+		peek_fd_bpf::detach(obj);
+		peek_fd_bpf::destroy(obj);
+		obj = nullptr;
+	}
+	return 0;
 }
 
 static void enable_read_trace(void)
@@ -279,11 +304,15 @@ static void enable_write_trace(void)
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_sendmmsg, true);
 }
 
-// Main function
-int main(int argc, char *args[])
+int peek_fd_init(
+	int argc,
+	char **args,
+	int (*cb)(void *, const void *, size_t),
+	void *ctx
+)
 {
 	parse_args(argc, args); // Parse command line arguments
-	register_signal();		// Register signal handler
+	exit_flag = false;
 
 	int key = 0;			   // Key for BPF map
 	obj = peek_fd_bpf::open(); // Load BPF program
@@ -315,7 +344,7 @@ int main(int argc, char *args[])
 
 	// Create a ring buffer for logs
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
-	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
+	rb = ring_buffer__new(log_map_fd, (ring_buffer_sample_fn)cb, ctx, NULL);
 	if (!rb)
 	{
 		goto err_out; // Handle error
@@ -324,16 +353,47 @@ int main(int argc, char *args[])
 	printf("start peeking\n");
 	// Create a thread for processing the ring buffer
 	pthread_create(&t1, NULL, ringbuf_worker, NULL);
-	follow_trace_pipe();	// Read trace pipe
-	pthread_join(t1, NULL); // Wait for the worker thread to finish
-	printf("normally exit\n");
+
+	return 0;
 
 err_out:
-	if (rb)
-	{
-		ring_buffer__free(rb); // Free ring buffer if allocated
-	}
-	peek_fd_bpf::detach(obj);  // Detach BPF program
-	peek_fd_bpf::destroy(obj); // Clean up BPF program
+	peek_fd_deinit();
 	return 0;				   // Exit successfully
 }
+#else
+int main(int argc, char *args[])
+{
+	parse_args(argc, args);
+	register_signal();
+
+	DKapture::PeekFdRule watch_rule = {
+		.pid = rule.pid,
+		.fd = rule.fd,
+		.rw = rule.rw,
+		.sock = enable_sock_trace,
+	};
+
+	std::unique_ptr<DKapture> dk(DKapture::new_instance());
+	if (!dk)
+	{
+		fprintf(stderr, "failed to create DKapture instance\n");
+		return 1;
+	}
+	if (dk->open(stderr, DKapture::ERROR) < 0)
+	{
+		fprintf(stderr, "failed to open DKapture\n");
+		return 1;
+	}
+	if (dk->fd_watch(&watch_rule, handle_event, NULL) < 0)
+	{
+		fprintf(stderr, "failed to start fd watch from DKapture\n");
+		return 1;
+	}
+
+	while (!exit_flag)
+	{
+		sleep(1);
+	}
+	return 0;
+}
+#endif

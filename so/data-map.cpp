@@ -75,11 +75,17 @@ DataMap::DataMap()
 
 DataMap::~DataMap(void)
 {
+	m_closing = true;
 	SAFE_DELETE(m_bpf_rb);
 	SAFE_DELETE(m_bpf);
 	SAFE_DELETE(m_lock);
 	SAFE_DELETE(m_rb);
 	SAFE_DELETE(m_shm);
+}
+
+void DataMap::shutdown()
+{
+	m_closing = true;
 }
 
 #define TIME_ns(ts) ((ts.tv_sec & 0xffffffff) * 1000000000UL + ts.tv_nsec)
@@ -212,6 +218,10 @@ int DataMap::handle_event(void *ctx, void *data, size_t data_sz)
 
 int DataMap::update(DKapture::DataType dt)
 {
+	if (m_closing)
+	{
+		return 0;
+	}
 	int err;
 	ssize_t rd_sz;
 	char buf[8]; // 实际上并没有使用
@@ -231,11 +241,14 @@ int DataMap::update(DKapture::DataType dt)
 	}
 	if (fd < 0)
 	{
-		pr_error(
-			"bpf_iter_create (%s): %s",
-			m_bpf->m_proc_iter_link_path.c_str(),
-			strerror(errno)
-		);
+		if (!m_closing || (errno != EBADF && errno != ENOENT))
+		{
+			pr_error(
+				"bpf_iter_create (%s): %s",
+				m_bpf->m_proc_iter_link_path.c_str(),
+				strerror(errno)
+			);
+		}
 		return -1;
 	}
 
@@ -247,9 +260,16 @@ int DataMap::update(DKapture::DataType dt)
 
 	if (rd_sz < 0)
 	{
-		pr_error("read iter(%d): %s(%d)", fd, strerror(errno), errno);
+		if (!m_closing || (errno != EBADF && errno != ENOENT))
+		{
+			pr_error("read iter(%d): %s(%d)", fd, strerror(errno), errno);
+		}
 	}
 	::close(fd);
+	if (m_closing)
+	{
+		return 0;
+	}
 	m_bpf->dump_task_file();
 
 	while ((err = m_bpf_rb->poll(0)) > 0)
@@ -258,7 +278,10 @@ int DataMap::update(DKapture::DataType dt)
 
 	if (err < 0)
 	{
-		pr_error("Error polling ring buffer: %d", err);
+		if (!m_closing || (errno != EBADF && errno != ENOENT))
+		{
+			pr_error("Error polling ring buffer: %d", err);
+		}
 	}
 	ulong dsz = *m_idx - sidx;
 	ulong bpf_idx = m_bpf_rb->get_consumer_index();
@@ -283,6 +306,10 @@ int DataMap::async_update(DKapture::DataType dt)
 	/**
 	 * TODO:
 	 */
+	if (m_closing)
+	{
+		return 0;
+	}
 	return 0;
 }
 
@@ -437,6 +464,10 @@ long DataMap::get_round_idx() const
 
 int DataMap::find(ulong hash, ulong lifetime, void *buf, size_t bsz)
 {
+	if (m_closing)
+	{
+		return -ESHUTDOWN;
+	}
 	/**
 	 * TODO: buf传入非法地址，导致异常访问段错误时，
 	 * 共享自旋锁没有解锁。
