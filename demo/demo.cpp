@@ -950,7 +950,7 @@ void run_file_watch(DKapture *dk)
 		}
 	}
 
-	dk->file_watch(nullptr, nullptr, nullptr);
+	dk->file_watch((const char *)nullptr, nullptr, nullptr);
 	printf("======== File Monitoring Completed ========\n\n");
 }
 

@@ -5,6 +5,7 @@
 #include <thread>
 #include <unistd.h>
 #include <system_error>
+#include <sys/sysmacros.h>
 
 #include "com.h"
 #include "dkapture.h"
@@ -14,8 +15,13 @@
 class dkapture : public DKapture
 {
   private:
+	struct ObserverState
+	{
+		bool file_watch = false;
+	};
 	DataMap *m_datamap = nullptr;
 	u64 m_lifetime = 10;
+	ObserverState m_observers = {};
 	pid_t parse_path(const char *path, DataType &pid);
 
   public:
@@ -37,6 +43,7 @@ class dkapture : public DKapture
 	virtual int
 	kmemleak_scan_start(pid_t pid, DKCallback cb, void *ctx) override;
 	virtual int kmemleak_scan_stop(void) override;
+	virtual int file_watch(const FileWatchRule *rule, DKCallback cb, void *ctx) override;
 	virtual int file_watch(const char *path, DKCallback cb, void *ctx) override;
 	virtual int fs_watch(const char *path, DKCallback cb, void *ctx) override;
 	virtual int irq_watch(DKCallback cb, void *ctx) override;
@@ -320,27 +327,52 @@ int trace_file_init(
 	int (*cb)(void *, const void *, size_t),
 	void *ctx
 );
-int dkapture::file_watch(const char *path, DKCallback cb, void *ctx)
+int dkapture::file_watch(const FileWatchRule *rule, DKCallback cb, void *ctx)
 {
 	if (cb == nullptr)
 	{
+		m_observers.file_watch = false;
 		return trace_file_deinit();
 	}
+	if (!rule || !rule->path || rule->path[0] == 0)
+	{
+		return -EINVAL;
+	}
 
-	if (path == nullptr || path[0] == 0)
+	char *arg0 = (char *)"dkapture";
+	char *arg1 = (char *)"-p";
+	char *arg2 = (char *)rule->path;
+	char *args[7] = {arg0, arg1, arg2, nullptr, nullptr, nullptr, nullptr};
+	int argc = 3;
+	char *arg3 = (char *)"-i";
+	char *arg4 = (char *)"-d";
+	char dev_s[32];
+
+	if (rule->use_inode)
 	{
-		char *arg0 = (char *)"dkapture";
-		char *args[] = {arg0, 0};
-		return trace_file_init(1, args, cb, ctx);
+		unsigned int major_num = major(rule->dev);
+		unsigned int minor_num = minor(rule->dev);
+		snprintf(dev_s, sizeof(dev_s), "%u:%u", major_num, minor_num);
+		args[argc++] = arg3;
+		args[argc++] = arg4;
+		args[argc++] = dev_s;
 	}
-	else
+
+	int ret = trace_file_init(argc, args, cb, ctx);
+	if (ret == 0)
 	{
-		char *arg0 = (char *)"dkapture";
-		char *arg1 = (char *)"-p";
-		char *arg2 = (char *)path;
-		char *args[] = {arg0, arg1, arg2, 0};
-		return trace_file_init(3, args, cb, ctx);
+		m_observers.file_watch = true;
 	}
+	return ret;
+}
+int dkapture::file_watch(const char *path, DKCallback cb, void *ctx)
+{
+	FileWatchRule rule = {
+		.path = path,
+		.use_inode = false,
+		.dev = 0,
+	};
+	return file_watch(cb ? &rule : nullptr, cb, ctx);
 }
 
 int kmemleak_stop(void);

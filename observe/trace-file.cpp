@@ -11,7 +11,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/syscall.h>
-#include <bpf/bpf.h>
 #include <signal.h>
 #include <getopt.h>
 #include <limits.h>
@@ -25,10 +24,14 @@
 #include <string>
 
 #include "com.h"
+#include "dkapture.h"
 #include "jhash.h"
 #include "usr-grp.h"
 
+#ifdef BUILTIN
+#include <bpf/bpf.h>
 #include "trace-file.skel.h"
+#endif
 
 #undef XATTR_NAME_MAX
 #define XATTR_NAME_MAX 256
@@ -44,12 +47,14 @@ static inline uint32_t dev_old2new(dev_t old)
 
 #define LOG_DUMP(type, log)                                                    \
 	{                                                                          \
-		type *slog = (typeof(slog))log;                                        \
+		type *slog = (type *)log;                                              \
 		slog->dump();                                                          \
 	}
 
+#ifdef BUILTIN
 static trace_file_bpf *obj;
 static std::thread *rb_thread;
+#endif
 
 enum LogType
 {
@@ -88,6 +93,8 @@ enum LogType
 	LOG_LSEEK,
 };
 
+namespace trace_file_local
+{
 struct BpfData
 {
 	uid_t uid;
@@ -844,18 +851,20 @@ struct SeekLog : public BpfData
 		);
 	}
 } __attribute__((__packed__));
+} // namespace trace_file_local
 
 #ifndef BUILTIN
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-	const struct BpfData *log = (const struct BpfData *)data;
+	const trace_file_local::BpfData *log =
+		(const trace_file_local::BpfData *)data;
 	switch (log->log_type)
 	{
 	case LOG_OPEN:
-		LOG_DUMP(struct OpenLog, log);
+		LOG_DUMP(trace_file_local::OpenLog, log);
 		break;
 	case LOG_CLOSE:
-		LOG_DUMP(struct CloseLog, log);
+		LOG_DUMP(trace_file_local::CloseLog, log);
 		break;
 	case LOG_GETXATTR:
 		fallthrough;
@@ -864,83 +873,90 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	case LOG_LISTXATTR:
 		fallthrough;
 	case LOG_REMOVEXATTR:
-		LOG_DUMP(struct XattrLog, log);
+		LOG_DUMP(trace_file_local::XattrLog, log);
 		break;
 	case LOG_GETACL:
 	case LOG_SETACL:
-		LOG_DUMP(struct AclLog, log);
+		LOG_DUMP(trace_file_local::AclLog, log);
 		break;
 	case LOG_CHOWN:
-		LOG_DUMP(struct ChownLog, log);
+		LOG_DUMP(trace_file_local::ChownLog, log);
 		break;
 	case LOG_CHMOD:
-		LOG_DUMP(struct ChmodLog, log);
+		LOG_DUMP(trace_file_local::ChmodLog, log);
 		break;
 	case LOG_STAT:
-		LOG_DUMP(struct StatLog, log);
+		LOG_DUMP(trace_file_local::StatLog, log);
 		break;
 	case LOG_MMAP:
-		LOG_DUMP(struct MmapLog, log);
+		LOG_DUMP(trace_file_local::MmapLog, log);
 		break;
 	case LOG_FLOCK:
-		LOG_DUMP(struct FlckLog, log);
+		LOG_DUMP(trace_file_local::FlckLog, log);
 		break;
 	case LOG_FCNTL:
-		LOG_DUMP(struct FcntlLog, log);
+		LOG_DUMP(trace_file_local::FcntlLog, log);
 		break;
 	case LOG_LINK:
-		LOG_DUMP(struct LinkLog, log);
+		LOG_DUMP(trace_file_local::LinkLog, log);
 		break;
 	case LOG_UNLINK:
-		LOG_DUMP(struct LinkLog, log);
+		LOG_DUMP(trace_file_local::LinkLog, log);
 		break;
 	case LOG_TRUNCATE:
-		LOG_DUMP(struct TruncateLog, log);
+		LOG_DUMP(trace_file_local::TruncateLog, log);
 		break;
 	case LOG_IOCTL:
-		LOG_DUMP(struct IoctlLog, log);
+		LOG_DUMP(trace_file_local::IoctlLog, log);
 		break;
 	case LOG_RENAME:
-		LOG_DUMP(struct RenameLog, log);
+		LOG_DUMP(trace_file_local::RenameLog, log);
 		break;
 	case LOG_FALLOCATE:
-		LOG_DUMP(struct FallocateLog, log);
+		LOG_DUMP(trace_file_local::FallocateLog, log);
 		break;
 	case LOG_READ:
 		fallthrough;
 	case LOG_WRITE:
-		LOG_DUMP(struct RwLog, log);
+		LOG_DUMP(trace_file_local::RwLog, log);
 		break;
 	case LOG_READV:
 		fallthrough;
 	case LOG_WRITEV:
-		LOG_DUMP(struct RwvLog, log);
+		LOG_DUMP(trace_file_local::RwvLog, log);
 		break;
 	case LOG_COPY_FILE_RANGE:
 		fallthrough;
 	case LOG_SENDFILE:
 		fallthrough;
 	case LOG_SPLICE:
-		LOG_DUMP(struct CopyLog, log);
+		LOG_DUMP(trace_file_local::CopyLog, log);
 		break;
 	case LOG_MKNOD:
 		fallthrough;
 	case LOG_MKDIR:
 		fallthrough;
 	case LOG_RMDIR:
-		LOG_DUMP(struct DirLog, log);
+		LOG_DUMP(trace_file_local::DirLog, log);
 		break;
 	case LOG_SYMLINK:
-		LOG_DUMP(struct SymLinkLog, log);
+		LOG_DUMP(trace_file_local::SymLinkLog, log);
 		break;
 	case LOG_LSEEK:
-		LOG_DUMP(struct SeekLog, log);
+		LOG_DUMP(trace_file_local::SeekLog, log);
 		break;
 	case LOG_NONE:
 		BUG("LOG_NONE should not be handled\n");
 		break;
 	}
 	return 0;
+}
+#endif
+
+#ifndef BUILTIN
+static int handle_watch_event(void *ctx, const void *data, size_t data_sz)
+{
+	return handle_event(ctx, (void *)data, data_sz);
 }
 #endif
 
@@ -955,10 +971,14 @@ union Rule
 	};
 } static rule = {};
 
+static char target_path[PATH_MAX];
+#ifdef BUILTIN
 static int filter_fd;
 static int log_map_fd;
-static bool use_inode = false;
 static struct ring_buffer *rb = NULL;
+#endif
+static bool use_inode = false;
+static bool has_dev = false;
 static std::atomic<bool> exit_flag(false);
 
 static struct option lopts[] = {
@@ -981,9 +1001,9 @@ static HelpMsg help_msg[] = {
 	{"<path>", "file path to trace\n"								 },
 	{"[dev]",
 	 "when using the inode number of <path> as the filter,\n"
-	 "\tthis option specify the device number of filesystem to which\n"
-	 "\tthe inode belong.\n"
-	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"
+	 "\tthis option specifies the filesystem device id.\n"
+	 "\tprefer raw decimal st_dev from 'stat -c %d <file>'\n"
+	 "\tmajor:minor form is also accepted when it matches the current kernel dev encoding.\n"
 	}, // 更新帮助信息
 	{"<ino>",  "use file inode as filter\n"						  },
 	{"",		 "print this help message\n"							},
@@ -1038,8 +1058,10 @@ static dev_t dev_num;
 static void parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
-	char buf[PATH_MAX] = {0};
-	memset(buf, 0, PATH_MAX);
+	target_path[0] = 0;
+	dev_num = 0;
+	use_inode = false;
+	has_dev = false;
 	optind = 1;
 	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
 												   // short options
@@ -1048,44 +1070,40 @@ static void parse_args(int argc, char **argv)
 		switch (opt)
 		{
 		case 'p':
-			if (use_inode)
-			{
-				printf("error: -p option cannot be used together with -i "
-					   "option\n");
-				Usage(argv[0]);
-				exit(-1);
-			}
-			strncpy(rule.path, optarg, PATH_MAX);
-			rule.path[PATH_MAX - 1] = 0;
+			strncpy(target_path, optarg, PATH_MAX);
+			target_path[PATH_MAX - 1] = 0;
 			// remove the tailing '/'
-			if (rule.path[strlen(rule.path) - 1] == '/')
+			if (target_path[0] && target_path[strlen(target_path) - 1] == '/')
 			{
-				rule.path[strlen(rule.path) - 1] = 0;
+				target_path[strlen(target_path) - 1] = 0;
 			}
 			DEBUG(0, "path: %s\n", optarg);
 			break;
 		case 'd':
-			// 解析设备号，格式为 "major:minor"
+		{
 			unsigned int major_num, minor_num;
-			if (sscanf(optarg, "%u:%u", &major_num, &minor_num) != 2)
+			if (sscanf(optarg, "%u:%u", &major_num, &minor_num) == 2)
 			{
-				printf(
-					"dev format error: %s (should be major:minor)\n",
-					optarg
-				);
-				exit(-1);
+				dev_num = makedev(major_num, minor_num);
 			}
-			dev_num = makedev(major_num, minor_num);
-			rule.not_inode = 0;
+			else
+			{
+				char *end = nullptr;
+				unsigned long long raw_dev = strtoull(optarg, &end, 0);
+				if (!optarg[0] || !end || *end != '\0')
+				{
+					printf(
+						"dev format error: %s (should be major:minor or raw decimal st_dev)\n",
+						optarg
+					);
+					exit(-1);
+				}
+				dev_num = (dev_t)raw_dev;
+			}
+			has_dev = true;
 			break;
+		}
 		case 'i':
-			if (rule.path[0])
-			{
-				printf("error: -i option cannot be used together with -p "
-					   "option\n");
-				Usage(argv[0]);
-				exit(-1);
-			}
 			use_inode = true;
 			break;
 		case 'h': // Help
@@ -1100,8 +1118,14 @@ static void parse_args(int argc, char **argv)
 	}
 
 	if (use_inode)
-	{ // the memory data of dev_num must not be all zero
-		if (dev_num == 0)
+	{
+		if (target_path[0] == 0)
+		{
+			printf("error: -i option requires -p option to set target file\n");
+			Usage(argv[0]);
+			exit(-1);
+		}
+		if (!has_dev)
 		{
 			printf("error: -i option requires -d option to set device number "
 				   "of "
@@ -1110,20 +1134,21 @@ static void parse_args(int argc, char **argv)
 			exit(-1);
 		}
 	}
-	else if (dev_num)
+	else if (has_dev)
 	{
 		printf("error: -d option must be applied with -i option\n"
 		); // 更新错误信息
 		Usage(argv[0]);
 		exit(-1);
 	}
-	else if (rule.path[0] == 0)
+	else if (target_path[0] == 0)
 	{
 		printf("use -p option to set target file path to monitor on\n");
 		exit(0);
 	}
 }
 
+#ifdef BUILTIN
 static void ringbuf_worker(void)
 {
 	while (!exit_flag)
@@ -1137,6 +1162,7 @@ static void ringbuf_worker(void)
 		}
 	}
 }
+#endif
 
 #ifndef BUILTIN
 static void register_signal()
@@ -1158,10 +1184,15 @@ static void register_signal()
 }
 #endif
 
+#ifdef BUILTIN
 static int update_filter(int filter_fd)
 {
 	ssize_t rd_sz;
 	int target_fd;
+	u32 key = 0;
+	memset(&rule, 0, sizeof(rule));
+	strncpy(rule.path, target_path, PATH_MAX);
+	rule.path[PATH_MAX - 1] = 0;
 
 	int iter_fd = bpf_iter_create(bpf_link__fd(obj->links.find_file_inode));
 	if (iter_fd < 0)
@@ -1170,28 +1201,35 @@ static int update_filter(int filter_fd)
 		return -1;
 	}
 
-	target_fd = open(rule.path, O_RDONLY);
+	target_fd = open(target_path, O_RDONLY);
 	if (target_fd < 0)
 	{
-		pr_error("open err: %s: %s\n", rule.path, strerror(errno));
+		pr_error("open err: %s: %s\n", target_path, strerror(errno));
 		close(iter_fd);
 		return errno;
 	}
 
-	printf("watch events on file: %s\n", rule.path);
+	printf("watch events on file: %s\n", target_path);
 
 	if (use_inode)
 	{
 		struct stat statbuf;
 		if (0 != fstat(target_fd, &statbuf))
 		{
-			pr_error("stat %s err: %s", rule.path, strerror(errno));
+			pr_error("stat %s err: %s", target_path, strerror(errno));
 			close(iter_fd);
 			return errno;
 		}
 		rule.not_inode = 0;
 		rule.inode = statbuf.st_ino;
 		rule.dev = dev_num;
+	}
+
+	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
+	{
+		pr_error("failed to update filter map: %s\n", strerror(errno));
+		close(iter_fd);
+		return -errno;
 	}
 
 	char *buf = (typeof(buf))malloc(4096);
@@ -1234,6 +1272,7 @@ int trace_file_deinit(void)
 	}
 	return 0;
 }
+#endif
 
 #ifdef BUILTIN
 int trace_file_init(
@@ -1246,13 +1285,9 @@ int trace_file_init(
 int main(int argc, char **argv)
 #endif
 {
-	u32 key = 0;
-	parse_args(argc, argv);
+#ifdef BUILTIN
 	exit_flag = false;
-
-#ifndef BUILTIN
-	register_signal();
-#endif
+	parse_args(argc, argv);
 
 	obj = trace_file_bpf::open_and_load();
 	if (!obj)
@@ -1267,11 +1302,6 @@ int main(int argc, char **argv)
 	DEBUG(0, "bpf attach ok!!!\n");
 
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
-	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
-	{
-		goto err_out;
-	}
-
 	if (update_filter(filter_fd) != 0)
 	{
 		goto err_out;
@@ -1294,12 +1324,42 @@ int main(int argc, char **argv)
 		goto err_out; // Handle error
 	}
 
-#ifdef BUILTIN
 	return 0;
-#endif
-	follow_trace_pipe();
-
 err_out:
 	trace_file_deinit();
 	return -1;
+#else
+	register_signal();
+	parse_args(argc, argv);
+
+	std::unique_ptr<DKapture> dk(DKapture::new_instance());
+	if (!dk)
+	{
+		pr_error("failed to create DKapture instance\n");
+		return -1;
+	}
+	if (dk->open() != 0)
+	{
+		pr_error("failed to open DKapture\n");
+		return -1;
+	}
+
+	DKapture::FileWatchRule watch_rule = {
+		.path = target_path,
+		.use_inode = use_inode,
+		.dev = dev_num,
+	};
+	if (dk->file_watch(&watch_rule, handle_watch_event, nullptr) != 0)
+	{
+		pr_error("failed to start file watcher\n");
+		return -1;
+	}
+
+	while (!exit_flag)
+	{
+		sleep(1);
+	}
+	dk->close();
+	return 0;
+#endif
 }
