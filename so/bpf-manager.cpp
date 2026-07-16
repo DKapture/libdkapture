@@ -28,7 +28,7 @@ int BPFManager::bpf_find_map(const char *name)
 	int fd = -1;
 	struct bpf_map_info info = {};
 	u32 len = sizeof(info);
-	std::string map_pin_path(PIN_PATH "/map-");
+	std::string map_pin_path(PIN_PATH "/");
 	map_pin_path += name;
 	if (access(map_pin_path.c_str(), F_OK) != 0)
 	{
