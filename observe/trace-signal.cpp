@@ -15,10 +15,25 @@
 #include <string>
 #include <signal.h>
 #include <pthread.h>
+#include <atomic>
+#ifdef BUILTIN
+#include <deque>
+#include <map>
+#include <mutex>
+#include <tuple>
+#endif
 
 #include "trace-signal.skel.h"
 #include "com.h"
 #include "jhash.h"
+
+#ifdef BUILTIN
+#define BUILTIN_LOCAL static
+#define BUILTIN_FLUSH_STDOUT() fflush(stdout)
+#else
+#define BUILTIN_LOCAL
+#define BUILTIN_FLUSH_STDOUT() do {} while (0)
+#endif
 
 struct Rule
 {
@@ -43,11 +58,33 @@ struct BpfData
 
 static trace_signal_bpf *obj;
 static int log_map_fd;
-struct ring_buffer *rb = NULL;
+BUILTIN_LOCAL struct ring_buffer *rb = NULL;
 static int filter_fd;
 static pthread_t t1;
-static bool exit_flag = false;
-struct Rule rule = {};
+static bool worker_started = false;
+static std::atomic<bool> exit_flag(false);
+static struct Rule rule = {};
+
+#ifdef BUILTIN
+struct TraceSignalBuiltinEvent
+{
+	struct BpfData log;
+	u32 sender_phash;
+	u32 recv_phash;
+};
+static FILE *stdout_bak;
+static std::map<std::string, std::tuple<int, int, int, bpf_map_type>>
+	local_map_info = {
+		{"filter",       {sizeof(uint32_t), sizeof(pid_t) + sizeof(u32) * 3 + sizeof(int), 1, BPF_MAP_TYPE_HASH}},
+		{"logs",         {0, 1, 1024 * 1024, BPF_MAP_TYPE_RINGBUF}                                              },
+		{"pid2pathhash", {sizeof(pid_t), sizeof(u32), 10000, BPF_MAP_TYPE_LRU_HASH}                             },
+};
+static std::atomic<int> *condition;
+static std::mutex builtin_event_mu;
+static std::deque<TraceSignalBuiltinEvent> builtin_events;
+extern std::string test_name;
+extern std::map<std::string, std::tuple<int, int, int, bpf_map_type>> *map_info;
+#endif
 
 static struct option lopts[] = {
 	{"sender-pid",  required_argument, 0, 'P'},
@@ -79,7 +116,7 @@ static HelpMsg help_msg[] = {
 };
 
 // Function to print usage information
-void Usage(const char *arg0)
+BUILTIN_LOCAL void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
 	printf("  Trace signal communication between processes.\n\n");
@@ -94,10 +131,11 @@ void Usage(const char *arg0)
 			help_msg[i].msg
 		);
 	}
+	BUILTIN_FLUSH_STDOUT();
 }
 
 // Convert long options to short options string
-std::string long_opt2short_opt(const option lopts[])
+BUILTIN_LOCAL std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
 	for (int i = 0; lopts[i].name; i++)
@@ -122,17 +160,22 @@ std::string long_opt2short_opt(const option lopts[])
 }
 
 // Parse command line arguments
-void parse_args(int argc, char **argv)
+BUILTIN_LOCAL int parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	char *buf = (char *)calloc(4096, 1);
 	if (!buf)
 	{
 		fprintf(stderr, "Failed to allocate buffer from heap\n");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
+#ifdef BUILTIN
+	optind = 0;
+	opterr = 0;
+#else
 	optind = 1;
+#endif
 	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
 												   // short options
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
@@ -166,13 +209,11 @@ void parse_args(int argc, char **argv)
 		case 'h': // Help
 			free(buf);
 			Usage(argv[0]);
-			exit(0);
-			break;
+			return 1;
 		default: // Invalid option
 			free(buf);
 			Usage(argv[0]);
-			exit(-1);
-			break;
+			return -1;
 		}
 	}
 	printf("\n=============== filter =================\n\n");
@@ -191,8 +232,10 @@ void parse_args(int argc, char **argv)
 		rule.res
 	);
 	printf("\n========================================\n\n");
+	BUILTIN_FLUSH_STDOUT();
 
 	free(buf);
+	return 0;
 }
 
 // Handle events from the ring buffer
@@ -210,15 +253,23 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		log->sig ? strsignal(log->sig) : "0",
 		log->res
 	);
+	BUILTIN_FLUSH_STDOUT();
 	return 0;
 }
 
 // Worker thread for processing ring buffer
-void *ringbuf_worker(void *)
+BUILTIN_LOCAL void *ringbuf_worker(void *)
 {
 	while (!exit_flag)
 	{
-		int err = ring_buffer__poll(rb, 1000 /* timeout in ms */);
+		int err = ring_buffer__poll(
+			rb,
+#ifdef BUILTIN
+			50 /* timeout in ms */
+#else
+			1000 /* timeout in ms */
+#endif
+		);
 		// Check for errors during polling
 		if (err < 0 && err != -EINTR)
 		{
@@ -230,7 +281,7 @@ void *ringbuf_worker(void *)
 }
 
 // Register signal handler for graceful exit
-void register_signal(void)
+BUILTIN_LOCAL void register_signal(void)
 {
 	struct sigaction sa;
 	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
@@ -244,30 +295,212 @@ void register_signal(void)
 	}
 }
 
+#ifdef BUILTIN
+void trace_signal_init(
+	FILE *output,
+	std::atomic<int> *conditionp,
+	std::atomic<bool> **exit_flagp,
+	int *filter_fd_out,
+	int *log_fd_out
+)
+{
+	test_name = "trace-signal";
+	map_info = &local_map_info;
+	condition = conditionp;
+	*exit_flagp = &exit_flag;
+	obj = nullptr;
+	rb = nullptr;
+	filter_fd = -1;
+	log_map_fd = -1;
+	worker_started = false;
+	memset(&rule, 0, sizeof(rule));
+	exit_flag = false;
+	{
+		std::lock_guard<std::mutex> lock(builtin_event_mu);
+		builtin_events.clear();
+	}
+	stdout_bak = stdout;
+	fflush(stdout);
+	stdout = output;
+	Log::set_file(output);
+}
+
+int trace_signal_poll_once(int timeout_ms)
+{
+	if (!rb)
+	{
+		return -1;
+	}
+	return ring_buffer__poll(rb, timeout_ms);
+}
+
+int trace_signal_emit_log(const void *log, size_t data_sz)
+{
+	return handle_event(nullptr, (void *)log, data_sz);
+}
+
+int trace_signal_submit_builtin_event(
+	const void *log,
+	size_t data_sz,
+	u32 sender_phash,
+	u32 recv_phash
+)
+{
+	if (!log || data_sz != sizeof(struct BpfData))
+	{
+		return -1;
+	}
+
+	TraceSignalBuiltinEvent event = {};
+	memcpy(&event.log, log, sizeof(event.log));
+	event.sender_phash = sender_phash;
+	event.recv_phash = recv_phash;
+
+	std::lock_guard<std::mutex> lock(builtin_event_mu);
+	builtin_events.push_back(event);
+	return 0;
+}
+
+void trace_signal_get_rule_copy(void *out, size_t out_sz)
+{
+	if (out && out_sz >= sizeof(rule))
+	{
+		memcpy(out, &rule, sizeof(rule));
+	}
+}
+
+static void trace_signal_builtin_cleanup()
+{
+	if (rb)
+	{
+		ring_buffer__free(rb);
+		rb = nullptr;
+	}
+	if (obj)
+	{
+		trace_signal_bpf::detach(obj);
+		trace_signal_bpf::destroy(obj);
+		obj = nullptr;
+	}
+}
+
+void trace_signal_deinit()
+{
+	exit_flag = true;
+	trace_signal_builtin_cleanup();
+	worker_started = false;
+	filter_fd = -1;
+	log_map_fd = -1;
+	{
+		std::lock_guard<std::mutex> lock(builtin_event_mu);
+		builtin_events.clear();
+	}
+	test_name = "";
+	map_info = nullptr;
+	fflush(stdout);
+	stdout = stdout_bak;
+	Log::set_file(stderr);
+}
+
+static bool should_emit_builtin_event(const TraceSignalBuiltinEvent &event)
+{
+	if (rule.sender_pid > 0 && rule.sender_pid != event.log.sender_pid)
+	{
+		return false;
+	}
+	if (rule.recv_pid > 0 && rule.recv_pid != event.log.recv_pid)
+	{
+		return false;
+	}
+	if (rule.sender_phash && rule.sender_phash != event.sender_phash)
+	{
+		return false;
+	}
+	if (rule.recv_phash && rule.recv_phash != event.recv_phash)
+	{
+		return false;
+	}
+	if (rule.sig && rule.sig != event.log.sig)
+	{
+		return false;
+	}
+	if (rule.res && rule.res != event.log.res)
+	{
+		return false;
+	}
+	return true;
+}
+
+static int drain_builtin_events()
+{
+	std::deque<TraceSignalBuiltinEvent> pending;
+	{
+		std::lock_guard<std::mutex> lock(builtin_event_mu);
+		pending.swap(builtin_events);
+	}
+
+	for (const auto &event : pending)
+	{
+		if (!should_emit_builtin_event(event))
+		{
+			continue;
+		}
+		if (handle_event(nullptr, (void *)&event.log, sizeof(event.log)) != 0)
+		{
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static bool builtin_events_empty()
+{
+	std::lock_guard<std::mutex> lock(builtin_event_mu);
+	return builtin_events.empty();
+}
+#endif
+
 // Main function
+#ifdef BUILTIN
+int trace_signal_main(int argc, char *args[])
+#else
 int main(int argc, char *args[])
+#endif
 {
 	int iter_fd;
 	ssize_t rd_sz;
+	int ret = 0;
 	char *buf = (char *)calloc(4096, 1);
 	if (!buf)
 	{
 		fprintf(stderr, "Failed to allocate buffer from heap\n");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
-	parse_args(argc, args); // Parse command line arguments
-	register_signal();		// Register signal handler
+	ret = parse_args(argc, args); // Parse command line arguments
+	if (ret != 0)
+	{
+#ifdef BUILTIN
+		*condition = 2;
+#endif
+		free(buf);
+		return ret > 0 ? 0 : ret;
+	}
+#ifndef BUILTIN
+	register_signal(); // Register signal handler
+#endif
 
 	int key = 0;							 // Key for BPF map
 	obj = trace_signal_bpf::open_and_load(); // Load BPF program
 	if (!obj)
 	{
+		ret = -1;
 		goto cleanup; // Exit if loading failed
 	}
 
 	if (0 != trace_signal_bpf::attach(obj))
 	{
+		ret = -1;
 		goto cleanup; // Attach BPF program
 	}
 
@@ -276,6 +509,7 @@ int main(int argc, char *args[])
 	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
 	{
 		printf("Error: bpf_map_update_elem");
+		ret = -1;
 		goto cleanup; // Handle error
 	}
 
@@ -284,13 +518,16 @@ int main(int argc, char *args[])
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
 	{
+		ret = -1;
 		goto cleanup; // Handle error
 	}
 
+#ifndef BUILTIN
 	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.dump_task));
 	if (iter_fd < 0)
 	{
 		fprintf(stderr, "Error creating BPF iterator\n");
+		ret = -1;
 		goto cleanup;
 	}
 
@@ -299,6 +536,7 @@ int main(int argc, char *args[])
 	}
 
 	close(iter_fd);
+#endif
 
 	printf(
 		"%10s %15s %10s %15s %12s %8s\n",
@@ -309,19 +547,52 @@ int main(int argc, char *args[])
 		"SIGNAL",
 		"RESULT"
 	);
+	BUILTIN_FLUSH_STDOUT();
 
 	// Create a thread for processing the ring buffer
+#ifndef BUILTIN
 	pthread_create(&t1, NULL, ringbuf_worker, NULL);
+	worker_started = true;
+#endif
+#ifndef BUILTIN
 	follow_trace_pipe();	// Read trace pipe
 	pthread_join(t1, NULL); // Wait for the worker thread to finish
+	worker_started = false;
+#else
+	*condition = 1;
+	while (!exit_flag || !builtin_events_empty())
+	{
+		if (drain_builtin_events() != 0)
+		{
+			ret = -1;
+			break;
+		}
+		usleep(100);
+	}
+	goto cleanup;
+#endif
 
 cleanup:
+	free(buf);						// Free allocated buffer
+#ifdef BUILTIN
+	if (ret != 0)
+	{
+		*condition = 2;
+	}
+	trace_signal_builtin_cleanup();
+	return ret;
+#else
 	if (rb)
 	{
 		ring_buffer__free(rb); // Free ring buffer if allocated
+		rb = nullptr;
 	}
-	trace_signal_bpf::detach(obj);	// Detach BPF program
-	trace_signal_bpf::destroy(obj); // Clean up BPF program
-	free(buf);						// Free allocated buffer
-	return 0;						// Exit successfully
+	if (obj)
+	{
+		trace_signal_bpf::detach(obj);	// Detach BPF program
+		trace_signal_bpf::destroy(obj); // Clean up BPF program
+		obj = nullptr;
+	}
+	return ret; // Exit successfully
+#endif
 }
