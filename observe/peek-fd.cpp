@@ -16,8 +16,14 @@
 #include <string>
 #include <signal.h>
 #include <pthread.h>
+#include <atomic>
 
 #include "peek-fd.skel.h"
+#include <mutex>
+#include <condition_variable>
+#include <future>
+#include <map>
+#include <memory>
 #include "com.h"
 
 // Constants for read and write flags
@@ -30,7 +36,8 @@ struct Rule
 	pid_t pid; // Process ID to filter
 	int fd;	   // File descriptor to watch
 	int rw;	   // Read/Write flags
-} rule = {
+}; 
+static struct Rule rule= {
 	.pid = -1,
 	.fd = -1,
 	.rw = 0 // Default to watch both read and write
@@ -46,11 +53,48 @@ struct BpfData
 // Global variables
 static peek_fd_bpf *obj;	   // BPF program object
 static int log_map_fd;		   // File descriptor for log map
-struct ring_buffer *rb = NULL; // Ring buffer for log events
+static struct ring_buffer *rb = NULL; // Ring buffer for log events
 static int filter_fd;		   // File descriptor for filter map
 static pthread_t t1;		   // Thread for processing ring buffer
-static bool exit_flag = false; // Flag to signal exit
+static std::atomic<bool> exit_flag(false); // Flag to signal exit
 static bool enable_sock_trace;
+#ifdef BUILTIN
+struct PeekFds
+{
+	int filter_fd;
+	int logs_fd;
+
+};
+struct PeekFdSync
+{
+	std::mutex m;
+	std::condition_variable cv;
+	bool init_done = false;
+	bool exit_requested = false;
+};
+struct PeekFdRuntime
+{
+	PeekFdSync sync;
+	std::promise<PeekFds> fds_promise;
+	std::atomic<bool> *exit_flag = nullptr;
+};
+enum EventType
+{
+	EVENT_READ,
+	EVENT_WRITE,
+	EVENT_RECVFROM,
+	EVENT_SENDTO,
+};
+static FILE *stdout_bak;
+static std::map<std::string, std::tuple<int, int, int, bpf_map_type>> 
+local_map_info = {
+	{"filter", {sizeof(unsigned int), sizeof(struct Rule), 1, BPF_MAP_TYPE_HASH}},
+	{"logs", {0, 1, 10* 1024 * 1024, BPF_MAP_TYPE_RINGBUF}},
+};
+static std::shared_ptr<PeekFdRuntime> runtime_state;
+extern std::string test_name;
+extern std::map<std::string,std::tuple<int, int, int, bpf_map_type>> *map_info;
+#endif
 // Command line options
 static struct option lopts[] = {
 	{"pid",		required_argument, 0, 'p'},
@@ -82,7 +126,7 @@ static HelpMsg help_msg[] = {
 };
 
 // Function to print usage information
-void Usage(const char *arg0)
+static void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
 	printf("  Trace file descriptor IO data of a specific process on the "
@@ -102,7 +146,7 @@ void Usage(const char *arg0)
 }
 
 // Convert long options to short options string
-std::string long_opt2short_opt(const option lopts[])
+static std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
 	for (int i = 0; lopts[i].name; i++)
@@ -127,10 +171,11 @@ std::string long_opt2short_opt(const option lopts[])
 }
 
 // Parse command line arguments
-void parse_args(int argc, char **argv)
+static int parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
-	optind = 1;
+	optind = 0;
+	opterr = 0;
 	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
 												   // short options
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
@@ -138,14 +183,46 @@ void parse_args(int argc, char **argv)
 		switch (opt)
 		{
 		case 'p': // Process ID
-			rule.pid = strtol(optarg, NULL, 10);
+		{
+			char *end = nullptr;
+			errno = 0;
+			long val = strtol(optarg, &end, 10);
+			if (end == optarg || *end != '\0' || errno == ERANGE || val <= 0 || val > INT_MAX)
+			{
+				printf("wrong pid value: %s, must be a positive integer\n", optarg);
+#ifndef BUILTIN
+				exit(-1);
+#else
+				return -1;
+#endif
+			}
+			rule.pid = (int)val;
 			break;
+		}
 		case 'f': // File descriptor
-			rule.fd = strtol(optarg, NULL, 10);
+		{
+			char *end = nullptr;
+			errno = 0;
+			long val = strtol(optarg, &end, 10);
+			if (end == optarg || *end != '\0' || errno == ERANGE || val < 0 || val > INT_MAX)
+			{
+				printf("wrong fd value: %s, must be a non-negative integer\n", optarg);
+#ifndef BUILTIN
+				exit(-1);
+#else
+				return -1;
+#endif
+			}
+			rule.fd = (int)val;
 			break;
+		}
 		case 'h': // Help
 			Usage(argv[0]);
+#ifndef BUILTIN
 			exit(0);
+#else
+			return 1;
+#endif
 			break;
 		case 'r': // Read flag
 			rule.rw |= FD_READ;
@@ -161,7 +238,11 @@ void parse_args(int argc, char **argv)
 			break;
 		default: // Invalid option
 			Usage(argv[0]);
+#ifndef BUILTIN
 			exit(-1);
+#else
+			return -1;
+#endif
 			break;
 		}
 	}
@@ -170,32 +251,58 @@ void parse_args(int argc, char **argv)
 	{
 		printf("\nYou need to specify which process and which fd to \n"
 			   "watch on by the options -pid(-p) and -fd(-f)\n\n");
+#ifndef BUILTIN
 		exit(-1);
+#else
+		return -1;
+#endif
 	}
 	if (rule.rw == 0)
 	{
 		printf("\nYou need to specify at least one of option -r/-w\n\n");
+#ifndef BUILTIN
 		exit(-1);
+#else
+		return -1;
+#endif
 	}
+	return 0;
 }
 
 // Handle events from the ring buffer
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
+	if (data_sz < sizeof(ssize_t)) 
+	{
+		return 0;
+	}
 	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
 															  // BpfData
 															  // structure
+	if (log->sz < 0) 
+	{
+		return 0;
+	}
+	size_t payload_sz = data_sz - sizeof(ssize_t);
+	if ((size_t)log->sz > payload_sz) 
+	{
+		return 0;
+	}
 	fwrite(log->buf, 1, log->sz, stdout); // Write log buffer to stdout
 	fflush(stdout);
 	return 0;
 }
 
 // Worker thread for processing ring buffer
-void *ringbuf_worker(void *)
+static void *ringbuf_worker(void *)
 {
 	while (!exit_flag)
 	{
+#ifdef BUILTIN
+		int err = ring_buffer__poll(rb, 50 /* timeout in ms */);
+#else
 		int err = ring_buffer__poll(rb, 1000 /* timeout in ms */);
+#endif
 		// Check for errors during polling
 		if (err < 0 && err != -EINTR)
 		{
@@ -207,7 +314,7 @@ void *ringbuf_worker(void *)
 }
 
 // Register signal handler for graceful exit
-void register_signal(void)
+static int register_signal(void)
 {
 	struct sigaction sa;
 	sa.sa_handler = [](int) { exit_flag = true; }; // Set exit flag on signal
@@ -217,15 +324,114 @@ void register_signal(void)
 	if (sigaction(SIGINT, &sa, NULL) == -1)
 	{
 		perror("sigaction");
+#ifndef BUILTIN
 		exit(EXIT_FAILURE);
+#else
+		return -1;
+#endif
 	}
+	return 0;
 }
 
-static void enable_read_trace(void)
+#ifdef BUILTIN
+std::shared_ptr<PeekFdRuntime> peek_fd_init(FILE *output)
+{
+	test_name = "peek-fd";           // Register tool name
+  	map_info = &local_map_info;      // Register map definitions
+	runtime_state = std::make_shared<PeekFdRuntime>();
+	runtime_state->exit_flag = &exit_flag;
+  	exit_flag = false;               // Reset exit state
+  	rb = NULL;                       // Reset ring buffer
+  	rule.pid = -1;                   // Reset pid filter
+  	rule.fd = -1;                    // Reset fd filter
+  	rule.rw = 0;             		 // Reset rw filter
+	enable_sock_trace = false;
+  	stdout_bak = stdout;             // Backup stdout
+  	fflush(stdout);                  // Flush stdout
+  	stdout = output;                 // Redirect stdout
+  	Log::set_file(output);           // Redirect logs
+	{
+		std::lock_guard<std::mutex> lock(runtime_state->sync.m);
+		runtime_state->sync.init_done = false;
+		runtime_state->sync.exit_requested = false;
+	}
+	return runtime_state;
+}
+void peek_fd_deinit()
+{
+	test_name = "";
+	map_info = NULL;
+	runtime_state.reset();
+	fflush(stdout);
+	stdout = stdout_bak;
+	Log::set_file(stderr);
+}
+static void disable_all_trace_autoload(bool autoload)
+  {
+      bpf_program *programs[] = {
+          obj->progs.trace_sys_enter_read,
+          obj->progs.trace_sys_exit_read,
+          obj->progs.trace_sys_enter_write,
+          obj->progs.trace_sys_exit_write,
+
+          obj->progs.trace_sys_enter_readv,
+          obj->progs.trace_sys_exit_readv,
+          obj->progs.trace_sys_enter_writev,
+          obj->progs.trace_sys_exit_writev,
+
+          obj->progs.trace_sys_enter_preadv,
+          obj->progs.trace_sys_exit_preadv,
+          obj->progs.trace_sys_enter_pwritev,
+          obj->progs.trace_sys_exit_pwritev,
+
+          obj->progs.trace_sys_enter_preadv2,
+          obj->progs.trace_sys_exit_preadv2,
+          obj->progs.trace_sys_enter_pwritev2,
+          obj->progs.trace_sys_exit_pwritev2,
+
+          obj->progs.trace_sys_enter_sendto,
+          obj->progs.trace_sys_exit_sendto,
+          obj->progs.trace_sys_enter_recvfrom,
+          obj->progs.trace_sys_exit_recvfrom,
+
+          obj->progs.trace_sys_enter_sendmsg,
+          obj->progs.trace_sys_exit_sendmsg,
+          obj->progs.trace_sys_enter_recvmsg,
+          obj->progs.trace_sys_exit_recvmsg,
+
+          obj->progs.trace_sys_enter_sendmmsg,
+          obj->progs.trace_sys_exit_sendmmsg,
+          obj->progs.trace_sys_enter_recvmmsg,
+          obj->progs.trace_sys_exit_recvmmsg,
+      };
+
+      for (auto *prog : programs)
+      {
+          bpf_program__set_autoload(prog, false);
+      }
+  }
+  bool peek_fd_is_event_enabled(EventType event_type)
+  {
+      switch (event_type)
+      {
+      case EVENT_READ:
+          return bpf_program__autoload(obj->progs.trace_sys_enter_read);
+      case EVENT_WRITE:
+          return bpf_program__autoload(obj->progs.trace_sys_enter_write);
+      case EVENT_RECVFROM:
+          return bpf_program__autoload(obj->progs.trace_sys_enter_recvfrom);
+      case EVENT_SENDTO:
+          return bpf_program__autoload(obj->progs.trace_sys_enter_sendto);
+      default:
+          return false;
+      }
+  }
+#endif
+static int enable_read_trace(void)
 {
 	if (!(rule.rw & FD_READ))
 	{
-		return;
+		return -1;
 	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_read, true);
@@ -239,7 +445,7 @@ static void enable_read_trace(void)
 
 	if (!enable_sock_trace)
 	{
-		return;
+		return -1;
 	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_recvfrom, true);
@@ -248,13 +454,15 @@ static void enable_read_trace(void)
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_recvfrom, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_recvmsg, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_recvmmsg, true);
+
+	return 0;
 }
 
-static void enable_write_trace(void)
+static int enable_write_trace(void)
 {
 	if (!(rule.rw & FD_WRITE))
 	{
-		return;
+		return -1;
 	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_write, true);
@@ -268,7 +476,7 @@ static void enable_write_trace(void)
 
 	if (!enable_sock_trace)
 	{
-		return;
+		return -1;
 	}
 
 	bpf_program__set_autoload(obj->progs.trace_sys_enter_sendto, true);
@@ -277,32 +485,64 @@ static void enable_write_trace(void)
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_sendto, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_sendmsg, true);
 	bpf_program__set_autoload(obj->progs.trace_sys_exit_sendmmsg, true);
+
+	return 0;
 }
 
 // Main function
+#ifdef BUILTIN
+int peek_fd_main(int argc, char *args[])
+#else
 int main(int argc, char *args[])
+#endif
 {
-	parse_args(argc, args); // Parse command line arguments
-	register_signal();		// Register signal handler
+	int ret = parse_args(argc, args); // Parse command line arguments
+	if (ret != 0)
+	{
+#ifdef BUILTIN
+		{
+			std::lock_guard<std::mutex> lock(runtime_state->sync.m);
+			runtime_state->sync.exit_requested = true;
+		}
+		runtime_state->sync.cv.notify_all();
+#endif
+		return ret;
+	}
+#ifndef BUILTIN
+	ret = register_signal(); // Register signal handler
+	if(ret < 0){
+		return ret;
+	}
+#endif
 
 	int key = 0;			   // Key for BPF map
-	obj = peek_fd_bpf::open(); // Load BPF program
+	obj = peek_fd_bpf::open(); // Open BPF program
 	if (!obj)
 	{
-		exit(-1); // Exit if loading failed
+#ifndef BUILTIN
+		exit(-1); // Exit if opening failed
+#else
+		ret = -1;
+		goto err_out;
+#endif
 	}
+#ifdef BUILTIN
+	disable_all_trace_autoload(false);
+#endif
 
 	enable_read_trace();
-	enable_write_trace();
-	; // Load BPF program
-	if (peek_fd_bpf::load(obj))
+	enable_write_trace(); 
+
+	if (peek_fd_bpf::load(obj)) // Load BPF program
 	{
-		exit(-1); // Exit if loading failed
+		ret = -1;
+		goto err_out;
 	}
 
 	if (0 != peek_fd_bpf::attach(obj))
 	{
-		exit(-1); // Attach BPF program
+		ret = -1;
+		goto err_out; // Attach BPF program
 	}
 
 	// Get file descriptor for filter map and update it with the rule
@@ -310,24 +550,45 @@ int main(int argc, char *args[])
 	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
 	{
 		printf("Error: bpf_map_update_elem");
+		ret = -1;
 		goto err_out; // Handle error
 	}
 
 	// Create a ring buffer for logs
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
+#ifdef BUILTIN
+	runtime_state->fds_promise.set_value(PeekFds{filter_fd, log_map_fd});
+#endif
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
 	{
+		ret = -1;
 		goto err_out; // Handle error
 	}
 
 	printf("start peeking\n");
 	// Create a thread for processing the ring buffer
-	pthread_create(&t1, NULL, ringbuf_worker, NULL);
-	follow_trace_pipe();	// Read trace pipe
+	if(pthread_create(&t1, NULL, ringbuf_worker, NULL) != 0)
+	{
+		pr_error("Failed to create ringbuf thread");
+		ret = -1;
+		goto err_out;
+	};
+#ifndef BUILTIN
+	follow_trace_pipe(); // Read trace pipe
+#else
+	{
+		std::lock_guard<std::mutex> lock(runtime_state->sync.m);
+		runtime_state->sync.init_done = true;
+	}
+	runtime_state->sync.cv.notify_all();
+	{
+		std::unique_lock<std::mutex> lock(runtime_state->sync.m);
+		runtime_state->sync.cv.wait(lock, [&] { return runtime_state->sync.exit_requested; });
+	}
+#endif
 	pthread_join(t1, NULL); // Wait for the worker thread to finish
 	printf("normally exit\n");
-
 err_out:
 	if (rb)
 	{
@@ -335,5 +596,5 @@ err_out:
 	}
 	peek_fd_bpf::detach(obj);  // Detach BPF program
 	peek_fd_bpf::destroy(obj); // Clean up BPF program
-	return 0;				   // Exit successfully
+	return ret;				   // Exit successfully or error based on ret value
 }
