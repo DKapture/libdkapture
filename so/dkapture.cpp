@@ -385,7 +385,7 @@ int dkapture::fs_watch(const char *path, DKCallback cb, void *ctx)
 		char *arg1 = (char *)"-p";
 		char *arg2 = (char *)path;
 		char *args[] = {arg0, arg1, arg2, 0};
-		return trace_file_init(3, args, cb, ctx);
+		return mountsnoop_init(3, args, cb, ctx);
 	}
 }
 
