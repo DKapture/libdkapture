@@ -57,7 +57,11 @@ DataMap::DataMap()
 	}
 	catch (...)
 	{
-		this->~DataMap();
+		SAFE_DELETE(m_bpf_rb);
+		SAFE_DELETE(m_lock);
+		SAFE_DELETE(m_rb);
+		SAFE_DELETE(m_bpf);
+		SAFE_DELETE(m_shm);
 		throw;
 	}
 

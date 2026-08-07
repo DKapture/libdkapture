@@ -171,7 +171,8 @@ BPFManager::BPFManager()
 	}
 	catch (...)
 	{
-		this->~BPFManager();
+		SAFE_DELETE(m_bpf_lock);
+		SAFE_DELETE(m_shm);
 		throw;
 	}
 	/**
