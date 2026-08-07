@@ -1,0 +1,35 @@
+name: opencode-relay
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  relay:
+    runs-on: self-hosted
+    if: |
+      (github.event_name == 'issues' && github.event.issue.user.type != 'Bot') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot')
+    permissions:
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Relay trigger with bot/review label
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.RELAY_BOT_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo
+            const number = context.payload.issue?.number ?? context.payload.pull_request?.number
+            const label = 'bot/review'
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+              owner,
+              repo,
+              issue_number: number,
+            })
+            if (labels.some((l) => l.name === label)) {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: label })
+            }
+            await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: [label] })
