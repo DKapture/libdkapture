@@ -1,0 +1,31 @@
+name: PR Agent
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, review_requested]
+  issue_comment:
+
+jobs:
+  pr_agent_job:
+    if: ${{ github.event.sender.type != 'Bot' && (github.event_name == 'pull_request_target' || github.event.issue.pull_request) }}
+    runs-on: [self-hosted, reviewer]
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+    steps:
+      - name: PR Agent action step
+        id: pragent
+        uses: the-pr-agent/pr-agent@main
+        env:
+          OPENAI_KEY: ${{ secrets.PR_REVIEW_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          config.model: ${{ vars.PR_REVIEW_MODEL }}
+          config.fallback_models: '["${{ vars.PR_REVIEW_MODEL }}"]'
+          config.custom_model_max_tokens: ${{ vars.PR_REVIEW_MAX_TOKENS }}
+          OPENAI.API_BASE: ${{ vars.PR_REVIEW_API_BASE }}
+          PR_REVIEWER.EXTRA_INSTRUCTIONS: ${{ vars.PR_REVIEW_EXTRA_INSTRUCTIONS }}
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
+          github_action_config.pr_actions: '["opened", "reopened", "synchronize", "ready_for_review", "review_requested"]'
