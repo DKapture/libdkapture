@@ -21,6 +21,12 @@
 #include <vector>
 #include <algorithm>
 #include <pthread.h>
+#include <map>
+#include <mutex>
+#include <condition_variable>
+#include <future>
+#include <memory>
+
 
 #include "syscall-stat.skel.h"
 #include "com.h"
@@ -48,7 +54,8 @@ struct Rule
 	pid_t pid;
 	uint32_t pathhash;
 	char comm[16];
-} rule = {
+};
+static struct Rule rule = {
 	.pid = -1,
 	.pathhash = 0,
 };
@@ -63,14 +70,46 @@ struct BpfData
 // Global variables
 static syscall_stat_bpf *obj;  // BPF program object
 static int log_map_fd;		   // File descriptor for log map
-struct ring_buffer *rb = NULL; // Ring buffer for log events
+static struct ring_buffer *rb = NULL; // Ring buffer for log events
 static int filter_fd;		   // File descriptor for filter map
 static int stats_fd;		   // File descriptor for stats map
 static pthread_t t1;		   // Thread for processing ring buffer
 static pthread_t t2;
 static int interval = 1;
 static bool top = false;
-static std::atomic<bool> exit_flag(false); // Flag to signal exit
+static std::atomic<bool> exit_flag(false);
+
+#ifdef BUILTIN
+struct SyscallStatFds
+{
+	int filter_fd;
+	int stats_fd;
+};
+struct SyscallStatSync
+{
+	std::mutex m;
+	std::condition_variable cv;
+	bool init_done = false;
+	bool print_done = false;
+	bool exit_requested = false;
+};
+struct SyscallStatRuntime
+{
+	SyscallStatSync sync;
+	std::promise<SyscallStatFds> fds_promise;
+	std::atomic<bool> *exit_flag = nullptr;
+};
+static FILE *stdout_bak;
+static std::map<std::string, std::tuple<int, int, int, bpf_map_type>> 
+local_map_info = {
+	{"filter", {sizeof(u32), sizeof(struct Rule), 1, BPF_MAP_TYPE_HASH}},
+	{"syscall_stat",{sizeof(u32), sizeof(struct info), 453, BPF_MAP_TYPE_ARRAY}},
+	{"logs", {0, 0, 1024 * 1024, BPF_MAP_TYPE_RINGBUF}},
+};
+static std::shared_ptr<SyscallStatRuntime> runtime_state;
+extern std::string test_name;
+extern std::map<std::string,std::tuple<int, int, int, bpf_map_type>> *map_info;
+#endif
 // Command line options
 static struct option lopts[] = {
 	{"pid",		required_argument, 0, 'p'},
@@ -100,7 +139,7 @@ static HelpMsg help_msg[] = {
 };
 
 // Function to print usage information
-void Usage(const char *arg0)
+static void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
 	printf("  statistic the frequency of syscall calling of a specific "
@@ -122,7 +161,7 @@ void Usage(const char *arg0)
 }
 
 // Convert long options to short options string
-std::string long_opt2short_opt(const option lopts[])
+static std::string long_opt2short_opt(const option lopts[])
 {
 	std::string sopts = "";
 	for (int i = 0; lopts[i].name; i++)
@@ -147,7 +186,7 @@ std::string long_opt2short_opt(const option lopts[])
 }
 
 // Parse command line arguments
-void parse_args(int argc, char **argv)
+static int parse_args(int argc, char **argv)
 {
 	int opt, opt_idx;
 	char *buf = (char *)calloc(4096, sizeof(char)); // 从堆区申请内存
@@ -156,7 +195,8 @@ void parse_args(int argc, char **argv)
 		perror("calloc");
 		exit(EXIT_FAILURE);
 	}
-	optind = 1;
+	optind = 0;
+	opterr = 0;
 	std::string sopts = long_opt2short_opt(lopts); // Convert long options to
 												   // short options
 	while ((opt = getopt_long(argc, argv, sopts.c_str(), lopts, &opt_idx)) > 0)
@@ -164,8 +204,19 @@ void parse_args(int argc, char **argv)
 		switch (opt)
 		{
 		case 'p': // Process ID
-			rule.pid = strtol(optarg, NULL, 10);
-			break;
+			{
+				char *end = nullptr;
+				errno = 0;
+				long val = strtol(optarg, &end, 10);
+				if (end == optarg || *end != '\0' ||  errno == ERANGE || val < 0 || (unsigned long)val > UINT32_MAX)
+				{
+					printf("wrong pid value: %s, must be a non-negative integer\n", optarg);
+					free(buf);
+					return -1;
+				}
+				rule.pid = (u32)val;
+				break;
+			}
 		case 'f':
 			strncpy(buf, optarg, 4096);
 			buf[4095] = '\0';
@@ -176,45 +227,67 @@ void parse_args(int argc, char **argv)
 			rule.comm[sizeof(rule.comm) - 1] = '\0';
 			break;
 		case 'i':
-			interval = strtol(optarg, NULL, 10);
-			if (interval <= 0)
 			{
-				printf("wrong interval value: %s, must be >0 interger", optarg);
-				free(buf);
-				exit(-1);
+				char *end = nullptr;
+				errno = 0;
+				long val = strtol(optarg, &end, 10);
+				if (end == optarg || *end != '\0' || errno == ERANGE || val <= 0)
+				{
+					printf("wrong interval value: %s, must be >0 integer\n", optarg);
+					free(buf);
+					return -1;
+				}
+				interval = (int)val;
+				break;
 			}
-			break;
 		case 'h': // Help
 			Usage(argv[0]);
 			free(buf);
-			exit(0);
-			break;
+			return 1; // Indicate that help was displayed
 		default: // Invalid option
 			Usage(argv[0]);
 			free(buf);
-			exit(-1);
+			return -1;
 			break;
 		}
 	}
 	free(buf); // 释放堆区内存
+	return 0;
 }
 
 // Handle events from the ring buffer
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
-															  // BpfData
-															  // structure
+	if (data_sz < sizeof(ssize_t)) 
+	{
+		return 0;
+	}
+	const struct BpfData *log = static_cast<const struct BpfData *>(data);// Cast data to
+																		// BpfData
+																		// structure
+	if (log->sz < 0) 
+	{
+		return 0;
+	}
+	size_t payload_sz = data_sz - sizeof(ssize_t);
+	if ((size_t)log->sz > payload_sz) 
+	{
+		return 0;
+	}
 	fwrite(log->buf, 1, log->sz, stdout); // Write log buffer to stdout
 	return 0;
 }
 
 // Worker thread for processing ring buffer
-void *ringbuf_worker(void *)
+static void *ringbuf_worker(void *)
 {
 	while (!exit_flag)
 	{
+		#ifdef BUILTIN
+		int err = ring_buffer__poll(rb, 50  /* timeout in ms */);
+		#else
 		int err = ring_buffer__poll(rb, 1000 /* timeout in ms */);
+		#endif
 		// Check for errors during polling
 		if (err < 0 && err != -EINTR)
 		{
@@ -226,7 +299,7 @@ void *ringbuf_worker(void *)
 }
 
 // Register signal handler for graceful exit
-void register_signal()
+static int register_signal()
 {
 	struct sigaction sa;
 	sa.sa_handler = [](int)
@@ -236,13 +309,49 @@ void register_signal()
 	};						  // Set exit flag on signal
 	sa.sa_flags = 0;		  // No special flags
 	sigemptyset(&sa.sa_mask); // No additional signals to block
-	// Register the signal handler for SIGINT
-	if (sigaction(SIGINT, &sa, NULL) == -1)
+	if (sigaction(SIGINT, &sa, NULL) == -1) // Register the signal handler for SIGINT
 	{
 		perror("sigaction");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
+	return 0;
 }
+#ifdef BUILTIN
+std::shared_ptr<SyscallStatRuntime> syscall_stat_init(FILE *output)
+{
+	test_name = "syscall-stat";      // Register tool name
+  	map_info = &local_map_info;      // Register map definitions
+	runtime_state = std::make_shared<SyscallStatRuntime>();
+	runtime_state->exit_flag = &exit_flag;
+  	exit_flag = false;               // Reset exit state
+  	rb = NULL;                       // Reset ring buffer
+  	rule.pid = -1;                   // Reset pid filter
+  	rule.pathhash = 0;               // Reset path filter
+  	rule.comm[0] = '\0';             // Reset comm filter
+  	interval = 1;                    // Reset interval
+  	top = false;                     // Reset top mode
+  	stdout_bak = stdout;             // Backup stdout
+  	fflush(stdout);                  // Flush stdout
+  	stdout = output;                 // Redirect stdout
+  	Log::set_file(output);           // Redirect logs
+	{
+		std::lock_guard<std::mutex> lock(runtime_state->sync.m);
+		runtime_state->sync.init_done = false;
+		runtime_state->sync.print_done = false;
+		runtime_state->sync.exit_requested = false;
+	}
+	return runtime_state;
+}
+void syscall_stat_deinit()
+{
+	test_name = "";
+	map_info = NULL;
+	runtime_state.reset();
+	fflush(stdout);
+	stdout = stdout_bak;
+	Log::set_file(stderr);
+}
+#endif
 
 static void print_title(int max_name_len)
 {
@@ -273,7 +382,9 @@ void *timer_task(void *)
 	size_t sys_cnt = sizeof(sys_tbl) / sizeof(sys_tbl[0]);
 	for (size_t i = 0; i < sys_cnt; i++)
 	{
-		int slen = strlen(sys_tbl[i]);
+		if (!sys_tbl[i]) 
+			continue;
+    	int slen = strlen(sys_tbl[i]);
 		if (max_name_len < slen)
 		{
 			max_name_len = slen;
@@ -287,7 +398,6 @@ void *timer_task(void *)
 		u32 total = 0;
 		std::vector<std::pair<u32, info>> stats; // Vector to store syscall
 												 // stats
-
 		while (0 == bpf_map_get_next_key(stats_fd, &key, &nxt_key))
 		{
 			info sys_stat;
@@ -327,6 +437,7 @@ void *timer_task(void *)
 		for (const auto &stat : stats)
 		{
 			const info &info = stat.second;
+			if (!sys_tbl[stat.first]) continue;
 			printf(
 				"%-*s %-10llu %-10ld %-f\n",
 				max_name_len,
@@ -339,18 +450,39 @@ void *timer_task(void *)
 
 		if (total)
 		{
-			printf("\ntotal: %d\n", total);
+			printf("\ntotal: %u\n", total);
 		}
-
+#ifdef BUILTIN
+		{
+			std::lock_guard<std::mutex> lock(runtime_state->sync.m);
+			runtime_state->sync.print_done = true;
+		}
+		runtime_state->sync.cv.notify_all();
+#endif
 		sleep(interval);
 	}
 	return NULL;
 }
 
 // Main function
+#ifdef BUILTIN
+int syscall_stat_main(int argc, char *args[])
+#else
 int main(int argc, char *args[])
+#endif
 {
-	parse_args(argc, args); // Parse command line arguments
+	int ret = parse_args(argc, args); // Parse command line arguments
+	if (ret != 0)
+	{
+#ifdef BUILTIN
+		{
+			std::lock_guard<std::mutex> lock(runtime_state->sync.m);
+			runtime_state->sync.exit_requested = true;
+		}
+		runtime_state->sync.cv.notify_all();
+#endif
+		return ret;
+	}
 	printf("filter: \n");
 	printf(
 		"\tpid: %d, pathhash: %d, comm: %s\n\n",
@@ -358,27 +490,34 @@ int main(int argc, char *args[])
 		rule.pathhash,
 		rule.comm
 	);
-	register_signal(); // Register signal handler
-
+	ret = register_signal(); // Register signal handler
+	if(ret < 0){
+		return ret;
+	}
 	int key = 0;							 // Key for BPF map
 	obj = syscall_stat_bpf::open_and_load(); // Load BPF program
 	if (!obj)
 	{
-		exit(-1); // Exit if loading failed
+		ret = -1;
+		goto err_out; // Exit if loading failed
 	}
 
 	if (0 != syscall_stat_bpf::attach(obj))
 	{
-		exit(-1); // Attach BPF program
+		ret = -1;
+		goto err_out; // Attach BPF program
 	}
 
 	// Get file descriptor for filter map and update it with the rule
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
 	stats_fd = bpf_get_map_fd(obj->obj, "syscall_stat", goto err_out);
-
+#ifdef BUILTIN
+	runtime_state->fds_promise.set_value(SyscallStatFds{filter_fd, stats_fd});
+#endif
 	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
 	{
 		printf("Error: bpf_map_update_elem");
+		ret = -1;
 		goto err_out; // Handle error
 	}
 
@@ -387,18 +526,42 @@ int main(int argc, char *args[])
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
 	{
+		ret = -1;
 		goto err_out; // Handle error
 	}
 
 	// Create a thread for processing the ring buffer
-	pthread_create(&t1, NULL, ringbuf_worker, NULL);
-	pthread_create(&t2, NULL, timer_task, NULL);
+	if (pthread_create(&t1, NULL, ringbuf_worker, NULL) != 0) 
+	{
+		pr_error("Failed to create ringbuf thread");
+		ret = -1;
+		goto err_out;
+	}
+	if (pthread_create(&t2, NULL, timer_task, NULL) != 0) 
+	{
+		pr_error("Failed to create timer thread");
+		pthread_kill(t1, SIGINT);
+		pthread_join(t1, NULL);
+		ret = -1;
+		goto err_out;
+	}
+#ifndef BUILTIN
 	follow_trace_pipe(); // Read trace pipe
+#else
+	{
+		std::lock_guard<std::mutex> lock(runtime_state->sync.m);
+		runtime_state->sync.init_done = true;
+	}
+	runtime_state->sync.cv.notify_all();
+	{
+		std::unique_lock<std::mutex> lock(runtime_state->sync.m);
+		runtime_state->sync.cv.wait(lock, [&] { return runtime_state->sync.exit_requested; });
+	}
+#endif
 	pthread_kill(t1, SIGINT);
 	pthread_join(t1, NULL);
 	pthread_kill(t2, SIGINT);
 	pthread_join(t2, NULL);
-
 err_out:
 	if (rb)
 	{
@@ -406,5 +569,5 @@ err_out:
 	}
 	syscall_stat_bpf::detach(obj);	// Detach BPF program
 	syscall_stat_bpf::destroy(obj); // Clean up BPF program
-	return 0;						// Exit successfully
+	return ret;						// Exit successfully or error based on ret value
 }
