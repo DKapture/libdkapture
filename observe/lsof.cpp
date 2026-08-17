@@ -64,6 +64,7 @@ static int filter_fd;
 static pthread_t t1;
 static int iter_fd;
 static std::atomic<bool> exit_flag(false);
+static std::atomic<bool> scan_done(false);
 static std::map<pid_t, std::vector<struct BpfData>> log_stat;
 
 static struct option lopts[] = {
@@ -235,7 +236,7 @@ void *ringbuf_worker(void *)
 			sleep(5);
 		}
 
-		if (err == 0 && iter_fd == -1)
+		if (err == 0 && scan_done)
 		{
 			break;
 		}
@@ -294,11 +295,18 @@ int main(int argc, char *args[])
 		goto err_out;
 	}
 
+	int thread_ret = pthread_create(&t1, NULL, ringbuf_worker, NULL);
+	if (thread_ret != 0)
+	{
+		fprintf(stderr,"Error creating ringbuf worker: %s\n",strerror(thread_ret));
+		goto err_out;
+	}
+
 	iter_fd = bpf_iter_create(bpf_link__fd(obj->links.file_iterator));
 	if (iter_fd < 0)
 	{
 		fprintf(stderr, "Error creating BPF iterator\n");
-		goto err_out;
+		goto stop_worker;
 	}
 
 	while ((rd_sz = read(iter_fd, buf, sizeof(buf))) > 0)
@@ -310,7 +318,7 @@ int main(int argc, char *args[])
 	if (iter_fd < 0)
 	{
 		fprintf(stderr, "Error creating BPF iterator\n");
-		goto err_out;
+		goto stop_worker;
 	}
 
 	while ((rd_sz = read(iter_fd, buf, sizeof(buf))) > 0)
@@ -321,11 +329,21 @@ int main(int argc, char *args[])
 	iter_fd = -1;
 
 	printf("Scanning for file %s...\n", rule.path);
-	//! TODO ringbuffer消耗不及时, 后续修复
-	pthread_create(&t1, NULL, ringbuf_worker, NULL);
+	scan_done = true;
 	follow_trace_pipe();
 	pthread_join(t1, NULL);
 	summary_print();
+	goto err_out;
+
+stop_worker:
+	if (iter_fd >= 0)
+	{
+		close(iter_fd);
+		iter_fd = -1;
+	}
+  	scan_done = true;
+    exit_flag = true;
+    pthread_join(t1, NULL);
 
 err_out:
 	if (rb)
