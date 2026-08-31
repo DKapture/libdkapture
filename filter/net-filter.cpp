@@ -421,7 +421,7 @@ void NetFilter::set_bpf_debug(int type)
 void NetFilter::enable(bool state)
 {
 	int key = 0;
-	conf.debug = state;
+	conf.enable = state;
 	if (0 != bpf_map_update_elem(conf_map_fd, &key, &conf, BPF_ANY))
 	{
 		pr_error("%s net-monitor\n", state ? "enable" : "disable");
