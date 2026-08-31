@@ -270,7 +270,7 @@ int main(int argc, char **argv)
 		sleep(env.interval);
 		printf("\n");
 
-		print_log2_hists(skel->maps.hists);
+		err = print_log2_hists(skel->maps.hists);
 		if (err < 0)
 		{
 			printf("Error polling perf buffer: %d\n", err);
