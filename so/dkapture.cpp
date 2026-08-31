@@ -293,7 +293,12 @@ ssize_t dkapture::read(std::vector<DataType> &dts, DKCallback cb, void *ctx)
 ssize_t
 dkapture::read(std::vector<const char *> &paths, DKCallback cb, void *ctx)
 {
+	if (!cb)
+	{
+		return -EINVAL;
+	}
 	ssize_t total = 0;
+	std::vector<char> buf(1024 * 1024);
 	for (auto path : paths)
 	{
 		DataType dt;
@@ -303,12 +308,28 @@ dkapture::read(std::vector<const char *> &paths, DKCallback cb, void *ctx)
 			pr_warn("try read %s: not implemented yet or invalid", path);
 			continue;
 		}
-		ssize_t rsz = read(dt, cb, ctx);
+		ssize_t rsz = read(dt, pid, (DataHdr *)buf.data(), buf.size());
 		if (rsz <= 0)
 		{
 			continue;
 		}
-		total += rsz;
+		DataHdr *p = (DataHdr *)buf.data();
+		ssize_t left = rsz;
+		while (left >= (ssize_t)sizeof(DataHdr))
+		{
+			if (p->dsz < sizeof(DataHdr) || (ssize_t)p->dsz > left)
+			{
+				break;
+			}
+			int ret = cb(ctx, p, p->dsz);
+			if (ret != 0)
+			{
+				return ret;
+			}
+			total++;
+			left -= p->dsz;
+			p = (DataHdr *)((char *)p + p->dsz);
+		}
 	}
 	return total;
 }
