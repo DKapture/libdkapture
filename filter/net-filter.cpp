@@ -374,7 +374,7 @@ bool NetFilter::load_rules(const char *rule_file)
 
 int NetFilter::update_rule(u32 key, const Rule &rule)
 {
-	int err = bpf_map_update_elem(rules_map_fd, &key_cnt, &rule, BPF_EXIST);
+	int err = bpf_map_update_elem(rules_map_fd, &key, &rule, BPF_EXIST);
 
 	return err ? -1 : 0;
 }
