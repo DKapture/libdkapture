@@ -267,7 +267,7 @@ int NetFilter::init(LogCallback cb)
 
 	printf("bpf program/map loaded....\n");
 	log_cb = cb;
-	conf.enable = true;
+	conf.debug = true;
 
 	return 0;
 
@@ -421,7 +421,7 @@ void NetFilter::set_bpf_debug(int type)
 void NetFilter::enable(bool state)
 {
 	int key = 0;
-	conf.debug = state;
+	conf.enable = state;
 	if (0 != bpf_map_update_elem(conf_map_fd, &key, &conf, BPF_ANY))
 	{
 		pr_error("%s net-monitor\n", state ? "enable" : "disable");
@@ -1117,15 +1117,8 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	// if (!nf.load_rules(poli_path.c_str()))
-	// 	return -1;
-	struct Rule rule;
-	if (!NetFilter::parse_rule("ipv4 0.0.0.0 0.0.0.0 0 0 tcp log", rule))
-	{
-		pr_error("rule parse pr_error: %s\n", strerror(errno));
+	if (!nf.load_rules(poli_path.c_str()))
 		return -1;
-	}
-	nf.add_rule(rule);
 
 	std::map<u32, Rule> rules;
 	nf.dump_rules(rules);

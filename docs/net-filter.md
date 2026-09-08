@@ -31,6 +31,7 @@ options:
         7: outtput ICMP package capture with NETFILTER
         8: outtput all package capture with NETFILTER
         9: outtput all package capture while rule matching
+        usage: -d9 or --debug=9
 ```
 
 -p：设置过滤规则的配置文件路径。
