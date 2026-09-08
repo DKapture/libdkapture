@@ -1117,15 +1117,8 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	// if (!nf.load_rules(poli_path.c_str()))
-	// 	return -1;
-	struct Rule rule;
-	if (!NetFilter::parse_rule("ipv4 0.0.0.0 0.0.0.0 0 0 tcp log", rule))
-	{
-		pr_error("rule parse pr_error: %s\n", strerror(errno));
+	if (!nf.load_rules(poli_path.c_str()))
 		return -1;
-	}
-	nf.add_rule(rule);
 
 	std::map<u32, Rule> rules;
 	nf.dump_rules(rules);
