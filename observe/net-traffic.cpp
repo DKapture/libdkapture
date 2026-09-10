@@ -46,7 +46,7 @@ struct Rule
 {
 	u32 remote_ip;
 	u16 remote_port;
-	u16 dir;
+	short dir;
 	union
 	{
 		struct
@@ -68,6 +68,11 @@ struct ring_buffer *rb = NULL;
 static std::atomic<bool> exit_flag(false);
 std::map<std::string, unsigned long> traffic_stat_proc;
 std::map<unsigned int, unsigned long> traffic_stat_ip;
+
+static void init_rule()
+{
+	rule.pid = -1;
+}
 
 static struct option lopts[] = {
 	{"comm",	 required_argument, 0, 'c'},
@@ -159,7 +164,7 @@ void parse_args(int argc, char **argv)
 			rule.pid = atoi(optarg);
 			break;
 		case 'r': // Remote IP
-			rule.remote_ip = inet_addr(optarg);
+			rule.remote_ip = ntohl(inet_addr(optarg));
 			break;
 		case 'P': // Remote port
 			rule.remote_port = atoi(optarg);
@@ -272,13 +277,13 @@ static void fix_attach_point(net_traffic_bpf *obj)
 
 int main(int argc, char **argv)
 {
-	std::vector<struct Rule> rules;
-
+	init_rule();
 	parse_args(argc, argv);
 
 	register_signal();
 	std::thread *rb_thread;
-
+	
+	int key = 0;
 	obj = net_traffic_bpf::open();
 	if (!obj)
 	{
@@ -290,12 +295,13 @@ int main(int argc, char **argv)
 	{
 		exit(-1);
 	}
-	if (0 != net_traffic_bpf::attach(obj))
-	{
-		exit(-1);
-	}
 
 	filter_fd = bpf_get_map_fd(obj->obj, "filter", goto err_out);
+	if (0 != bpf_map_update_elem(filter_fd, &key, &rule, BPF_ANY))
+	{
+		printf("Error: bpf_map_update_elem");
+		goto err_out; // Handle error
+	}            
 	log_map_fd = bpf_get_map_fd(obj->obj, "logs", goto err_out);
 	rb = ring_buffer__new(log_map_fd, handle_event, NULL, NULL);
 	if (!rb)
@@ -303,6 +309,10 @@ int main(int argc, char **argv)
 		goto err_out; // Handle error
 	}
 
+	if (0 != net_traffic_bpf::attach(obj))
+	{
+		exit(-1);
+	}
 	rb_thread = new std::thread(ringbuf_worker);
 	follow_trace_pipe();
 
