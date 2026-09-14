@@ -947,18 +947,20 @@ static HelpMsg help_msg[] = {
 	 "set the policy file path\n"
 	 "\tdefault: " DEFAULT_POLI_PATH "policy.conf\n"			},
 	{"",		 "print this help message\n"					},
-	{"[level]",
+	{"",
 	 "set debug log level:\n"
+	 "\tvalid forms: -d[level] or --debug[=level], for example -d9 or --debug=9\n"
+     "\tdo not use -d 9 or --debug 9\n"
 	 "\t0: no debug(default)\n"
 	 "\t1: output TCP package capture with LSM\n"
 	 "\t2: output UDP package capture with LSM\n"
 	 "\t3: output ICMP package capture with LSM\n"
 	 "\t4: output all package capture with LSM\n"
-	 "\t5: outtput TCP package capture with NETFILTER\n"
-	 "\t6: outtput UDP package capture with NETFILTER\n"
-	 "\t7: outtput ICMP package capture with NETFILTER\n"
-	 "\t8: outtput all package capture with NETFILTER\n"
-	 "\t9: outtput all package capture while rule matching\n"},
+	 "\t5: output TCP package capture with NETFILTER\n"
+	 "\t6: output UDP package capture with NETFILTER\n"
+	 "\t7: output ICMP package capture with NETFILTER\n"
+	 "\t8: output all package capture with NETFILTER\n"
+	 "\t9: output all package capture while rule matching\n"},
 };
 
 std::string long_opt2short_opt(const option lopts[])
