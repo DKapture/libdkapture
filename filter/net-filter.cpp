@@ -674,6 +674,12 @@ static int parse_action(const char *act_str)
 		action |= NM_LOG;
 	}
 
+	if (action == 0)
+	{
+		pr_error("unsupported action: %s\n", act_str);
+		return -1;
+	}
+
 	return action;
 }
 
@@ -762,7 +768,13 @@ bool NetFilter::parse_rule(const char *line, Rule &rule)
 	}
 
 	strncpy(rule.comm, process_name, 16);
-	rule.action = parse_action(action);
+	ret = parse_action(action);
+	if (ret < 0)
+	{
+		goto err_out;
+	}
+	rule.action = ret;
+
 	rule.pkg_dir = parse_pkg_dir(family + 4);
 
 	ret = parse_ip_pair(saddr, daddr, sport, dport, protocol, rule);
