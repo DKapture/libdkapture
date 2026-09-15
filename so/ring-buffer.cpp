@@ -113,12 +113,27 @@ RingBuffer::RingBuffer(int map_fd, ring_buffer_sample_fn cb, void *ctx) :
 	}
 	return;
 err_out:
-	this->~RingBuffer();
+	if (producer_index && producer_index != MAP_FAILED)
+	{
+		munmap((void *)producer_index, page_size + 2 * bsz);
+		producer_index = NULL;
+	}
+	if (comsumer_index && comsumer_index != MAP_FAILED)
+	{
+		munmap((void *)comsumer_index, page_size);
+		comsumer_index = NULL;
+	}
+	if (epoll_fd >= 0)
+	{
+		close(epoll_fd);
+		epoll_fd = -1;
+	}
 	throw exc;
 }
 
 RingBuffer::RingBuffer(size_t bsz) : mirror_shm(nullptr)
 {
+	type = RING_BUF_TYPE_NORMAL;
 	try
 	{
 		shm_ctl = new SharedMemory();
@@ -128,10 +143,10 @@ RingBuffer::RingBuffer(size_t bsz) : mirror_shm(nullptr)
 	}
 	catch (...)
 	{
-		this->~RingBuffer();
+		SAFE_DELETE(spinlock);
+		SAFE_DELETE(shm_ctl);
 		throw;
 	}
-	type = RING_BUF_TYPE_NORMAL;
 	key_t key = 0x12345678 + bsz;
 	try
 	{
@@ -139,7 +154,8 @@ RingBuffer::RingBuffer(size_t bsz) : mirror_shm(nullptr)
 	}
 	catch (...)
 	{
-		this->~RingBuffer();
+		SAFE_DELETE(spinlock);
+		SAFE_DELETE(shm_ctl);
 		throw;
 	}
 	this->data = mirror_shm->getaddr();
