@@ -184,6 +184,9 @@ void parse_args(int argc, char **argv)
 				exit(-1);
 			}
 			break;
+		case 't':
+			top = true;
+			break;
 		case 'h': // Help
 			Usage(argv[0]);
 			free(buf);
@@ -288,25 +291,34 @@ void *timer_task(void *)
 		std::vector<std::pair<u32, info>> stats; // Vector to store syscall
 												 // stats
 
-		while (0 == bpf_map_get_next_key(stats_fd, &key, &nxt_key))
+		int ret  = bpf_map_get_next_key(stats_fd, NULL, &nxt_key);
+		while (0 == ret)
 		{
 			info sys_stat;
-			bpf_map_lookup_elem(stats_fd, &nxt_key, &sys_stat);
+			int lret = bpf_map_lookup_elem(stats_fd, &nxt_key, &sys_stat);
+			if (lret < 0) {
+				key = nxt_key;
+				ret = bpf_map_get_next_key(stats_fd, &key, &nxt_key);
+				continue;
+			}
 			if (nxt_key >= sizeof(sys_tbl) / sizeof(sys_tbl[0]))
 			{
-				key = nxt_key;
-				continue;
+					key = nxt_key;
+					ret = bpf_map_get_next_key(stats_fd, &key, &nxt_key);
+					continue;
 			}
 			if (sys_stat.cnt == 0)
 			{
-				key = nxt_key;
-				continue;
+					key = nxt_key;
+					ret = bpf_map_get_next_key(stats_fd, &key, &nxt_key);
+					continue;
 			}
 			stats.push_back({nxt_key, sys_stat});
 			total += sys_stat.cnt;
 			memset(&sys_stat, 0, sizeof(sys_stat));
 			bpf_map_update_elem(stats_fd, &nxt_key, &sys_stat, BPF_ANY);
 			key = nxt_key;
+			ret = bpf_map_get_next_key(stats_fd, &key, &nxt_key);
 		}
 
 		// Sort stats by sys_stat in descending order
