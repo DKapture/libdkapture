@@ -127,33 +127,39 @@ ssize_t dkapture::read(DataType dt, pid_t pid, DataHdr *buf, size_t bsz)
 ssize_t
 dkapture::read(std::vector<DataType> &dts, pid_t pid, DataHdr *buf, size_t bsz)
 {
+	size_t total = 0;
 	for (auto dt : dts)
 	{
 		ssize_t ret = read(dt, pid, buf, bsz);
-		if (ret < 0)
+		if (ret <= 0)
 		{
 			continue;
 		}
+		assert((size_t)ret <= bsz);
 		buf = (DataHdr *)((char *)buf + ret);
 		bsz -= ret;
+		total += ret;
 	}
-	return bsz;
+	return total;
 };
 
 ssize_t
 dkapture::read(std::vector<const char *> &paths, DataHdr *buf, size_t bsz)
 {
+	size_t total = 0;
 	for (auto path : paths)
 	{
 		ssize_t ret = read(path, buf, bsz);
-		if (ret < 0)
+		if (ret <= 0)
 		{
 			continue;
 		}
+		assert((size_t)ret <= bsz);
 		buf = (DataHdr *)((char *)buf + ret);
 		bsz -= ret;
+		total += ret;
 	}
-	return bsz;
+	return total;
 };
 ssize_t
 dkapture::read(DataType dt, std::vector<pid_t> &pids, DataHdr *buf, size_t bsz)
