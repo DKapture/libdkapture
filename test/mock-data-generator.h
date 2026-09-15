@@ -14,7 +14,12 @@
 #include <vector>
 #include <cstring>
 #include <cstdlib>
-
+//生成模拟栈信息
+struct MockStackCtx
+{
+	std::vector<__u64> user_ips;
+	std::vector<__u64> kernel_ips;
+};
 /**
  * @brief 生成模拟进程数据，用于测试和演示
  * @param num_processes 要生成的进程数量
