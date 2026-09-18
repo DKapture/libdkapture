@@ -431,8 +431,11 @@ cleanup:
 	{
 		ring_buffer__free(rb); // Free ring buffer if allocated
 	}
-	run_queue_bpf::detach(obj);	 // Detach BPF program
-	run_queue_bpf::destroy(obj); // Clean up BPF program
+	if(obj)
+	{
+		run_queue_bpf::detach(obj);	 // Detach BPF program
+		run_queue_bpf::destroy(obj); // Clean up BPF program
+	}
 	free(buf);					 // Free allocated buffer
 	return 0;
 }
