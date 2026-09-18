@@ -19,18 +19,20 @@ options:
   -h, --help 
         print this help message
 
-  -d, --debug [level]
+  -d, --debug 
         set debug log level:
+        valid forms: -d[level] or --debug[=level], for example -d9 or --debug=9
+        do not use -d 9 or --debug 9
         0: no debug(default)
         1: output TCP package capture with LSM
         2: output UDP package capture with LSM
         3: output ICMP package capture with LSM
         4: output all package capture with LSM
-        5: outtput TCP package capture with NETFILTER
-        6: outtput UDP package capture with NETFILTER
-        7: outtput ICMP package capture with NETFILTER
-        8: outtput all package capture with NETFILTER
-        9: outtput all package capture while rule matching
+        5: output TCP package capture with NETFILTER
+        6: output UDP package capture with NETFILTER
+        7: output ICMP package capture with NETFILTER
+        8: output all package capture with NETFILTER
+        9: output all package capture while rule matching
 ```
 
 -p：设置过滤规则的配置文件路径。
