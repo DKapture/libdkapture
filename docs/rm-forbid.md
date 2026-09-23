@@ -9,26 +9,34 @@
 ```c
 sudo ./filter/rm-forbid -h
 Usage: ./filter/rm-forbid [option]
-  To query who are occupying the specified file.
+  Forbid deletion (unlink/rmdir) of files that are currently
+  held open by processes. The protection scope is selected by
+  device number and/or inode, not by directory path.
 
 Options:
   -p, --path [path]
-        path of the file to watch on
+        stat <path> and use its filesystem device number as the
+        protection scope: all open files on that filesystem are
+        protected. This is a shortcut for -d $(stat -c %d <path>);
+        it does not scope protection to the directory tree of <path>.
 
   -d, --dev [dev]
-        the device number of filesystem to which the inode belong.
-        you can get the dev by running command 'stat -c %d <file>'
+        device number of the filesystem to protect: all open files on
+        it are protected. Get it by running 'stat -c %d <file>'.
 
   -i, --inode [inode]
-        inode of the file to watch on
+        inode of the file to protect: only that exact file is
+        protected. Use it with -d to restrict the rule to one
+        filesystem; used alone, the inode is matched on every
+        filesystem.
 
   -h, --help 
         print this help message
 ```
 
-- -p：可以指定某个路径的文件不允许在占用时被删除，不指定则涵括全系统文件。
-- -d：-p的延伸版本，指定文件系统的设备号（可通过stat命令查询)，所有在该指定文件系统上的文件不允许在占用时被删除。
-- -i：指定文件inode号，建议结合-d选项使用，文件inode编号为指定值的文件不允许在占用时被删除。
+- -p：`stat <path>` 取该路径所在文件系统的设备号作为保护范围，该文件系统上所有被占用的文件都不可删除。它只是 `-d $(stat -c %d <path>)` 的快捷方式，**不会**把保护范围限定在 `<path>` 目录树下。
+- -d：指定文件系统的设备号（可通过 stat 命令查询），该设备上所有被占用的文件不可删除。
+- -i：指定文件 inode 号，只保护 inode 精确匹配的那一个文件。建议结合 -d 使用以限定单个文件系统；单独使用时会在所有文件系统上匹配该 inode 号。
 
 ## 获取设备号的方法
 
