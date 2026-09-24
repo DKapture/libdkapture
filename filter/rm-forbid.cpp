@@ -173,11 +173,11 @@ void parse_args(int argc, char **argv)
 		{
 			dev_t fs_dev;
 			get_fs_dev(optarg, &fs_dev);
-			rule.dev = fs_dev;
+			rule.dev = dev_old2new(fs_dev);
 			break;
 		}
 		case 'd':
-			rule.dev = strtoul(optarg, NULL, 10); // 直接解析设备号
+			rule.dev = dev_old2new(strtoul(optarg, NULL, 10)); // 直接解析设备号
 			break;
 		case 'i':
 			rule.inode = atoi(optarg);
