@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
+#include <map>
 #include <thread>
 
 #include "irqsnoop.skel.h"
@@ -31,10 +32,12 @@ struct env
 	int times;
 	bool timestamp;
 	bool verbose;
+	bool live;
 } env = {
 	.count = false,
 	.interval = 99999999,
 	.times = 99999999,
+	.live = true,
 };
 
 static volatile bool exiting;
@@ -88,16 +91,18 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		if (pos_args == 0)
 		{
 			env.interval = strtol(arg, NULL, 10);
-			if (errno)
+			env.live = false;
+			if (errno || env.interval <= 0)
 			{
-				fprintf(stderr, "invalid internal\n");
+				fprintf(stderr, "invalid interval\n");
 				argp_usage(state);
 			}
 		}
 		else if (pos_args == 1)
 		{
 			env.times = strtol(arg, NULL, 10);
-			if (errno)
+			env.live = false;
+			if (errno || env.times <= 0)
 			{
 				fprintf(stderr, "invalid times\n");
 				argp_usage(state);
@@ -146,12 +151,97 @@ static const char *vec_names[] = {
 	[RCU_SOFTIRQ] = "rcu",
 };
 
+struct vec_stat
+{
+	unsigned long long count;
+	unsigned long long total_time;
+};
+
+static std::map<unsigned long long, vec_stat> summary_map;
+
+/* -T: 输出前缀时间戳*/
+static void print_ts(const char *sep)
+{
+	char tsbuf[16];
+	time_t now = time(NULL);
+
+	strftime(tsbuf, sizeof(tsbuf), "%H:%M:%S", localtime(&now));
+	printf("%s%s", tsbuf, sep);
+}
+
+static void print_summary(void)
+{
+	char vecbuf[16];
+	const char *unit = env.nanoseconds ? "time(ns)" : "time(usec)";
+	bool printed = false;
+
+	for (auto &it : summary_map)
+	{
+		unsigned long long key = it.first;
+		int type = (int)(key >> 32);
+		int vec = (int)(unsigned int)(key & 0xffffffff);
+		const char *tname = type == IRQ ? "irq" : "softirq";
+		unsigned long long t = env.nanoseconds ? it.second.total_time : it.second.total_time / 1000;
+
+		if (!printed)
+		{
+			if (env.timestamp)
+			{
+				print_ts("\n");
+			}
+			if (env.count)
+			{
+				printf("%-10s %-12s %10s %16s\n", "type", "vec", "count", unit);
+			}
+			else
+			{
+				printf("%-10s %-12s %16s\n", "type", "vec", unit);
+			}
+			printed = true;
+		}
+		if (type == SOFT_IRQ)
+		{
+			snprintf(vecbuf, sizeof(vecbuf), "%s", vec >= 0 && vec < NR_SOFTIRQS ? vec_names[vec] : "unknown");
+		}
+		else
+		{
+			snprintf(vecbuf, sizeof(vecbuf), "irq%d", vec);
+		}
+		if (env.count)
+		{
+			printf("%-10s %-12s %10llu %16llu\n", tname, vecbuf, it.second.count, t);
+		}
+		else
+		{
+			printf("%-10s %-12s %16llu\n", tname, vecbuf, t);
+		}
+	}
+	summary_map.clear();
+	if (!printed)
+	{
+		printf("no irq/softirq events\n");
+	}
+	fflush(stdout);
+}
+
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	struct irq_event_t *e = (struct irq_event_t *)data;
 	if (e->pid == 0)
 	{
 		return 0;
+	}
+	unsigned long long key = ((unsigned long long)e->type << 32) | (unsigned int)e->vec_nr;
+	auto &stat = summary_map[key];
+	stat.count++;
+	stat.total_time += e->delta;
+	if (!env.live)
+	{
+		return 0;
+	}
+	if (env.timestamp)
+	{
+		print_ts(" ");
 	}
 	// 只处理IRQ类型事件
 	if (e->type == IRQ)
@@ -186,14 +276,32 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 void ringbuffer_worker(void)
 {
 	int err;
-	while (!exiting && --env.times != 0)
+	while (!exiting && env.times--)
 	{
-		err = ring_buffer__poll(rb, 500);
-		if (err < 0 && err != -EINTR)
+		struct timespec start_ts;
+		clock_gettime(CLOCK_MONOTONIC, &start_ts);
+		while (!exiting)
 		{
-			fprintf(stderr, "Error polling ring buffer: %d\n", err);
-			break;
+			struct timespec now;
+			long long remain_ms;
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			remain_ms = (long long)env.interval * 1000 -
+				    (now.tv_sec - start_ts.tv_sec) * 1000 -
+				    (now.tv_nsec - start_ts.tv_nsec) / 1000000;
+			if (remain_ms <= 0)
+			{
+				break;
+			}
+			err = ring_buffer__poll(rb, remain_ms < 500 ? (int)remain_ms : 500);
+			if (err < 0 && err != -EINTR)
+			{
+				fprintf(stderr, "Error polling ring buffer: %d\n", err);
+				break;
+			}
 		}
+#ifndef BUILTIN
+		print_summary();
+#endif
 	}
 }
 
