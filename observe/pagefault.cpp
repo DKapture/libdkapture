@@ -187,11 +187,11 @@ int main(int argc, char **argv)
 
 	if (!env.user)
 	{
-		skel->links.page_fault_user = NULL;
+		bpf_program__set_autoload(skel->progs.page_fault_user, false);
 	}
 	if (!env.kernel)
 	{
-		skel->links.page_fault_kernel = NULL;
+		bpf_program__set_autoload(skel->progs.page_fault_kernel, false);
 	}
 
 	err = pagefault_bpf__load(skel);
