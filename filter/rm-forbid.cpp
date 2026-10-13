@@ -73,12 +73,22 @@ struct HelpMsg
 };
 
 static HelpMsg help_msg[] = {
-	{"[path]",  "path of the file to watch on\n"					   },
-	{"[dev]",
-	 "the device number of filesystem to which the inode belong.\n"
-	 "\tyou can get the dev by running command 'stat -c %d <file>'\n"
+	{"[path]",
+	 "stat <path> and use its filesystem device number as the\n"
+	 "\tprotection scope: all open files on that filesystem are\n"
+	 "\tprotected. This is a shortcut for -d $(stat -c %d <path>);\n"
+	 "\tit does not scope protection to the directory tree of <path>.\n"
 	}, // 更新帮助信息
-	{"[inode]", "inode of the file to watch on\n"					 },
+	{"[dev]",
+	 "device number of the filesystem to protect: all open files on\n"
+	 "\tit are protected. Get it by running 'stat -c %d <file>'.\n"
+	},
+	{"[inode]",
+	 "inode of the file to protect: only that exact file is\n"
+	 "\tprotected. Use it with -d to restrict the rule to one\n"
+	 "\tfilesystem; used alone, the inode is matched on every\n"
+	 "\tfilesystem.\n"
+	},
 	{"",		 "print this help message\n"							},
 };
 
@@ -89,7 +99,9 @@ static HelpMsg help_msg[] = {
 void Usage(const char *arg0)
 {
 	printf("Usage: %s [option]\n", arg0);
-	printf("  To query who are occupying the specified file.\n\n");
+	printf("  Forbid deletion (unlink/rmdir) of files that are currently\n");
+	printf("  held open by processes. The protection scope is selected by\n");
+	printf("  device number and/or inode, not by directory path.\n\n");
 	printf("Options:\n");
 	for (int i = 0; lopts[i].name; i++)
 	{
