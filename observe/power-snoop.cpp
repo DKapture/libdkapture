@@ -42,7 +42,8 @@ struct env
 	bool summary;
 	time_t interval;
 	int times;
-} env = {
+}; 
+static struct env env = {
 	.pid = 0,
 	.cpu = (__u32)-1,
 	.comm = "",
@@ -493,7 +494,7 @@ static void print_stats(void)
 	printf("RPM events:       %llu\n", global_stats.rpm_events);
 }
 
-void ringbuffer_worker(void)
+static void ringbuffer_worker(void)
 {
 	int err;
 	while (!exiting && --env.times != 0)
