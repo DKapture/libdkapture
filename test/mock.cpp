@@ -59,6 +59,7 @@ struct bpf_program
 	std::string pin_path;
 	bpf_map *map;
 	void (*function)(bpf_program *p);
+	bool autoload;
 };
 
 struct bpf_map
@@ -68,6 +69,7 @@ struct bpf_map
 	size_t value_size;
 	size_t max_entries;
 	size_t sz;
+	size_t mmap_sz;
 	void *mem;
 	bpf_map_type type;
 	std::string name;
@@ -81,6 +83,15 @@ struct bpf_object
 	std::vector<bpf_link> links;
 };
 
+struct skeleton_offsets
+{
+	size_t map_base;
+	size_t prog_base;
+	size_t link_base;
+	int map_cnt;
+	int prog_cnt;
+};
+
 struct ring_buffer
 {
 	int map_fd;
@@ -90,6 +101,7 @@ struct ring_buffer
 };
 
 static bpf_object g_obj;
+static std::map<const bpf_object_skeleton *, skeleton_offsets> g_skeleton_offsets;
 
 std::string fd_path(int fd)
 {
@@ -265,9 +277,19 @@ int bpf_program__unpin(struct bpf_program *prog, const char *path)
 	return 0;
 }
 
+int bpf_program__set_autoload(struct bpf_program *prog, bool autoload)
+{
+	if (!prog)
+	{
+		return -EINVAL;
+	}
+	prog->autoload = autoload;
+	return 0;
+}
+
 bool bpf_program__autoload(const struct bpf_program *prog)
 {
-	return true;
+	return prog ? prog->autoload : false;
 }
 
 int bpf_object__pin_maps(struct bpf_object *obj, const char *path)
@@ -293,22 +315,52 @@ void bpf_object__destroy_skeleton(struct bpf_object_skeleton *s)
 		return;
 	}
 
-	int fd;
-	char buf[PATH_MAX];
-
-	for (int i = 0; i < s->prog_cnt; i++)
+	auto offset_it = g_skeleton_offsets.find(s);
+	if (offset_it == g_skeleton_offsets.end())
 	{
-		close(g_obj.progs[i].fd);
-		close(g_obj.links[i].fd);
+		free(s->maps);
+		free(s->progs);
+		free(s);
+		return;
 	}
-	g_obj.progs.clear();
-	g_obj.links.clear();
+	const skeleton_offsets offsets = offset_it->second;
+
 	for (int i = 0; i < s->map_cnt; i++)
 	{
-		munmap(g_obj.maps[i].mem, g_obj.maps[i].sz);
-		close(g_obj.maps[i].fd);
+		if (s->maps[i].mmaped && *s->maps[i].mmaped)
+		{
+			free(*s->maps[i].mmaped);
+			*s->maps[i].mmaped = nullptr;
+		}
 	}
-	g_obj.maps.clear();
+
+	for (int i = 0; i < offsets.prog_cnt; i++)
+	{
+		close(g_obj.progs[offsets.prog_base + i].fd);
+		close(g_obj.links[offsets.link_base + i].fd);
+	}
+	g_obj.progs.erase(
+		g_obj.progs.begin() + offsets.prog_base,
+		g_obj.progs.begin() + offsets.prog_base + offsets.prog_cnt
+	);
+	g_obj.links.erase(
+		g_obj.links.begin() + offsets.link_base,
+		g_obj.links.begin() + offsets.link_base + offsets.prog_cnt
+	);
+	for (int i = 0; i < offsets.map_cnt; i++)
+	{
+		bpf_map &map = g_obj.maps[offsets.map_base + i];
+		if (map.mem)
+		{
+			munmap(map.mem, map.mmap_sz ? map.mmap_sz : map.sz);
+		}
+		close(map.fd);
+	}
+	g_obj.maps.erase(
+		g_obj.maps.begin() + offsets.map_base,
+		g_obj.maps.begin() + offsets.map_base + offsets.map_cnt
+	);
+	g_skeleton_offsets.erase(offset_it);
 	free(s->maps);
 	free(s->progs);
 	free(s);
@@ -319,7 +371,7 @@ int bpf_object__find_map_fd_by_name(
 	const char *name
 )
 {
-	for (int i = 0; i < obj->maps.size(); i++)
+	for (int i = (int)obj->maps.size() - 1; i >= 0; i--)
 	{
 		if (obj->maps[i].name == name)
 		{
@@ -345,15 +397,21 @@ int bpf_object__open_skeleton(
 
 	*s->obj = &g_obj;
 
+	const size_t map_base = g_obj.maps.size();
+	const size_t prog_base = g_obj.progs.size();
+	const size_t link_base = g_obj.links.size();
+	g_obj.maps.reserve(map_base + s->map_cnt);
+	g_obj.progs.reserve(prog_base + s->prog_cnt);
+	g_obj.links.reserve(link_base + s->prog_cnt);
+	g_skeleton_offsets[s] = {map_base, prog_base, link_base, s->map_cnt, s->prog_cnt};
+
 	int fd;
-	bpf_program prog;
-	bpf_map map;
-	bpf_link link;
 	const char *name;
 	char buf[PATH_MAX];
 
 	for (int i = 0; i < s->map_cnt; i++)
 	{
+		bpf_map map {};
 		name = s->maps[i].name;
 		snprintf(buf, PATH_MAX, "%s/map-%s", BPF_PIN_PATH, name);
 		fd = open(buf, O_RDWR | O_TRUNC | O_CREAT, 0600);
@@ -378,35 +436,43 @@ int bpf_object__open_skeleton(
 			map.sz = RB_MAP_SIZE;
 			map.type = BPF_MAP_TYPE_UNSPEC;
 		}
+		map.mmap_sz = 0;
 		int page_size = getpagesize();
 		if (strcmp(name, "dk_shared_mem") == 0 ||
 			map.type == BPF_MAP_TYPE_RINGBUF)
 		{
 			int ret = 0;
-			ret = ftruncate(fd, page_size * 2 + RB_MAP_SIZE);
+			map.mmap_sz = page_size * 2 + RB_MAP_SIZE;
+			ret = ftruncate(fd, map.mmap_sz);
 			assert(ret == 0);
 			map.type = BPF_MAP_TYPE_RINGBUF;
 			map.mem = mmap(
 				NULL,
-				page_size * 2 + RB_MAP_SIZE,
+				map.mmap_sz,
 				PROT_READ | PROT_WRITE,
 				MAP_SHARED,
 				fd,
 				0
 			);
 			assert(map.mem != MAP_FAILED);
-			memset(map.mem, 0, page_size * 2 + RB_MAP_SIZE);
+			memset(map.mem, 0, map.mmap_sz);
 		}
 		else
 		{
 			map.mem = nullptr;
 		}
 		g_obj.maps.push_back(std::move(map));
-		*s->maps[i].map = &g_obj.maps[i];
+		*s->maps[i].map = &g_obj.maps[map_base + i];
+		if (s->maps[i].mmaped)
+		{
+			*s->maps[i].mmaped = calloc(1, getpagesize());
+			assert(*s->maps[i].mmaped != nullptr);
+		}
 	}
 
 	for (int i = 0; i < s->prog_cnt; i++)
 	{
+		bpf_program prog {};
 		name = s->progs[i].name;
 		snprintf(buf, PATH_MAX, "%s/prog-%s", BPF_PIN_PATH, name);
 		fd = open(buf, O_RDWR | O_TRUNC | O_CREAT, 0600);
@@ -419,6 +485,7 @@ int bpf_object__open_skeleton(
 		prog.name = name;
 		prog.map = nullptr;
 		prog.function = nullptr;
+		prog.autoload = true;
 		if (strcmp(name, "dump_task") == 0)
 		{
 			prog.function = dump_task;
@@ -432,8 +499,9 @@ int bpf_object__open_skeleton(
 			}
 		}
 		g_obj.progs.push_back(std::move(prog));
-		*s->progs[i].prog = &g_obj.progs[i];
+		*s->progs[i].prog = &g_obj.progs[prog_base + i];
 
+		bpf_link link {};
 		snprintf(buf, PATH_MAX, "%s/link-%s", BPF_PIN_PATH, name);
 		fd = open(buf, O_RDWR | O_TRUNC | O_CREAT, 0600);
 		if (fd < 0)
@@ -442,9 +510,9 @@ int bpf_object__open_skeleton(
 		}
 		link.fd = fd;
 		link.pin_path = buf;
-		link.prog = &g_obj.progs[i];
+		link.prog = &g_obj.progs[prog_base + i];
 		g_obj.links.push_back(std::move(link));
-		*s->progs[i].link = &g_obj.links[i];
+		*s->progs[i].link = &g_obj.links[link_base + i];
 	}
 	return 0;
 }
@@ -908,7 +976,7 @@ ssize_t read(int __fd, void *__buf, size_t __nbytes)
 		}
 
 		bpf_program *prog = g_obj.links[i].prog;
-		if (prog->function)
+		if (prog->autoload && prog->function)
 		{
 			prog->function(prog);
 		}
