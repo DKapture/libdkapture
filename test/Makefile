@@ -23,7 +23,8 @@ CXXFLAGS = -g -D__GTEST__ -DBUILTIN -MMD \
 		   -I$(PROJ_ROOT)/build/policy \
 		   -I$(PROJ_ROOT)/bpf/export
 
-LDFLAGS = -Wl,-rpath=$(PROJ_ROOT)/googletest/build/lib/
+LDFLAGS = -Wl,-rpath='$$ORIGIN/../../googletest/build/lib'
+LDLIBS = -lbpf -lpthread -lelf -lz
 
 GTEST_LIBS = $(PROJ_ROOT)/googletest/build/lib/libgtest_main.so	\
 			 $(PROJ_ROOT)/googletest/build/lib/libgtest.so
@@ -43,9 +44,10 @@ $(TARGET): $(OBJS) $(GTEST_LIBS) \
 	$(BUILD_DIR)/kmemleak.o \
 	$(BUILD_DIR)/irqsnoop.o \
 	$(BUILD_DIR)/mountsnoop.o \
+	$(BUILD_DIR)/trace-exec.o \
 	$(BUILD_DIR)/frtp.o \
 	$(BUILD_DIR)/elfverify.o
-	$(CXX) $^ $(LDFLAGS) -o $@
+	$(CXX) $^ $(LDFLAGS) $(LDLIBS) -o $@
 
 $(BUILD_DIR):
 	@mkdir -p $@
