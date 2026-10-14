@@ -1062,7 +1062,7 @@ int main(int argc, char **argv)
 {
 	int iter_fd;
 	ssize_t rd_sz;
-	CircleBuf *cb;
+	CircleBuf *cb = nullptr;
 	u32 key = 0;
 
 	rule_init();
@@ -1072,9 +1072,16 @@ int main(int argc, char **argv)
 	DEBUG(0, "BpfData header size: %lu\n", sizeof(BpfData));
 
 	register_signal();
-	cb = new CircleBuf(CIRCLE_BUF_SIZE);
-	memset(cb->buf(), 0, CIRCLE_BUF_SIZE);
-
+	try
+	{
+		cb = new CircleBuf(CIRCLE_BUF_SIZE);
+		memset(cb->buf(), 0, CIRCLE_BUF_SIZE);
+	}
+	catch (const std::exception &e)
+	{
+		pr_error("lsock: %s\n", e.what());
+		goto err_out_before_trace;
+	}
 	trace.start();
 	trace.async_follow();
 
@@ -1141,8 +1148,9 @@ int main(int argc, char **argv)
 	lsock_bpf::destroy(obj); // Clean up BPF object
 	delete cb;
 	return 0;
-
 err_out:
+	trace.stop();
+err_out_before_trace:
 	if (obj)
 	{
 		lsock_bpf::detach(obj);	 // Detach BPF program
