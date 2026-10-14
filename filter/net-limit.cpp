@@ -87,15 +87,20 @@ static void cleanup_tgid_cgroup()
 static int usage(FILE *out, int rc)
 {
 	fprintf(out, "Usage:\n");
+	fprintf(out, "  net-limit load --egress --dev <ifname>\n");
 	fprintf(
 		out,
-		"  net-limit load (--egress --dev <ifname> | --ingress [--attach-root "
-		"auto|<cgroup-path>]) [--pin]\n"
+		"  net-limit load --ingress [--attach-root auto|<cgroup-path>] "
+		"[--pin]\n"
 	);
 	fprintf(
 		out,
-		"                 [--rate <rate>] [--burst <bytes>] [--tgid "
-		"<tgid>|--pid <pid>|--cgroup-path <path>|--cgroup-id <id>]\n"
+		"                           [--rate <rate>] [--burst <bytes>]\n"
+	);
+	fprintf(
+		out,
+		"                           [--tgid <tgid>|--pid <pid>|--cgroup-path "
+		"<path>|--cgroup-id <id>]\n"
 	);
 	fprintf(
 		out,
@@ -114,12 +119,20 @@ static int usage(FILE *out, int rc)
 	fprintf(out, "\nNote:\n");
 	fprintf(
 		out,
-		"  Run 'net-limit load ... --pin' before add/del/list/stats.\n"
+		"  For --ingress: run 'load ... --pin' before add/del/list/stats.\n"
 	);
 	fprintf(
 		out,
-		"  The load command pins maps under /sys/fs/bpf and must keep "
+		"  For --egress:  load pins maps under /sys/fs/bpf unconditionally;\n"
+	);
+	fprintf(
+		out,
+		"                 add/del/list/stats --egress work while load is "
 		"running.\n"
+	);
+	fprintf(
+		out,
+		"  The load command must keep running for enforcement.\n"
 	);
 	fprintf(
 		out,
