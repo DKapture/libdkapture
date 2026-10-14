@@ -79,7 +79,7 @@ struct BpfData
 	char comm[16];
 };
 
-static run_queue_bpf *obj;
+static run_queue_bpf *obj = NULL;
 static int log_map_fd;
 static struct ring_buffer *rb = NULL;
 static int filter_fd;
@@ -287,14 +287,20 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	const struct BpfData *log = (const struct BpfData *)data; // Cast data to
 															  // BpfData
 															  // structure
-	auto it = runqueques.find(log->cpu);
-	if (it == runqueques.end())
-	{
-		runqueques[log->cpu] = std::vector<struct BpfData>();
+	try{
+		auto it = runqueques.find(log->cpu);
+		if (it == runqueques.end())
+		{
+			runqueques[log->cpu] = std::vector<struct BpfData>();
+		}
+
+		runqueques[log->cpu].push_back(*log);
 	}
-
-	runqueques[log->cpu].push_back(*log);
-
+	catch (const std::bad_alloc &e)
+	{
+		pr_error("handle_event OOM: %s\n", e.what());
+		return -1;
+	}
 	return 0;
 }
 
@@ -375,11 +381,18 @@ int main(int argc, char *args[])
 		exit(EXIT_FAILURE);
 	}
 	ssize_t rd_sz = 0;
-
-	parse_args(argc, args); // Parse command line arguments
+	int key = 0;						  // Key for BPF map
+	try
+	{
+		parse_args(argc, args); // Parse command line arguments
+	}
+	catch(const std::exception& e)
+	{
+		fprintf(stderr, "run-queue: %s\n", e.what());
+		goto cleanup;
+	}
 	register_signal();		// Register signal handler
 
-	int key = 0;						  // Key for BPF map
 	obj = run_queue_bpf::open_and_load(); // Load BPF program
 	if (!obj)
 	{
