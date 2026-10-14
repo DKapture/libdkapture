@@ -184,6 +184,9 @@ void parse_args(int argc, char **argv)
 				exit(-1);
 			}
 			break;
+		case 't': // Top mode
+			top = true;
+			break;
 		case 'h': // Help
 			Usage(argv[0]);
 			free(buf);
