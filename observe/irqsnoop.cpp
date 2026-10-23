@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
+#include <map>
 #include <thread>
 
 #include "irqsnoop.skel.h"
@@ -31,10 +32,12 @@ struct env
 	int times;
 	bool timestamp;
 	bool verbose;
+	bool live;
 } env = {
 	.count = false,
 	.interval = 99999999,
 	.times = 99999999,
+	.live = true,
 };
 
 static volatile bool exiting;
@@ -88,15 +91,17 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		if (pos_args == 0)
 		{
 			env.interval = strtol(arg, NULL, 10);
-			if (errno)
+			env.live = false;
+			if (errno || env.interval <= 0)
 			{
-				fprintf(stderr, "invalid internal\n");
+				fprintf(stderr, "invalid interval\n");
 				argp_usage(state);
 			}
 		}
 		else if (pos_args == 1)
 		{
 			env.times = strtol(arg, NULL, 10);
+			env.live = false;
 			if (errno)
 			{
 				fprintf(stderr, "invalid times\n");
@@ -146,6 +151,59 @@ static const char *vec_names[] = {
 	[RCU_SOFTIRQ] = "rcu",
 };
 
+struct vec_stat
+{
+	unsigned long long count;
+	unsigned long long total_time;
+};
+
+static std::map<unsigned long long, vec_stat> summary_map;
+
+static void print_summary(void)
+{
+	char vecbuf[16];
+	bool printed = false;
+
+	for (auto &it : summary_map)
+	{
+		if (!it.second.count)
+		{
+			continue;
+		}
+		unsigned long long key = it.first;
+		int type = (int)(key >> 32);
+		int vec = (int)(unsigned int)(key & 0xffffffff);
+
+		if (!printed)
+		{
+			printf("%-10s %-12s %16s\n", "type", "vec", "time(usec)");
+			printed = true;
+		}
+		if (type == SOFT_IRQ)
+		{
+			snprintf(vecbuf, sizeof(vecbuf), "%s",
+				 vec >= 0 && vec < NR_SOFTIRQS ? vec_names[vec]
+							       : "unknown");
+		}
+		else
+		{
+			snprintf(vecbuf, sizeof(vecbuf), "irq%d", vec);
+		}
+		printf(
+			"%-10s %-12s %16llu\n",
+			type == IRQ ? "irq" : "softirq",
+			vecbuf,
+			it.second.total_time / 1000
+		);
+	}
+	summary_map.clear();
+	if (!printed)
+	{
+		printf("no irq/softirq events\n");
+	}
+	fflush(stdout);
+}
+
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	struct irq_event_t *e = (struct irq_event_t *)data;
@@ -153,7 +211,16 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	{
 		return 0;
 	}
-	// 只处理IRQ类型事件
+	unsigned long long key =
+		((unsigned long long)(unsigned int)e->type << 32) |
+		(unsigned int)e->vec_nr;
+	auto &stat = summary_map[key];
+	stat.count++;
+	stat.total_time += e->delta;
+	if (!env.live)
+	{
+		return 0;
+	}
 	if (e->type == IRQ)
 	{
 		printf(
@@ -186,14 +253,21 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 void ringbuffer_worker(void)
 {
 	int err;
-	while (!exiting && --env.times != 0)
+	while (!exiting && env.times--)
 	{
-		err = ring_buffer__poll(rb, 500);
-		if (err < 0 && err != -EINTR)
+		time_t start_ts = time(NULL);
+		while (!exiting && time(NULL) - start_ts < env.interval)
 		{
-			fprintf(stderr, "Error polling ring buffer: %d\n", err);
-			break;
+			err = ring_buffer__poll(rb, 500);
+			if (err < 0 && err != -EINTR)
+			{
+				fprintf(stderr, "Error polling ring buffer: %d\n", err);
+				return;
+			}
 		}
+#ifndef BUILTIN
+		print_summary();
+#endif
 	}
 }
 
